@@ -1,60 +1,167 @@
-影匣 双授权协议 v1.0
-Ying Xia Dual License v1.0
+import { useState } from 'react'
+import { t } from '../../../shared/i18n'
+import Icon from './Icon'
+
+interface Props {
+  open: boolean
+  onClose: () => void
+  /** 当前语言，用于本地化协议标题与邮箱标签 */
+  language?: string
+}
+
+const LICENSE_EMAIL = 'new_mr_awei@163.com'
+
+/** 中文协议全文（与根目录 LICENSE 保持一致） */
+const LICENSE_ZH = `影匣 双授权协议 v1.0
 版权所有 © 2026 影匣（new_mr_awei@163.com）
-Copyright © 2026 Ying Xia (new_mr_awei@163.com)
-================================================================================
-中文版本
-================================================================================
+
 本软件采用双授权模式，根据使用场景适用不同授权条款：
+
 一、非商业免费使用授权
 在遵守以下条款的前提下，个人用户、非盈利组织、教育机构可免费使用、复制、修改、分发本软件：
 1. 保留原版权声明和本协议文本；
 2. 不得将本软件用于任何商业收费产品或付费服务；
 3. 基于本软件修改的衍生作品，同样适用本协议条款。
+
 二、恶意程序禁止条款（免费授权版和商业授权版均必须遵守）
 1. 严禁在本软件、本软件的克隆体或变体中，直接或间接植入、集成、嵌入任何恶意代码、间谍软件、病毒、木马、勒索软件、挖矿程序、广告插件或其他任何形式的有害程序，防止本软件被篡改或注入恶意代码；
 2. 严禁将本软件、本软件的克隆体或变体，直接或间接植入、集成、嵌入到任何恶意软件、间谍软件、病毒、木马、勒索软件、挖矿程序、广告插件或其他任何形式的有害程序中；
 3. 严禁将本软件、本软件的克隆体或变体，用于任何恶意程序，或与任何带有恶意程序的软件、服务、系统结合使用；
 4. 本条款同时适用于免费授权版和商业授权版，无论是否获得商业授权，均不得违反本条款；
 5. 违反本条款的，作者将保留追究法律责任、提起诉讼的权利，并有权要求侵权方承担全部经济损失和法律后果。
+
 三、商业使用授权
 任何将本软件用于商业用途的行为，包括但不限于：
 1. 将本软件集成到收费产品或付费服务中；
 2. 使用本软件提供商业咨询、开发、运维等收费服务；
 3. 将本软件用于企业内部商业项目并获得商业利益；
 均必须事先联系作者（new_mr_awei@163.com）购买商业授权，签订书面授权协议后方可使用。
+
 四、权利保留
 1. 作者保留本软件的全部著作权及其他知识产权；
 2. 发现任何违反本协议的商业使用或恶意使用，作者保留追究法律责任、提起诉讼的权利；
 3. 作者有权随时更新本协议条款，更新后的协议自发布之日起生效。
+
 五、免责声明
 本软件按"原样"提供，不提供任何明示或暗示的保证，包括但不限于对适销性、特定用途适用性和非侵权性的保证。在任何情况下，作者均不对因使用本软件产生的任何直接或间接损失承担责任。
-商业授权联系：new_mr_awei@163.com
-================================================================================
-English Version
-================================================================================
+
+商业授权联系：new_mr_awei@163.com`
+
+/** 英文协议全文（与根目录 LICENSE 保持一致） */
+const LICENSE_EN = `Ying Xia Dual License v1.0
+Copyright © 2026 Ying Xia (new_mr_awei@163.com)
+
 This software is licensed under a dual licensing model. Different license terms apply depending on the use case:
+
 1. Non-Commercial Free Use License
 Individual users, non-profit organizations, and educational institutions may freely use, copy, modify, and distribute this software, provided that the following terms are met:
 1. Retain the original copyright notice and this license text;
 2. Do not use this software in any commercial paid products or paid services;
 3. Derivative works based on this software are also subject to the terms of this license.
+
 2. Malware Prohibition Clause (Both Free and Commercial Licenses Must Comply)
 1. It is strictly prohibited to directly or indirectly implant, integrate, or embed any malicious code, spyware, virus, trojan, ransomware, mining programs, adware, or any other form of harmful programs into this software, its clones, or variants, to prevent this software from being tampered with or injected with malicious code;
 2. It is strictly prohibited to directly or indirectly implant, integrate, or embed this software, its clones, or variants into any malware, spyware, virus, trojan, ransomware, mining programs, adware, or any other form of harmful programs;
 3. It is strictly prohibited to use this software, its clones, or variants in any malicious programs, or in combination with any software, services, or systems that contain malicious programs;
 4. This clause applies to both the free license and the commercial license. Regardless of whether commercial authorization has been obtained, this clause must not be violated;
 5. In case of violation of this clause, the author reserves the right to pursue legal liability, file lawsuits, and demand that the infringing party bear all economic losses and legal consequences.
+
 3. Commercial Use License
 Any commercial use of this software, including but not limited to:
 1. Integrating this software into paid products or paid services;
 2. Using this software to provide paid services such as commercial consulting, development, or operations;
 3. Using this software in internal commercial projects and obtaining commercial benefits;
 Must contact the author (new_mr_awei@163.com) in advance to purchase a commercial license and sign a written authorization agreement before use.
+
 4. Rights Reserved
 1. The author reserves all copyrights and other intellectual property rights of this software;
 2. Upon discovering any commercial use or malicious use that violates this agreement, the author reserves the right to pursue legal liability and file lawsuits;
 3. The author reserves the right to update the terms of this agreement at any time, and the updated agreement shall take effect from the date of publication.
+
 5. Disclaimer
 This software is provided "AS IS" without any express or implied warranties, including but not limited to warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author be liable for any direct or indirect damages arising from the use of this software.
-Commercial License Contact: new_mr_awei@163.com
+
+Commercial License Contact: new_mr_awei@163.com`
+
+export default function LicenseModal({ open, onClose, language }: Props) {
+  const [emailCopied, setEmailCopied] = useState(false)
+  const isEn = language === 'en-US'
+
+  if (!open) return null
+
+  const copyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(LICENSE_EMAIL)
+      setEmailCopied(true)
+      setTimeout(() => setEmailCopied(false), 1500)
+    } catch {
+      // 剪贴板不可用时静默
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-ink-800 rounded-xl w-[640px] max-w-[92vw] max-h-[88vh] flex flex-col shadow-card animate-fadeIn"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 头部 */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-brand/15 flex items-center justify-center">
+              <Icon name="info" size={16} className="text-brand" />
+            </div>
+            <div>
+              <div className="text-white font-bold text-sm">
+                {isEn ? 'Ying Xia Dual License v1.0' : '影匣 双授权协议 v1.0'}
+              </div>
+              <div className="text-white/40 text-[11px]">
+                {isEn ? 'Open Source License' : '开源协议'}
+              </div>
+            </div>
+          </div>
+          <button
+            className="w-8 h-8 rounded-lg flex items-center justify-center bg-ink-700 hover:bg-ink-600 text-white/60 shrink-0"
+            onClick={onClose}
+            title={t('close')}
+          >
+            <Icon name="x" size={16} />
+          </button>
+        </div>
+
+        {/* 协议正文 */}
+        <div className="flex-1 overflow-auto px-6 py-4">
+          <pre className="text-white/70 text-xs leading-relaxed whitespace-pre-wrap font-sans">
+            {isEn ? LICENSE_EN : LICENSE_ZH}
+          </pre>
+        </div>
+
+        {/* 底部：联系邮箱 + 关闭 */}
+        <div className="px-6 py-3.5 border-t border-white/5 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 text-xs">
+              {isEn ? 'Contact:' : '商业授权联系：'}
+            </span>
+            <button
+              className="text-brand hover:underline text-xs font-medium flex items-center gap-1 transition-colors"
+              onClick={copyEmail}
+              title={isEn ? 'Click to copy email' : '点击复制邮箱'}
+            >
+              <Icon name={emailCopied ? 'check' : 'copy'} size={11} />
+              {emailCopied ? (isEn ? 'Copied!' : '已复制') : LICENSE_EMAIL}
+            </button>
+          </div>
+          <button
+            className="h-8 px-4 rounded-lg bg-ink-700 hover:bg-ink-600 text-white/80 text-xs font-medium transition-colors"
+            onClick={onClose}
+          >
+            {t('close')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

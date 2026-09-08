@@ -32,3 +32,6 @@ out/
 release/
 dist-*/
 electron.vite.config.*.mjs
+
+# 协议备份（不提交）
+LICENSE.mit.backup

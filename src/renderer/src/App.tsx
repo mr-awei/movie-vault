@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   DisplayEntry,
   ImageSource,
@@ -24,6 +24,7 @@ import EditMetaModal from './components/EditMetaModal'
 import VideoDetail from './components/VideoDetail'
 import StatsPanel from './components/StatsPanel'
 import AboutModal from './components/AboutModal'
+import LicenseModal from './components/LicenseModal'
 import HomeView from './components/HomeView'
 import HomeSkeleton from './components/HomeSkeleton'
 import BrowseBar from './components/BrowseBar'
@@ -120,6 +121,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [licenseOpen, setLicenseOpen] = useState(false)
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
   const [libraryOpen, setLibraryOpen] = useState(false)
   /** 用户须知弹窗：首次启动（noticeDismissed 未设置/为 false）时强制弹出 */
@@ -2077,6 +2079,13 @@ export default function App() {
         info={appInfo}
         onClose={() => setAboutOpen(false)}
         onOpenExternal={(u) => void api.openExternal(u)}
+        onOpenLicense={() => setLicenseOpen(true)}
+        language={settings.language}
+      />
+
+      <LicenseModal
+        open={licenseOpen}
+        onClose={() => setLicenseOpen(false)}
         language={settings.language}
       />
 

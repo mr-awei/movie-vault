@@ -2,15 +2,15 @@
 
 | Project | YingXia Local Video Manager & Poster Wall |
 |---|---|
-| Doc version | v2.6.7 |
-| Written | 2026-09-02 |
-| Current product version | v2.6.7 |
+| Doc version | v2.7.0 |
+| Written | 2026-09-09 |
+| Current product version | v2.7.0 |
 | Doc status | Reviewed (single-author spec) |
 | Source | Personal collection management + historical feature iteration |
 | References | `HANDOFF.md` (project handoff), `CHANGELOG.md` (version history), `src/shared/ipc.ts` (capability list) |
 
 > This document follows an enterprise-grade PRD structure: **context → evolution → full feature spec → non-functional requirements → data model → risks & roadmap**.
-> All modules verified against the codebase (as of v2.6.7). Markers like 【Current】indicate features still present in v2.6.7.
+> All modules verified against the codebase (as of v2.7.0). Markers like 【Current】indicate features still present in v2.7.0.
 
 ---
 
@@ -63,7 +63,7 @@ The user owns a large collection of local video files organized into folders nam
 | Installer & browsing | v2.4.x | Installer UX improvements (detect running app, no forced kill), list view mode toggle (flat/grouped), random frame extraction with quality filtering |
 | Stability release | v2.5.0 | Fix self-killing upgrade detection; feature stabilization and PRD alignment |
 | Internationalization & compliance | v2.6.6–2.6.7 | NSIS installer language selection at first step and registry persistence; main process reads installer language on first launch; English user notice removes PRC legal references; uninstaller follows installer language. v2.6.7 further merges the in-app uninstall confirmation with the "keep / delete user data" choice into one flow, and fixes the deletion-phase error (UTF-8 BOM for the PowerShell guard script, parameter binding, lingering-process lock release, deletion retries 3→5). |
-
+| **License & compliance upgrade** | **v2.7.0** | Open source license switched from MIT to Ying Xia Dual License v1.0 (bilingual five-chapter structure: Non-Commercial Free Use, Malware Prohibition with three-layer protection, Commercial Use, Rights Reserved, Disclaimer); new in-app license modal (LicenseModal) accessible from About modal footer, with bilingual auto-switch and one-click email copy; PRD/README/CHANGELOG fully updated to v2.7.0. |
 ### 2.1 Recent Fix Cluster (v2.2.4 – v2.2.10)
 
 | Version | User Feedback | Root Cause | Fix |
@@ -400,4 +400,4 @@ Video {
 
 ---
 
-:*End of document. This PRD covers all features present as of v2.6.7. New requirements should be appended to Section 10 Roadmap and reviewed.*
+:*End of document. This PRD covers all features present as of v2.7.0. New requirements should be appended to Section 10 Roadmap and reviewed.*

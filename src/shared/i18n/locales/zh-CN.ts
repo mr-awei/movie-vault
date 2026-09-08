@@ -295,6 +295,7 @@ export default {
   'about.techStack': '技术栈',
   'about.thirdParty': '第三方库与数据来源',
   'about.license': '许可证',
+  'about.viewLicense': '查看开源协议',
   'about.starTitle': '喜欢影匣吗？欢迎点亮 Star 支持',
   'about.starDesc': '开源不易，去 GitHub 点个 Star，让这个项目被更多人看到',
   'about.star': '点亮 Star',

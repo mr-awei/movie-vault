@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.7.0 (2026-09-09)
+
+**License switched to dual license + in-app license modal + full documentation rewrite**
+
+- **Open source license switched from MIT to "Ying Xia Dual License v1.0"**: The root `LICENSE` file has been fully replaced with a bilingual (Chinese/English) dual license, containing five chapters: Non-Commercial Free Use License, Malware Prohibition Clause (three-layer protection: anti-tampering/injection, anti-embedding into malware, anti-use with malware), Commercial Use License, Rights Reserved, and Disclaimer. Commercial license contact: new_mr_awei@163.com. The original MIT license is backed up as `LICENSE.mit.backup`.
+- **New in-app open source license modal (`LicenseModal`)**: The About modal footer now has a "Ying Xia Dual License v1.0 · View License" button. Clicking it opens an in-app modal displaying the full bilingual license text (auto-switches with app language), no external browser needed.
+- **One-click email copy in license modal**: The modal footer shows the commercial license contact email `new_mr_awei@163.com`; clicking it copies to clipboard with a "Copied!" confirmation.
+- **About modal license entry changed to internal modal**: The footer license button previously opened an external opensource.org link; it now opens the in-app license modal. The license name in `about.ts` is updated to "Ying Xia Dual License v1.0 / 影匣 双授权协议 v1.0", and licenseUrl points to the repo LICENSE file.
+- **New i18n key `about.viewLicense`**: Chinese "查看开源协议", English "View License".
+- **PRD updated to v2.7.0**: Doc version, product version, and date synchronized; evolution history adds v2.7.0 phase.
+- **README fully rewritten (bilingual)**: `README.md` and `README.zh-CN.md` completely rewritten with updated license statement, feature highlights, tech stack, etc.
+- **package.json license field updated**: `license` changed from `"MIT"` to `"影匣 双授权协议 v1.0"`.
 ## v2.6.7 (2026-09-02)
 
 **In-app uninstall flow consolidation + uninstaller robustness fixes**

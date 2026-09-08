@@ -12,6 +12,8 @@ interface Props {
   onClose: () => void
   /** 用默认浏览器打开外部链接 */
   onOpenExternal: (url: string) => void
+  /** 打开开源协议弹窗 */
+  onOpenLicense: () => void
   /** 当前语言，用于本地化 About 文案 */
   language?: string
 }
@@ -33,7 +35,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-export default function AboutModal({ open, info, onClose, onOpenExternal, language }: Props) {
+export default function AboutModal({ open, info, onClose, onOpenExternal, onOpenLicense, language }: Props) {
   const [copied, setCopied] = useState(false)
   const [updateRes, setUpdateRes] = useState<UpdateCheckResult | null>(null)
   const [checking, setChecking] = useState(false)
@@ -261,10 +263,10 @@ export default function AboutModal({ open, info, onClose, onOpenExternal, langua
           </span>
           <button
             className="text-white/55 hover:text-brand flex items-center gap-1 transition-colors"
-            onClick={() => onOpenExternal(about.licenseUrl)}
+            onClick={onOpenLicense}
           >
-            <Icon name="external" size={12} />
-            {about.license} {t('about.license')}
+            <Icon name="info" size={12} />
+            {about.license} · {t('about.viewLicense')}
           </button>
         </div>
       </div>

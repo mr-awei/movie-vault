@@ -59,8 +59,8 @@ export const ABOUT_ZH: About = {
   /** 版权起始年份 */
   year: 2026,
   /** 许可证 */
-  license: 'MIT',
-  licenseUrl: 'https://opensource.org/licenses/MIT',
+  license: '影匣 双授权协议 v1.0',
+  licenseUrl: 'https://github.com/mr-awei/yingxia-video-manager/blob/main/LICENSE',
 
   /** 开源仓库地址（About 弹窗用于引导点亮 Star） */
   github: 'https://github.com/mr-awei/yingxia-video-manager',
@@ -114,10 +114,10 @@ export const ABOUT_EN: About = {
     '(categories / descriptions / tags / ratings). Optional JavDB metadata scraping with permanent local cache, ' +
     'four themes, smooth virtual scrolling for large libraries, a privacy shield that blurs preview thumbnails, ' +
     'plus actor / studio / series filtering and a statistics dashboard.',
-  author: 'YingXia',
+  author: 'Ying Xia',
   year: 2026,
-  license: 'MIT',
-  licenseUrl: 'https://opensource.org/licenses/MIT',
+  license: 'Ying Xia Dual License v1.0',
+  licenseUrl: 'https://github.com/mr-awei/yingxia-video-manager/blob/main/LICENSE',
   github: 'https://github.com/mr-awei/yingxia-video-manager',
   links: [
     {

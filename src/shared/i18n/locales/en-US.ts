@@ -295,6 +295,7 @@ export default {
   'about.techStack': 'Tech Stack',
   'about.thirdParty': 'Third-Party Libraries & Data Sources',
   'about.license': 'License',
+  'about.viewLicense': 'View License',
   'about.starTitle': 'Enjoying YingXia? Drop a Star on GitHub',
   'about.starDesc': 'Open source takes effort — your star helps the project reach more people.',
   'about.star': 'Star it',
