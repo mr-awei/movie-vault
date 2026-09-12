@@ -1,6 +1,6 @@
 ﻿!include "FileFunc.nsh"
 
-# 影匣自定义 NSIS 逻辑
+# 影海自定义 NSIS 逻辑
 # 安装器侧：把安装语言写入注册表，供卸载器与应用首次启动读取。
 # 卸载器侧：卸载欢迎页之后新增「保留用户数据」复选框页面（默认勾选 = 保留）：
 #           取消勾选并二次确认后，卸载流程尝试删除 %APPDATA%\local-video-manager。
@@ -20,10 +20,10 @@
   WriteRegStr HKCU "Software\YingXia" "InstallerLanguage" $R0
 
   # 检测旧版本是否仍在运行
-  FindWindow $0 "" "影匣"
+  FindWindow $0 "" "影海"
   IntCmp $0 0 InitEnd
   StrCmp $LANGUAGE "2052" 0 +3
-  MessageBox MB_OK|MB_ICONEXCLAMATION "检测到 影匣 正在运行。请先彻底关闭应用（包括右下角的托盘图标），然后重新运行安装器。"
+  MessageBox MB_OK|MB_ICONEXCLAMATION "检测到 影海 正在运行。请先彻底关闭应用（包括右下角的托盘图标），然后重新运行安装器。"
   Goto +2
   MessageBox MB_OK|MB_ICONEXCLAMATION "YingXia is currently running. Please close the application completely (including the tray icon), then run the installer again."
   Abort
@@ -105,7 +105,7 @@ InitEnd:
     Pop $0
 
     StrCmp $R9 "zh-CN" 0 langEn
-    StrCpy $R1 "是否保留 影匣 的应用数据？"
+    StrCpy $R1 "是否保留 影海 的应用数据？"
     StrCpy $R2 "应用数据包括：媒体库配置、海报封面、缓存与日志等。取消勾选将在卸载完成后删除这些数据。"
     StrCpy $R3 "你的媒体文件与媒体库永远不会被删除。"
     StrCpy $R4 "保留用户数据"

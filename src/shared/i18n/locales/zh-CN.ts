@@ -1,11 +1,11 @@
 // ============================================================================
-// zh-CN —— 影匣 默认语言（中文简体）
+// zh-CN —— 影海 默认语言（中文简体）
 // 所有 key → 中文原文，供 t(key) / t(key, vars) 查询。
 // ============================================================================
 
 export default {
   // ===== 通用 / 全局 =====
-  'app.name': '影匣',
+  'app.name': '影海',
   'app.untitledLibrary': '未命名媒体库',
   'app.unknown': '未知',
   'app.unknownReason': '未知原因',
@@ -168,7 +168,7 @@ export default {
   'library.optionalMark': '（可选）',
   'library.videoFolderHint': '点击右侧「浏览…」选择影片所在文件夹',
   'library.browse': '浏览…',
-  'library.videoFolderDesc': '影匣会扫描该文件夹及其子文件夹中的视频文件（mp4 / mkv / avi / wmv 等），生成海报墙。',
+  'library.videoFolderDesc': '影海会扫描该文件夹及其子文件夹中的视频文件（mp4 / mkv / avi / wmv 等），生成海报墙。',
   'library.excelFile': 'Excel 片单文件',
   'library.excelPlaceholder': '可选：Excel 片单文件路径（含番号 / 分类 / 简介 / 标签）',
   'library.excelHint': '片单是你的权威来源：分类、简介、标签、推荐评分都从片单来。',
@@ -296,7 +296,7 @@ export default {
   'about.thirdParty': '第三方库与数据来源',
   'about.license': '许可证',
   'about.viewLicense': '查看开源协议',
-  'about.starTitle': '喜欢影匣吗？欢迎点亮 Star 支持',
+  'about.starTitle': '喜欢影海吗？欢迎点亮 Star 支持',
   'about.starDesc': '开源不易，去 GitHub 点个 Star，让这个项目被更多人看到',
   'about.star': '点亮 Star',
 
@@ -380,14 +380,14 @@ export default {
   'edit.descriptionPlaceholder': '暂无简介（可在 Excel 片单中补充）',
 
   // ===== 托盘 / 菜单 Tray =====
-  'tray.tooltip': '影匣',
-  'tray.show': '显示影匣',
+  'tray.tooltip': '影海',
+  'tray.show': '显示影海',
   'tray.quit': '退出',
 
   // ===== Dialog（主进程）=====
   'dialog.selectVideoFolderTitle': '第 1 步 · 选择视频文件夹',
   'dialog.selectThisFolder': '选择此文件夹',
-  'dialog.selectVideoFolderMessage': '影匣会扫描该文件夹及子文件夹里的全部视频文件，生成你的海报墙。',
+  'dialog.selectVideoFolderMessage': '影海会扫描该文件夹及子文件夹里的全部视频文件，生成你的海报墙。',
   'dialog.selectFile': '选择文件',
   'dialog.select': '选择',
 
@@ -441,7 +441,7 @@ export default {
   // ===== Onboard Sheet Wizard · 新建片单 Excel 向导 =====
   'onboard.title': '新建片单 Excel 向导',
   'onboard.subtitle': '库「{name}」还没有片单 Excel，向导帮你一键生成',
-  'onboard.desc': '影匣按「片单 Excel」来分类影片、展示简介与标签。向导打开时已自动扫描本库的番号，可直接一键复制发给 AI。规范全文已内置在本软件中。',
+  'onboard.desc': '影海按「片单 Excel」来分类影片、展示简介与标签。向导打开时已自动扫描本库的番号，可直接一键复制发给 AI。规范全文已内置在本软件中。',
   'onboard.step1.title': '加载番号（自动）',
   'onboard.step1.desc': '已自动扫描本库全部视频的番号。可直接一键复制发给 AI，或导出为 txt / Excel 文件。',
   'onboard.step1.scanning': '扫描中…',
@@ -522,7 +522,7 @@ export default {
   'settings.general.noExcelToast': '不提示「无片单 Excel」',
   'settings.general.noExcelToastHint': '媒体库根目录没有片单 Excel 时，每次对账都会弹提示。不使用片单可勾选关闭（片单解析失败等真实错误仍会提示）',
   'settings.general.autostart': '开机自启',
-  'settings.general.autostartHint': '随系统启动自动运行影匣',
+  'settings.general.autostartHint': '随系统启动自动运行影海',
   'settings.general.autoReconcile': '启动时自动对账',
   'settings.general.autoReconcileHint': '打开应用后自动扫描当前库（Excel 驱动）',
   'settings.general.minimizeTray': '最小化到托盘',
@@ -566,7 +566,7 @@ export default {
   // 外观
   'settings.appearance.sectionDesc': '主题、海报墙密度与默认排序',
   'settings.appearance.skin': '皮肤',
-  'settings.appearance.skinHint': '选择影匣的整体视觉风格，应用后会立即生效',
+  'settings.appearance.skinHint': '选择影海的整体视觉风格，应用后会立即生效',
   'settings.appearance.posterDensity': '海报风格',
   'settings.appearance.posterDensityHint': '海报墙单屏显示的视频数量与卡片大小',
   'settings.appearance.large': '大图沉浸',
@@ -627,8 +627,8 @@ export default {
   'settings.update.matchUnknown': '无法判定',
   // 危险
   'settings.danger.sectionDesc': '这些操作不可逆，请谨慎处理',
-  'settings.danger.uninstall': '卸载影匣',
-  'settings.danger.uninstallConfirm1': '确定要卸载「影匣」吗？卸载程序随后会询问是否保留应用数据。',
+  'settings.danger.uninstall': '卸载影海',
+  'settings.danger.uninstallConfirm1': '确定要卸载「影海」吗？卸载程序随后会询问是否保留应用数据。',
   'settings.danger.uninstallConfirm2': '再次确认：卸载程序会删除应用，并询问是否保留本地数据（海报缓存、媒体库配置）。',
   'settings.danger.uninstallFailed': '卸载失败{error}',
 
@@ -701,7 +701,7 @@ export default {
   'browse.smartAll': '全部',
 
   // ===== Library 引导 =====
-  'library.step1Desc': '你的影片存在哪个文件夹，影匣就扫描哪里，自动识别文件夹和子文件夹里的所有视频文件。',
+  'library.step1Desc': '你的影片存在哪个文件夹，影海就扫描哪里，自动识别文件夹和子文件夹里的所有视频文件。',
   'library.step2Desc': '一个含每部影片「品番 / 分类 / 简介 / 标签 / 评分」的 Excel 文件。选了它，海报墙就能按分类浏览、悬停看简介；不选也可以，只是没有分类和简介。',
   'library.excelPlaceholder2': '选择「收藏整理_2026.xlsx」这类片单（品番/分类/评分/简介/标签）',
   'library.excelHint2': '海报墙按该 Excel 的分类/简介/标签/评分展示，对账差异会弹窗提醒。Excel 需含「品番」列（如 收藏整理_2026.xlsx 的「片单」工作表）。',
@@ -771,7 +771,7 @@ export default {
   'app.progressStopped': "已停止",
   'app.filterLabel': "筛选：",
   'app.lockedHint': "输入密码后继续使用",
-  'app.lockedTitle': "影匣已上锁",
+  'app.lockedTitle': "影海已上锁",
   'app.movedDirToRecycle': "已把整个目录挪到回收站（含视频和种子）：{path}",
   'app.movedFileToRecycle': "已把文件挪到回收站：{file}",
   'app.movedToRecycle': "已挪到回收站",
@@ -795,7 +795,7 @@ export default {
   'app.seriesDetected': "检测到可能的同系列视频",
   'app.seriesLabel': "系列：",
   'app.sourceDistribution': "来源分布",
-  'app.starting': "影匣启动中…",
+  'app.starting': "影海启动中…",
   'app.stillFailed': "仍有失败项目",
   'app.stillFailedCountHint': "{n} 部影片仍未抓取成功",
   'app.stillNoPoster': "仍有 {n} 部无封面（每轮最多补 200 部，可再跑一轮补齐信息）",
@@ -808,7 +808,7 @@ export default {
   'app.verifyFailedRetry': "校验失败，请重试",
   'app.welcomeStep1': "选择一个视频文件夹，再选择对应的「Excel 片单文件」。",
   'app.welcomeStep2': "海报墙会按简介文件中的分类展示影片，并自动对账文件夹与简介的差异。",
-  'app.welcomeTitle': "欢迎使用影匣",
+  'app.welcomeTitle': "欢迎使用影海",
   'app.within30min': "30分钟内",
   'app.wrongPasswordAttempts': "密码错误（已尝试 {n}/5 次，错误 5 次将自动退出）",
   'app.wrongPasswordDelete': "密码错误，已取消删除",
@@ -908,9 +908,9 @@ export default {
   'settings.autoRescan': "启动时自动重扫",
   'settings.autoRescanHint': "每次打开软件自动对账所有媒体库（Excel 驱动）。",
   'settings.autoStart': "开机自启",
-  'settings.autoStartHint': "随系统启动自动运行影匣",
+  'settings.autoStartHint': "随系统启动自动运行影海",
   'settings.autoUpdateFreq': "自动更新频率",
-  'settings.autoUpdateFreqDesc': "设置后，影匣会按此频率在启动时（及运行中）自动检测更新；检测到新版本会在此页与「设置」入口提示。",
+  'settings.autoUpdateFreqDesc': "设置后，影海会按此频率在启动时（及运行中）自动检测更新；检测到新版本会在此页与「设置」入口提示。",
   'settings.batchFetchDesc': "并发越高抓取越快，但更易触发各数据源风控；间隔用于限速兜底。对 JavDB / JavBus / JavLibrary / Javinfo / Javapi 全部生效。",
   'settings.batchFetchSection': "云端 API 批量抓取",
   'settings.bundledFfmpeg': "内置捆绑版",
@@ -936,7 +936,7 @@ export default {
   'settings.confidenceUnknown': "无法判定",
   'settings.confirmClearPosterCache': "确定要清理所有海报缓存吗？下次打开时会重新下载。",
   'settings.confirmPassword': "再次输入确认",
-  'settings.confirmUninstallFirst': "确定要卸载「影匣」吗？卸载程序随后会询问是否保留应用数据。",
+  'settings.confirmUninstallFirst': "确定要卸载「影海」吗？卸载程序随后会询问是否保留应用数据。",
   'settings.confirmUninstallSecond': "再次确认：卸载程序会删除应用，并询问是否保留本地数据（海报缓存、媒体库配置）。",
   'settings.cookieHint': "抓取 javdb.com 封面时附带。一般网络留空即可；若搜索被要求登录，可在浏览器登录 javdb.com 后复制 Cookie 填入。",
   'settings.cookieLabel': "Cookie（可选）",
@@ -1073,7 +1073,7 @@ export default {
   'settings.source.javlibrary.tier': "兜底",
   'settings.sourceOrderDragHint': "数据源采集顺序（拖拽调整）",
   'settings.startupSection': "启动行为",
-  'settings.startupSectionDesc': "配置影匣如何随系统启动与关闭",
+  'settings.startupSectionDesc': "配置影海如何随系统启动与关闭",
   'settings.storageSection': "数据与存储",
   'settings.storageSectionDesc': "扫描性能、数据目录与缓存",
   'settings.switchToSourceRetry': "切换至 {src} 重试",
@@ -1083,10 +1083,10 @@ export default {
   'settings.testConnection': "测试连接",
   'settings.testFailed': "连接失败：{err}",
   'settings.testing': "测试中…",
-  'settings.themeDesc': "选择影匣的整体视觉风格，应用后会立即生效",
+  'settings.themeDesc': "选择影海的整体视觉风格，应用后会立即生效",
   'settings.themeLabel': "皮肤",
   'settings.tokenFormatHint': "留空即可；格式如 token=xxx; ...",
-  'settings.uninstallApp': "卸载影匣",
+  'settings.uninstallApp': "卸载影海",
   'settings.uninstallDesc': "调用系统卸载程序；卸载界面会询问是否保留应用数据（媒体库配置、海报缓存等），默认保留。此操作无法撤销。",
   'settings.uninstallFailed': "卸载失败",
   'settings.uninstallModalDesc': "卸载将从本机移除应用。请选择是否保留应用数据。",

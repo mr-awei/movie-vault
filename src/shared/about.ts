@@ -46,20 +46,20 @@ export function getAbout(language: string): About {
 
 export const ABOUT_ZH: About = {
   /** 应用名（与 package.json productName 一致） */
-  name: '影匣',
+  name: '影海',
   /** 一句话标语 */
   tagline: '本地影片海报墙管理 · 基于 Excel 片单的私人影库',
   /** 较长描述 */
   description:
-    '影匣是一款面向本地影片收藏的桌面管理工具：选择视频文件夹 + Excel 片单文件，即可生成可按分类浏览的海报墙。' +
+    '影海是一款面向本地影片收藏的桌面管理工具：选择视频文件夹 + Excel 片单文件，即可生成可按分类浏览的海报墙。' +
     'Excel 片单为唯一权威来源（分类 / 简介 / 标签 / 评分），支持 JavDB 封面与详情抓取并本地永久缓存、四种皮肤、' +
     '虚拟滚动大库流畅、隐私护盾一键模糊预览图，以及按演员 / 片商 / 系列筛选与统计看板。',
   /** 作者 / 团队 */
-  author: '影匣',
+  author: '影海',
   /** 版权起始年份 */
   year: 2026,
   /** 许可证 */
-  license: '影匣 双授权协议 v1.0',
+  license: '影海 双授权协议 v1.0',
   licenseUrl: 'https://github.com/mr-awei/yingxia-video-manager/blob/main/LICENSE',
 
   /** 开源仓库地址（About 弹窗用于引导点亮 Star） */

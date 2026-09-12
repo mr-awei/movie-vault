@@ -3,8 +3,8 @@
  * 用法：
  *   GITHUB_TOKEN=ghp_xxx node scripts/publish-release.mjs
  * 也可覆盖 REPO/TAG/TITLE/INSTALLER_PATH：
- *   GITHUB_TOKEN=ghp_xxx TAG=v2.2.5 TITLE="影匣 v2.2.5" \
- *     INSTALLER_PATH="C:/Users/19218/yingxia-release/2026-08-30-0417/影匣 Setup 2.2.5.exe" \
+ *   GITHUB_TOKEN=ghp_xxx TAG=v2.2.5 TITLE="影海 v2.2.5" \
+ *     INSTALLER_PATH="C:/Users/19218/yingxia-release/2026-08-30-0417/影海 Setup 2.2.5.exe" \
  *     node scripts/publish-release.mjs
  *
  * 注意：GitHub PAT 必须从环境变量读，绝不硬编码到仓库里——
@@ -21,7 +21,7 @@ if (!TOKEN) {
 }
 const REPO = process.env.GITHUB_REPO || 'mr-awei/yingxia-video-manager';
 const TAG = process.env.TAG || 'v2.2.5';
-const TITLE = process.env.TITLE || `影匣 ${TAG}`;
+const TITLE = process.env.TITLE || `影海 ${TAG}`;
 const INSTALLER = process.env.INSTALLER_PATH;
 const NOTES = process.env.NOTES_PATH ? readFileSync(process.env.NOTES_PATH, 'utf-8') : `Release ${TAG}`;
 

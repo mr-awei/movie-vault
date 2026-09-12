@@ -1,7 +1,7 @@
 # YingXia (yingxia-video-manager) — Project Handoff
 
 > For the AI / developer who takes over this project. One-sentence summary: **local video management tool**, poster-wall library, auto metadata fetch, sheet-driven categorization, local playback.
-> Current version **v2.2.10** (2026-08-30). Repo: `E:\videomanger`, dual remotes (GitHub + Gitee).
+> Current version **v2.2.10** (2026-08-30). Repo: `E:\moviemanger`, dual remotes (GitHub + Gitee).
 
 ---
 
@@ -38,7 +38,7 @@ Core capabilities:
 ## 3. Directory Map
 
 ```
-E:\videomanger\
+E:\moviemanger\
 ├── src/
 │   ├── main/            # Electron main process
 │   │   ├── index.ts     # entry: register lm:// protocol, main log to disk, window
@@ -148,7 +148,7 @@ fetchDetailSmart(code, settings, state, onEvent?)
 ```
 npm run dev        # electron-vite dev (HMR only updates renderer; restart to change main)
 ```
-⚠️ Dev mode main process console output goes to terminal; since v2.2.9 also written to `%APPDATA%\影匣\logs\main.log`.
+⚠️ Dev mode main process console output goes to terminal; since v2.2.9 also written to `%APPDATA%\影海\logs\main.log`.
 
 ### Build + Sign
 ```
@@ -234,6 +234,6 @@ git push gitee main && git push gitee v2.2.x
 
 1. Read this file + `CHANGELOG.md` (version history) + `src/main/lib/javdb-smart.ts` (smart fetch hub)
 2. `npm run typecheck` to confirm 0 errors, `npm run build` to confirm build succeeds
-3. When user reports an issue, check `%APPDATA%\影匣\logs\main.log` + `%APPDATA%\影匣\renderer-console.log` + `%APPDATA%\影匣\data.json` (settings / videos status)
+3. When user reports an issue, check `%APPDATA%\影海\logs\main.log` + `%APPDATA%\影海\renderer-console.log` + `%APPDATA%\影海\data.json` (settings / videos status)
 4. Changed main process → remind user to restart dev; changed renderer → HMR takes effect
 5. Publish: npm run pack → sign → publish-release.mjs (token via env var)

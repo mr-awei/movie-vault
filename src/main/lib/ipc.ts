@@ -1151,7 +1151,7 @@ export function registerIpc(): void {
     try {
       // NSIS 卸载程序与主程序同目录：Uninstall <productName>.exe
       const dir = path.dirname(process.execPath)
-      const candidates = ['Uninstall 影匣.exe', 'Uninstall.exe']
+      const candidates = ['Uninstall 影海.exe', 'Uninstall.exe']
       // 把「是否保留用户数据」决定传入卸载程序：
       //   /YXKEEPDATA → 保留；/YXDELDATA → 删除（仍受保护脚本安全校验，永不触碰媒体库）
       // 注意：不可用 electron-builder 自带的 --delete-app-data（会无差别 RMDir，不安全）。
@@ -1191,7 +1191,7 @@ export function registerIpc(): void {
     const res = await dialog.showOpenDialog({
       title: '第 1 步 · 选择视频文件夹',
       buttonLabel: '选择此文件夹',
-      message: '影匣会扫描该文件夹及子文件夹里的全部视频文件，生成你的海报墙。',
+      message: '影海会扫描该文件夹及子文件夹里的全部视频文件，生成你的海报墙。',
       properties: ['openDirectory']
     })
     return res.canceled ? null : (res.filePaths[0] ?? null)

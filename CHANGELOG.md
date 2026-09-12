@@ -4,23 +4,23 @@
 
 **开源协议切换为双授权协议 + 应用内协议展示弹窗 + 文档全面重写**
 
-- **开源协议从 MIT 切换为「影匣 双授权协议 v1.0」**：根目录 `LICENSE` 文件完整替换为中英双语双授权协议，包含非商业免费使用授权、恶意程序禁止条款（三层保护：防篡改注入、防植入恶意程序、防用于恶意程序）、商业使用授权、权利保留、免责声明五章结构。商业授权联系邮箱：new_mr_awei@163.com。原 MIT 协议备份为 `LICENSE.mit.backup`。
-- **新增应用内开源协议展示弹窗（`LicenseModal`）**：关于弹窗页脚新增「影匣 双授权协议 v1.0 · 查看开源协议」按钮，点击后在应用内打开协议弹窗，展示完整中英双语协议正文（随应用语言自动切换），无需跳转外部浏览器。
+- **开源协议从 MIT 切换为「影海 双授权协议 v1.0」**：根目录 `LICENSE` 文件完整替换为中英双语双授权协议，包含非商业免费使用授权、恶意程序禁止条款（三层保护：防篡改注入、防植入恶意程序、防用于恶意程序）、商业使用授权、权利保留、免责声明五章结构。商业授权联系邮箱：new_mr_awei@163.com。原 MIT 协议备份为 `LICENSE.mit.backup`。
+- **新增应用内开源协议展示弹窗（`LicenseModal`）**：关于弹窗页脚新增「影海 双授权协议 v1.0 · 查看开源协议」按钮，点击后在应用内打开协议弹窗，展示完整中英双语协议正文（随应用语言自动切换），无需跳转外部浏览器。
 - **协议弹窗支持邮箱一键复制**：弹窗底部显示商业授权联系邮箱 `new_mr_awei@163.com`，点击即可复制到剪贴板，复制成功后显示「已复制」反馈。
-- **关于弹窗许可证入口改为内部弹窗**：原页脚许可证按钮点击后跳转外部 opensource.org 链接，现改为打开应用内协议弹窗；`about.ts` 中许可证名称同步更新为「影匣 双授权协议 v1.0 / Ying Xia Dual License v1.0」，licenseUrl 指向仓库 LICENSE 文件。
+- **关于弹窗许可证入口改为内部弹窗**：原页脚许可证按钮点击后跳转外部 opensource.org 链接，现改为打开应用内协议弹窗；`about.ts` 中许可证名称同步更新为「影海 双授权协议 v1.0 / Ying Xia Dual License v1.0」，licenseUrl 指向仓库 LICENSE 文件。
 - **i18n 新增 `about.viewLicense` 翻译键**：中文「查看开源协议」、英文「View License」。
 - **PRD 文档更新至 v2.7.0**：文档版本、产品版本、编写日期同步更新，演进历程新增 v2.7.0 阶段说明。
 - **README 全面重写（汉英双语）**：`README.md` 和 `README.zh-CN.md` 完整重写，更新协议声明、功能亮点、技术栈等内容。
-- **package.json 许可证字段更新**：`license` 从 `"MIT"` 改为 `"影匣 双授权协议 v1.0"`。
+- **package.json 许可证字段更新**：`license` 从 `"MIT"` 改为 `"影海 双授权协议 v1.0"`。
 ## v2.6.7（2026-09-02）
 
 **应用内卸载流程整合 + 卸载器健壮性修复**
 
-- **应用内卸载确认与「保留/删除用户数据」合并为单条流程**：设置页点击「卸载影匣」后，先弹出应用内卸载确认弹窗（`UninstallConfirmModal`），一步决定「保留数据」或「删除数据」；决定通过 `/YXKEEPDATA` / `/YXDELDATA` 参数传给 NSIS 卸载器，直接跳过标准欢迎页与独立的「保留用户数据」复选框页。原流程是「卸载确认」与「是否保留数据」两个独立流程、多个弹窗。
+- **应用内卸载确认与「保留/删除用户数据」合并为单条流程**：设置页点击「卸载影海」后，先弹出应用内卸载确认弹窗（`UninstallConfirmModal`），一步决定「保留数据」或「删除数据」；决定通过 `/YXKEEPDATA` / `/YXDELDATA` 参数传给 NSIS 卸载器，直接跳过标准欢迎页与独立的「保留用户数据」复选框页。原流程是「卸载确认」与「是否保留数据」两个独立流程、多个弹窗。
 - **修复 NSIS 构建失败（warning 6155 被当作错误处理）**：`build/installer.nsh` 中 `MUI_UNPAGE_WELCOME` 已自动消费并 `!undef` 掉 `MUI_PAGE_CUSTOMFUNCTION_PRE`，多余的手动 `!undef` 引用了未定义宏，触发 `!undef: "MUI_PAGE_CUSTOMFUNCTION_PRE" not defined!`。已移除该冗余行，打包恢复通过。
 - **修复卸载删除阶段报错「无法完成用户数据清理，用户数据已保留」**：保护脚本 `build/yingxia-uninstall-guard.ps1` 以 UTF-8 无 BOM 保存，在中文 Windows（默认 GBK 代码页）下被 PowerShell 当作 GB2312 解析，中文字节被错读为额外的换行/符号，脚本直接解析失败退出 1，NSIS 兜底保留数据。现已改为 UTF-8 带 BOM 保存。
 - **保护脚本正确接收 NSIS 传入参数**：脚本此前未声明 `param()` 块，NSIS 调用时带的 `-DataDirOverride` 参数无法绑定，直接报错退出。新增 `param([string]$DataDirOverride)` 并优先使用该值。
-- **删除前强制结束残留进程释放文件锁**：脚本在删除 `%APPDATA%\local-video-manager` 前，先 `Stop-Process` 结束仍在运行的 `local-video-manager` / `影匣` 进程，释放 Electron 缓存/Storage 文件锁，避免 `Remove-Item` 因锁失败。
+- **删除前强制结束残留进程释放文件锁**：脚本在删除 `%APPDATA%\local-video-manager` 前，先 `Stop-Process` 结束仍在运行的 `local-video-manager` / `影海` 进程，释放 Electron 缓存/Storage 文件锁，避免 `Remove-Item` 因锁失败。
 - **删除重试更稳健**：重试次数 3 → 5 次，单次等待 800ms → 1.2s；`DELETE_FAILED` 提示文案补充「可能应用仍在运行或数据目录被占用」原因。
 
 ## v2.6.6（2026-09-02）
@@ -45,7 +45,7 @@
 - **过滤伪番号（isPlausibleCode 守卫）**：`IMG-8873`（相机文件）、`VID-…`（录像时间戳）、`…-2160p`（分辨率）、`guochan2048.com@…`（广告域名）、`[HEVC-1080p]`（编码标记）不再被当成番号白白发请求或挂错元数据；守卫命中时跳过该候选继续找下一个，并顺带救回 `hhd800.com@FC2-PPV-1851398` → FC2-PPV-1851398、`HD_sdnm-256` → SDNM-256，待抓量 551 → 183（省 67% 无效请求）。
 - **FC2 番号完整提取**：`FC2-PPV-1510788` / `fc2ppv_1523314` / `FC2PPV-1123249-1` 旧逻辑只提取出 `PPV-1510788`，数据源搜不到。最高优先级新增 FC2 步骤返回 `FC2-PPV-<编号>`，允许分集尾号（`_1`/`-2`），86 部修正 84 部。
 - **编辑标题可同步修改文件名**：`EditMetaModal` 标题改动时出现「保存时同步修改文件名」开关（默认开），新 IPC `videoRenameFile` + `safeFileBaseName()`（去非法字符/尾部点、CON 等保留名加前缀、截断 120 字符）；改名失败不丢元数据并保留弹窗说明原因；改名刻意保持视频 id 不变，封面/预览帧不失联。
-- **修复 data.json「被外部修改」日志刷屏（自写误判）**：批量补齐频繁写盘时，Windows 高并发 rename 下 `fs.stat` 的 mtime 与记录基准短暂不一致，导致影匣自己写的盘被误判为外部修改。检测逻辑在写盘进行中（`writeInFlight`）跳过，重载后同步刷新 mtime 基准。
+- **修复 data.json「被外部修改」日志刷屏（自写误判）**：批量补齐频繁写盘时，Windows 高并发 rename 下 `fs.stat` 的 mtime 与记录基准短暂不一致，导致影海自己写的盘被误判为外部修改。检测逻辑在写盘进行中（`writeInFlight`）跳过，重载后同步刷新 mtime 基准。
 
 ## v2.6.4（2026-09-01）
 
@@ -54,7 +54,7 @@
 - **修复双击安装包无反应 / 程序兼容性助手弹 TLS 警告**：根因是 `customInit` 宏中混用 `nsDialogs` 自定义语言对话框与 `FindWindow` 运行检测，在 .onInit 阶段触发 NSIS 运行时崩溃（exit code -1073741819 / 0xC0000005）。已移除自定义 nsDialogs 语言选择，改由 electron-builder 原生 `displayLanguageSelector` + `installerLanguages: ['zh_CN', 'en_US']` 提供稳定语言选择框。
 - **安装器语言选择框仍仅保留简体中文和 English**：通过 `installerLanguages` 限制 MUI 只加载 `SimpChinese` 和 `English` 两个语言文件。
 - **卸载器复选框保留**：`customUnInstall` 仍使用 nsDialogs 复选框询问是否删除 `%APPDATA%\local-video-manager`，默认不勾选；卸载器文案跟随安装时选定的 `$LANGUAGE`。
-- **安装器运行中检测保留**：继续检测「影匣」窗口并提示用户先关闭应用，但不再与 nsDialogs 混用，避免崩溃。
+- **安装器运行中检测保留**：继续检测「影海」窗口并提示用户先关闭应用，但不再与 nsDialogs 混用，避免崩溃。
 
 ## v2.6.3（2026-09-01）
 
@@ -112,22 +112,22 @@
 
 **修复安装最新版后双击图标无反应（P0 严重 bug）**
 
-- 根本原因：v2.4.4 加入的升级检测强杀旧进程逻辑中，`taskkill /F /IM "影匣.exe" /T` 会按映像名杀死**所有**同名进程，包括正在启动的新版自己，导致新版启动后立即被自杀，桌面图标双击无反应。
-- 修复：改用 `taskkill /F /FI "PID ne <当前PID>" /IM "影匣.exe"`，排除当前进程后再结束其他旧实例。
-- 为什么运行 `npm run dev` 后能打开：dev 进程名为 `electron.exe` 而非 `影匣.exe`，taskkill 不会自杀；同时 dev 运行会把 `.last-version` 写成当前版本，之后双击生产版时不再进入升级分支，自然不再触发自杀。
+- 根本原因：v2.4.4 加入的升级检测强杀旧进程逻辑中，`taskkill /F /IM "影海.exe" /T` 会按映像名杀死**所有**同名进程，包括正在启动的新版自己，导致新版启动后立即被自杀，桌面图标双击无反应。
+- 修复：改用 `taskkill /F /FI "PID ne <当前PID>" /IM "影海.exe"`，排除当前进程后再结束其他旧实例。
+- 为什么运行 `npm run dev` 后能打开：dev 进程名为 `electron.exe` 而非 `影海.exe`，taskkill 不会自杀；同时 dev 运行会把 `.last-version` 写成当前版本，之后双击生产版时不再进入升级分支，自然不再触发自杀。
 
 ## v2.4.8（2026-09-01）
 
 **安装器友好提示 + 修复 NSIS 中文编码**
 
-- 安装器检测到「影匣」正在运行时，弹出中文提示框要求用户先彻底关闭应用（包括托盘图标），用户点确定后安装器退出，不再强制结束进程。
+- 安装器检测到「影海」正在运行时，弹出中文提示框要求用户先彻底关闭应用（包括托盘图标），用户点确定后安装器退出，不再强制结束进程。
 - 修复 `build/installer.nsh` 中文 MessageBox 导致 NSIS 解析失败的编码问题：文件以 UTF-8 BOM 保存，确保 makensis 正确读取中文字符串。
 
 ## v2.4.7（2026-09-01）
 
 **安装器不再强杀旧进程，改为友好提示**
 
-- 之前 `build/installer.nsh` 在覆盖安装前用 `taskkill` + `FindWindow` 强制结束旧进程；现在改为检测窗口标题「影匣」。
+- 之前 `build/installer.nsh` 在覆盖安装前用 `taskkill` + `FindWindow` 强制结束旧进程；现在改为检测窗口标题「影海」。
 - 检测到正在运行时弹出 MessageBox 提示用户：「请先彻底关闭应用（包括右下角的托盘图标），然后重新运行安装器。点击确定后安装器将退出。」
 - 用户点确定后调用 `Abort`，安装器退出，避免意外杀进程导致状态丢失。
 
@@ -152,14 +152,14 @@
 
 **彻底杜绝升级后旧版本 UI 残留（双重保险）**
 
-- **主进程升级时强杀旧进程**：启动时对比 `.last-version` 与 `app.getVersion()`，若版本不一致 → 先 `taskkill /F /IM "影匣.exe" /T` 强制结束旧进程，再正常获取 `requestSingleInstanceLock`。旧进程不会再残留，数据目录无需清理。
-- **NSIS 安装前强杀旧进程**：新增 `build/installer.nsh` 并在 `electron-builder.yml` 里 `include`，安装器在覆盖文件前先用 `taskkill` + `FindWindow` 关闭已运行的影匣，双重保险。
+- **主进程升级时强杀旧进程**：启动时对比 `.last-version` 与 `app.getVersion()`，若版本不一致 → 先 `taskkill /F /IM "影海.exe" /T` 强制结束旧进程，再正常获取 `requestSingleInstanceLock`。旧进程不会再残留，数据目录无需清理。
+- **NSIS 安装前强杀旧进程**：新增 `build/installer.nsh` 并在 `electron-builder.yml` 里 `include`，安装器在覆盖文件前先用 `taskkill` + `FindWindow` 关闭已运行的影海，双重保险。
 
 ## v2.4.3（2026-09-01）
 
 **升级安装后看不到新版本（P0 根因修复） + 杜绝 out/ 历史 chunk 堆积**
 
-- **修复升级后旧版本 UI/功能残留**：用户不关闭影匣直接覆盖安装时，旧进程仍持有 `requestSingleInstanceLock`，新 exe 启动因拿不到锁直接 `app.quit()`，用户始终看到旧进程的界面和功能。修复：AppData 写入 `.last-version` 标记记录上次启动版本；启动时对比当前版本——不一致则视为升级安装，**绕过单实例锁让新版正常启动**。旧进程继续跑没关系，窗口被新版 BrowserWindow 盖住，用户重启后自动清除。
+- **修复升级后旧版本 UI/功能残留**：用户不关闭影海直接覆盖安装时，旧进程仍持有 `requestSingleInstanceLock`，新 exe 启动因拿不到锁直接 `app.quit()`，用户始终看到旧进程的界面和功能。修复：AppData 写入 `.last-version` 标记记录上次启动版本；启动时对比当前版本——不一致则视为升级安装，**绕过单实例锁让新版正常启动**。旧进程继续跑没关系，窗口被新版 BrowserWindow 盖住，用户重启后自动清除。
 - **杜绝 out/ 历史 chunk 堆积**：之前 `electron.vite.config.ts` 三处 `emptyOutDir: false`，渲染进程每次 build 旧 chunk（content-hash 命名）不会被清理，out/renderer/assets/ 里塞了 30+ 个历史文件，全部被 electron-builder 打进 app.asar。现在全改 `emptyOutDir: true`，打包产物干净无冗余。
 - **顺带：AppData 标记文件**：新增 `%APPDATA%\local-video-manager\.last-version`（一行版本号文本），仅用于升级检测，不涉及任何用户数据迁移。
 
@@ -374,8 +374,8 @@
 - **写盘 debounce**：`data.json` 落盘改为 300ms 防抖合并（`saveDB → scheduleSave`）——连点收藏/改名等单条操作不再每次全量序列化 4.7MB；`mutate` 不阻塞立即返回；进程 `before-quit` 同步兜底落盘 + 提供 `flushSave()`，保证 debounce 窗口内的写入不丢。
 
 ### 3. 数据目录换回英文路径（fix6）
-- main 入口用 `app.setPath('userData', %APPDATA%\local-video-manager)` 强制数据目录为英文路径（productName「影匣」不改，窗口标题/安装包名均不变），避免中文目录名带来的潜在兼容问题。
-- **迁移提醒**：旧数据目录 `%APPDATA%\影匣` 的 `data.json / posters / logs` 需要手工拷贝到 `%APPDATA%\local-video-manager`，老用户升级后如发现库空了请手动迁移一次。
+- main 入口用 `app.setPath('userData', %APPDATA%\local-video-manager)` 强制数据目录为英文路径（productName「影海」不改，窗口标题/安装包名均不变），避免中文目录名带来的潜在兼容问题。
+- **迁移提醒**：旧数据目录 `%APPDATA%\影海` 的 `data.json / posters / logs` 需要手工拷贝到 `%APPDATA%\local-video-manager`，老用户升级后如发现库空了请手动迁移一次。
 
 ## v2.2.11（2026-08-30）
 
@@ -441,7 +441,7 @@
 ### 1. P0：main 进程 console.log 落盘
 - 之前只 `attachRendererLog` 接 renderer 进程的 console-message，**main 进程自己 console.log 不落盘**。
 - v2.2.9 加 `attachMainLog`：劫持 console.log / console.error / console.warn，写到 `userData/logs/main.log` 同时保持原 terminal 输出。
-- 之前排查"为什么走 javbus"只能看 dev 模式 terminal 滚动；现在直接打开 `C:\Users\19218\AppData\Roaming\影匣\logs\main.log` 就能看完整抓取过程。
+- 之前排查"为什么走 javbus"只能看 dev 模式 terminal 滚动；现在直接打开 `C:\Users\19218\AppData\Roaming\影海\logs\main.log` 就能看完整抓取过程。
 
 ### 2. P0：fetchDetailSmart 加总览 log
 - 开头：`[smart] ${code} order=${order.join('→')}` —— 每次抓取直接打印**当前生效的顺序**（"javdb→javbus→javapi→javinfo→javlibrary"），用户能立刻确认顺序对不对
@@ -456,7 +456,7 @@
 ### 用户装上 v2.2.9 后
 - dev 模式：Ctrl+C 关闭 `npm run dev` 再重启（main 进程才会加载新代码，HMR 只更新 renderer）
 - 生产包：安装新 v2.2.9 后
-- 点「批量补齐」后 → 打开 `%APPDATA%\影匣\logs\main.log` → 能看到完整的 `[smart] ... order=...` + `[smart] ... HIT javbus` / `FAILED ...` 记录
+- 点「批量补齐」后 → 打开 `%APPDATA%\影海\logs\main.log` → 能看到完整的 `[smart] ... order=...` + `[smart] ... HIT javbus` / `FAILED ...` 记录
 
 ---
 

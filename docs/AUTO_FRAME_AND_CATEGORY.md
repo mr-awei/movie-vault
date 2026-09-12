@@ -1,7 +1,7 @@
 # 需求：无封面截帧兜底 + 自动归类
 
 > 版本：v0.1（草稿，待评审）
-> 适用范围：影匣（yingxia-video-manager）v2.x
+> 适用范围：影海（yingxia-video-manager）v2.x
 > 关联：v2.0.1（无封面自动截帧） + v2.0.2（thumbnail 滤镜） + v2.0.3（回滚详情页 UI）
 
 ---

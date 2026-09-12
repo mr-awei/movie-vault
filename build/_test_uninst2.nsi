@@ -3,7 +3,7 @@
 !include MUI2.nsh
 !include nsDialogs.nsh
 
-!include "E:\videomanger\build\installer.nsh"
+!include "E:\moviemanger\build\installer.nsh"
 
 ; 模拟 assistedInstaller.nsh 的卸载分支
 !ifmacrodef customUnWelcomePage

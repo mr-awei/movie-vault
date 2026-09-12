@@ -7,11 +7,11 @@
 - **Open source license switched from MIT to "Ying Xia Dual License v1.0"**: The root `LICENSE` file has been fully replaced with a bilingual (Chinese/English) dual license, containing five chapters: Non-Commercial Free Use License, Malware Prohibition Clause (three-layer protection: anti-tampering/injection, anti-embedding into malware, anti-use with malware), Commercial Use License, Rights Reserved, and Disclaimer. Commercial license contact: new_mr_awei@163.com. The original MIT license is backed up as `LICENSE.mit.backup`.
 - **New in-app open source license modal (`LicenseModal`)**: The About modal footer now has a "Ying Xia Dual License v1.0 · View License" button. Clicking it opens an in-app modal displaying the full bilingual license text (auto-switches with app language), no external browser needed.
 - **One-click email copy in license modal**: The modal footer shows the commercial license contact email `new_mr_awei@163.com`; clicking it copies to clipboard with a "Copied!" confirmation.
-- **About modal license entry changed to internal modal**: The footer license button previously opened an external opensource.org link; it now opens the in-app license modal. The license name in `about.ts` is updated to "Ying Xia Dual License v1.0 / 影匣 双授权协议 v1.0", and licenseUrl points to the repo LICENSE file.
+- **About modal license entry changed to internal modal**: The footer license button previously opened an external opensource.org link; it now opens the in-app license modal. The license name in `about.ts` is updated to "Ying Xia Dual License v1.0 / 影海 双授权协议 v1.0", and licenseUrl points to the repo LICENSE file.
 - **New i18n key `about.viewLicense`**: Chinese "查看开源协议", English "View License".
 - **PRD updated to v2.7.0**: Doc version, product version, and date synchronized; evolution history adds v2.7.0 phase.
 - **README fully rewritten (bilingual)**: `README.md` and `README.zh-CN.md` completely rewritten with updated license statement, feature highlights, tech stack, etc.
-- **package.json license field updated**: `license` changed from `"MIT"` to `"影匣 双授权协议 v1.0"`.
+- **package.json license field updated**: `license` changed from `"MIT"` to `"影海 双授权协议 v1.0"`.
 ## v2.6.7 (2026-09-02)
 
 **In-app uninstall flow consolidation + uninstaller robustness fixes**
@@ -20,7 +20,7 @@
 - **Fixed NSIS build failure (warning 6155 treated as error)**: In `build/installer.nsh`, `MUI_UNPAGE_WELCOME` already consumes and `!undef`s `MUI_PAGE_CUSTOMFUNCTION_PRE`; the redundant manual `!undef` referenced an undefined macro and raised `!undef: "MUI_PAGE_CUSTOMFUNCTION_PRE" not defined!`. Removed the redundant line; packaging passes again.
 - **Fixed "Unable to clean up user data, data kept" during deletion**: The guard script `build/yingxia-uninstall-guard.ps1` was saved as UTF-8 without BOM. On Chinese Windows (default GBK codepage) PowerShell parsed it as GB2312, misreading Chinese bytes as extra line breaks / symbols, so the script failed to parse and exited 1, causing NSIS to keep the data as a fallback. Now saved as UTF-8 **with BOM**.
 - **Guard script now accepts the NSIS-passed argument**: The script previously had no `param()` block, so the `-DataDirOverride` argument passed by NSIS could not bind and errored out. Added `param([string]$DataDirOverride)` and prioritize that value.
-- **Force-kill lingering processes before deletion to release file locks**: Before removing `%APPDATA%\local-video-manager`, the script now `Stop-Process` the still-running `local-video-manager` / `影匣` processes to release Electron cache / Storage locks, preventing `Remove-Item` from failing on a lock.
+- **Force-kill lingering processes before deletion to release file locks**: Before removing `%APPDATA%\local-video-manager`, the script now `Stop-Process` the still-running `local-video-manager` / `影海` processes to release Electron cache / Storage locks, preventing `Remove-Item` from failing on a lock.
 - **More robust deletion retries**: Retry count 3 → 5, per-retry wait 800ms → 1.2s; the `DELETE_FAILED` message now adds "the app may still be running or the folder is in use" as the reason.
 
 ## v2.6.6 (2026-09-02)
@@ -54,7 +54,7 @@
 - **Fix double-click installer no response / Program Compatibility Assistant TLS warning**: The root cause was mixing a custom `nsDialogs` language dialog with `FindWindow` running-app detection inside `customInit` (called during `.onInit`), which caused an NSIS runtime crash (exit code -1073741819 / 0xC0000005). Replaced the custom nsDialogs language picker with electron-builder's native `displayLanguageSelector` + `installerLanguages: ['zh_CN', 'en_US']`.
 - **Installer language picker still limited to Simplified Chinese and English**: `installerLanguages` restricts MUI to loading only `SimpChinese` and `English` language files.
 - **Uninstaller checkbox retained**: `customUnInstall` still uses an nsDialogs checkbox to ask whether to delete `%APPDATA%\local-video-manager`; unchecked by default. Dialog text follows the installer `$LANGUAGE`.
-- **Installer running-app check retained**: Still detects the "影匣" window and prompts the user to close the app first, but no longer mixed with nsDialogs, avoiding the crash.
+- **Installer running-app check retained**: Still detects the "影海" window and prompts the user to close the app first, but no longer mixed with nsDialogs, avoiding the crash.
 
 ## v2.6.3 (2026-09-01)
 
@@ -110,17 +110,17 @@
 
 **Fixed installed app not launching after double-clicking the desktop icon (P0 critical bug)**
 
-- Root cause: The upgrade-detection kill-old-process logic added in v2.4.4 used 	askkill /F /IM \"影匣.exe\" /T, which kills **all** processes with that image name — including the newly started upgrade instance itself. This caused the fresh process to be killed immediately on launch, so the desktop icon appeared to do nothing.
-- Fix: Use 	askkill /F /FI \"PID ne <currentPID>\" /IM \"影匣.exe\" to exclude the current process before terminating other old instances.
+- Root cause: The upgrade-detection kill-old-process logic added in v2.4.4 used 	askkill /F /IM \"影海.exe\" /T, which kills **all** processes with that image name — including the newly started upgrade instance itself. This caused the fresh process to be killed immediately on launch, so the desktop icon appeared to do nothing.
+- Fix: Use 	askkill /F /FI \"PID ne <currentPID>\" /IM \"影海.exe\" to exclude the current process before terminating other old instances.
 - Why 
-pm run dev made it work afterwards: the dev process is named electron.exe, not 影匣.exe, so taskkill did not kill it. Running dev also wrote .last-version to the current version, so subsequent production launches skipped the upgrade branch and no longer triggered the suicide.
+pm run dev made it work afterwards: the dev process is named electron.exe, not 影海.exe, so taskkill did not kill it. Running dev also wrote .last-version to the current version, so subsequent production launches skipped the upgrade branch and no longer triggered the suicide.
 # Changelog
 
 ## v2.4.8 (2026-09-01)
 
 **Installer friendly prompt + fix NSIS Chinese encoding**
 
-- When the installer detects 影匣 is running, it shows a Chinese MessageBox asking the user to fully close the app (including the tray icon) before re-running the installer. Clicking OK exits the installer without force-killing the process.
+- When the installer detects 影海 is running, it shows a Chinese MessageBox asking the user to fully close the app (including the tray icon) before re-running the installer. Clicking OK exits the installer without force-killing the process.
 - Fixed NSIS parsing failure caused by Chinese text in uild/installer.nsh: the file is now saved as UTF-8 with BOM so makensis reads the Chinese strings correctly.
 # Changelog
 
@@ -128,8 +128,8 @@ pm run dev made it work afterwards: the dev process is named electron.exe, not �
 
 **Installer no longer force-kills old process; shows friendly prompt instead**
 
-- uild/installer.nsh previously used 	askkill + FindWindow to force-end the old process before overwriting. Now it only checks for a window titled "影匣".
-- If the app is still running, a MessageBox prompts the user: "Please fully close 影匣 (including the tray icon), then re-run the installer. The installer will exit after you click OK."
+- uild/installer.nsh previously used 	askkill + FindWindow to force-end the old process before overwriting. Now it only checks for a window titled "影海".
+- If the app is still running, a MessageBox prompts the user: "Please fully close 影海 (including the tray icon), then re-run the installer. The installer will exit after you click OK."
 - Calling Abort exits the installer after the user clicks OK, preventing accidental data loss from a forced kill.
 # Changelog
 
@@ -156,7 +156,7 @@ pm run dev made it work afterwards: the dev process is named electron.exe, not �
 
 **Thoroughly prevent stale UI after upgrade (two-layer safety)**
 
-- **Main process kills old process on upgrade**: On startup compare .last-version to pp.getVersion(). If they differ, run 	askkill /F /IM "影匣.exe" /T before acquiring 
+- **Main process kills old process on upgrade**: On startup compare .last-version to pp.getVersion(). If they differ, run 	askkill /F /IM "影海.exe" /T before acquiring 
 equestSingleInstanceLock, so no stale process survives and the AppData folder no longer needs to be cleared.
 - **NSIS installer kills old process before overwrite**: Added uild/installer.nsh and referenced it from electron-builder.yml. The installer calls 	askkill + FindWindow before replacing files, providing a second layer of protection.
 # Changelog
@@ -388,7 +388,7 @@ econcile's regular progress pushes while still forwarding introError / etchEven
 
 ### 3. Data directory back to English path (fix6)
 - Main entry uses `app.setPath('userData', %APPDATA%\local-video-manager)` forcing data directory to English path (productName "YingXia" unchanged — window title / installer name both stay the same), avoiding potential compatibility issues with Chinese directory names.
-- **Migration reminder**: old data dir `%APPDATA%\影匣` data.json / posters / logs need manual copy to `%APPDATA%\local-video-manager` — if users upgrade and see their library is empty, they need to migrate once manually.
+- **Migration reminder**: old data dir `%APPDATA%\影海` data.json / posters / logs need manual copy to `%APPDATA%\local-video-manager` — if users upgrade and see their library is empty, they need to migrate once manually.
 
 ---
 

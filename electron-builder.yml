@@ -1,5 +1,5 @@
 appId: com.local.videomanager
-productName: 影匣
+productName: 影海
 copyright: Copyright © 2026
 
 directories:
@@ -36,7 +36,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: 影匣
+  shortcutName: 影海
   deleteAppDataOnUninstall: false
   differentialPackage: false
   # 安装第一步显示 MUI 语言选择框，且只加载简体中文、英文两种语言文件

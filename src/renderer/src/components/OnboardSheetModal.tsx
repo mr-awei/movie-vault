@@ -32,7 +32,7 @@ interface Props {
 const GROK_URL = 'https://grok.com'
 
 /** 中文提示词 */
-const PROMPT_TEXT_ZH = `请根据我提供的番号，按照以下要求生成影匣片单 Excel 内容：
+const PROMPT_TEXT_ZH = `请根据我提供的番号，按照以下要求生成影海片单 Excel 内容：
 
 1. 先查询该番号的准确信息（片商、剧情、时长、类型等）。
 2. 先确定「分类」（从下方分类体系选一个主分类）。

@@ -3,7 +3,7 @@
     [string]$DataDirOverride
 )
 
-# 影匣卸载器用户数据保护脚本
+# 影海卸载器用户数据保护脚本
 # 由卸载器（NSIS）在用户勾选「删除用户数据」后调用。
 # 职责：
 #   1. 解析 %APPDATA%\local-video-manager\data.json 中的媒体库/视频路径
@@ -39,12 +39,12 @@ function Test-InsideUserData([string]$path) {
     return $p.StartsWith($d + '\')
 }
 
-# 强制结束可能仍在运行的影匣进程，释放 Electron 缓存/Storage 文件锁。
+# 强制结束可能仍在运行的影海进程，释放 Electron 缓存/Storage 文件锁。
 # 卸载器走到这里时应用文件已被删除，残留进程多为僵尸句柄，直接结束即可。
 function Stop-YingXiaProcesses {
-    $names = @('local-video-manager', '影匣')
+    $names = @('local-video-manager', '影海')
     $procs = Get-Process -ErrorAction SilentlyContinue | Where-Object {
-        $names -contains $_.ProcessName -or ($_.Path -and ($_.Path -like '*local-video-manager*' -or $_.Path -like '*影匣*'))
+        $names -contains $_.ProcessName -or ($_.Path -and ($_.Path -like '*local-video-manager*' -or $_.Path -like '*影海*'))
     }
     foreach ($proc in $procs) {
         try {

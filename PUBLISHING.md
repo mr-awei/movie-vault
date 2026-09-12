@@ -53,4 +53,4 @@ git push https://gitee.com/mr-awei/yingxia-video-manager.git main v2.1.0
 ## 常见问题
 
 - **Gitee 为什么不能自动构建？** Gitee 没有可用的免费 CI 服务（Gitee Go 已停止面向普通用户）。所以 Gitee Release 的正文由 GitHub Actions 同步 GitHub 下载链接，点链接从 GitHub 下载安装包。
-- **本地还想手动打包？** 仍然可以：`npm run pack`，然后手动签名（`signtool sign /sha1 <证书指纹> /fd SHA256 /tr http://timestamp.sectigo.com /td SHA256 "release\影匣 Setup x.x.x.exe"`）。
+- **本地还想手动打包？** 仍然可以：`npm run pack`，然后手动签名（`signtool sign /sha1 <证书指纹> /fd SHA256 /tr http://timestamp.sectigo.com /td SHA256 "release\影海 Setup x.x.x.exe"`）。

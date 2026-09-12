@@ -84,7 +84,7 @@ function ZhContent() {
   return (
     <>
       <Section title={t('notice.section1')}>
-        本软件（"影匣"）是一款<strong className="text-white">仅供个人使用的本地视频文件管理工具</strong>，其核心功能为：
+        本软件（"影海"）是一款<strong className="text-white">仅供个人使用的本地视频文件管理工具</strong>，其核心功能为：
         扫描本地文件夹、读取视频元数据、生成本地海报墙、管理本地视频库。
         本软件<strong className="text-amber-300">不提供、不存储、不传播任何片源内容</strong>，亦不连接任何涉嫌传播违法内容的资源服务器，
         不提供下载、上传、分享、传播涉嫌违法内容的功能。本软件对用户本地已存在的视频文件不进行任何形式的主动获取或传播。

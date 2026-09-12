@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { AppApi } from '../shared/api-types'
 
-console.log('[videomanger preload] loaded, exposing window.api')
+console.log('[moviemanger preload] loaded, exposing window.api')
 
 const api: AppApi = {
   copyText: (text) => ipcRenderer.invoke(IPC.copyText, text),

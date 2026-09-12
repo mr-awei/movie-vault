@@ -1,7 +1,7 @@
-# 影匣 (yingxia-video-manager) — 项目交接文档
+# 影海 (yingxia-video-manager) — 项目交接文档
 
 > 写给接手这个项目的 AI / 开发者。核心一句话：**本地视频管理工具**，海报墙式影库，自动抓元数据、按片单归类、本地播放。
-> 当前版本 **v2.2.10**（2026-08-30）。仓库：`E:\videomanger`，双 remote（GitHub + Gitee）。
+> 当前版本 **v2.2.10**（2026-08-30）。仓库：`E:\moviemanger`，双 remote（GitHub + Gitee）。
 
 ---
 
@@ -36,7 +36,7 @@
 ## 3. 目录结构地图
 
 ```
-E:\videomanger\
+E:\moviemanger\
 ├── src/
 │   ├── main/            # Electron 主进程
 │   │   ├── index.ts     # 入口：注册 lm:// 协议、main log 落盘、窗口
@@ -146,11 +146,11 @@ fetchDetailSmart(code, settings, state, onEvent?)
 ```
 npm run dev        # electron-vite dev（HMR 只热更新 renderer，改 main 要重启）
 ```
-⚠️ dev 模式下 main 进程的 console 输出在 terminal；v2.2.9 起也落盘到 `%APPDATA%\影匣\logs\main.log`。
+⚠️ dev 模式下 main 进程的 console 输出在 terminal；v2.2.9 起也落盘到 `%APPDATA%\影海\logs\main.log`。
 
 ### 打包 + 签名
 ```
-npm run pack       # build + electron-builder → C:\Users\19218\yingxia-release\<时间戳>\影匣 Setup <ver>.exe
+npm run pack       # build + electron-builder → C:\Users\19218\yingxia-release\<时间戳>\影海 Setup <ver>.exe
 ```
 签名（自签名 pfx，证书指纹 `2818B2F69CAD337604F42DEFC7B5A3C3696F02AC`）：
 ```
@@ -160,8 +160,8 @@ npm run pack       # build + electron-builder → C:\Users\19218\yingxia-release
 
 ### 发布（GitHub Release）
 ```
-GITHUB_TOKEN=<token> TAG=v2.2.x TITLE="影匣 v2.2.x" \
-INSTALLER_PATH="C:/Users/19218/yingxia-release/<ts>/影匣 Setup <ver>.exe" \
+GITHUB_TOKEN=<token> TAG=v2.2.x TITLE="影海 v2.2.x" \
+INSTALLER_PATH="C:/Users/19218/yingxia-release/<ts>/影海 Setup <ver>.exe" \
 node scripts/publish-release.mjs
 ```
 - ⚠️ **token 必须从环境变量读**（GitHub Push Protection 会拦含硬编码 token 的 commit，v2.2.5 踩过）
@@ -232,6 +232,6 @@ git push gitee main && git push gitee v2.2.x
 
 1. 读本文件 + `CHANGELOG.md`（版本史）+ `src/main/lib/javdb-smart.ts`（智能抓取中枢）
 2. `npm run typecheck` 确认 0 错，`npm run build` 确认构建
-3. 有用户问题反馈时，先看 `%APPDATA%\影匣\logs\main.log` + `%APPDATA%\影匣\renderer-console.log` + `%APPDATA%\影匣\data.json`（settings/videos 现状）
+3. 有用户问题反馈时，先看 `%APPDATA%\影海\logs\main.log` + `%APPDATA%\影海\renderer-console.log` + `%APPDATA%\影海\data.json`（settings/videos 现状）
 4. 改 main 进程 → 提醒用户重启 dev；改 renderer → HMR 生效
 5. 发布：npm run pack → 签名 → publish-release.mjs（token 走环境变量）

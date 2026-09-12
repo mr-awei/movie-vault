@@ -1,11 +1,11 @@
-# 影匣 - 自签名证书生成脚本（首次使用运行一次）
+# 影海 - 自签名证书生成脚本（首次使用运行一次）
 # 用法：PowerShell 执行  scripts\gen-cert.ps1
-# 生成：CurrentUser\My 存储中的代码签名证书（CN=影匣 YingXia），有效期 5 年
+# 生成：CurrentUser\My 存储中的代码签名证书（CN=影海 YingXia），有效期 5 年
 # 之后 scripts\sign.cmd 用证书 Thumbprint 给安装包/主程序签名
 
 $cert = New-SelfSignedCertificate `
   -Type CodeSigningCert `
-  -Subject "CN=影匣 YingXia, O=YingXia, C=CN" `
+  -Subject "CN=影海 YingXia, O=YingXia, C=CN" `
   -CertStoreLocation Cert:\CurrentUser\My `
   -KeyUsage DigitalSignature `
   -KeyExportPolicy Exportable `

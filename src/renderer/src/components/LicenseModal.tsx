@@ -12,8 +12,8 @@ interface Props {
 const LICENSE_EMAIL = 'new_mr_awei@163.com'
 
 /** 中文协议全文（与根目录 LICENSE 保持一致） */
-const LICENSE_ZH = `影匣 双授权协议 v1.0
-版权所有 © 2026 影匣（new_mr_awei@163.com）
+const LICENSE_ZH = `影海 双授权协议 v1.0
+版权所有 © 2026 影海（new_mr_awei@163.com）
 
 本软件采用双授权模式，根据使用场景适用不同授权条款：
 
@@ -116,7 +116,7 @@ export default function LicenseModal({ open, onClose, language }: Props) {
             </div>
             <div>
               <div className="text-white font-bold text-sm">
-                {isEn ? 'Ying Xia Dual License v1.0' : '影匣 双授权协议 v1.0'}
+                {isEn ? 'Ying Xia Dual License v1.0' : '影海 双授权协议 v1.0'}
               </div>
               <div className="text-white/40 text-[11px]">
                 {isEn ? 'Open Source License' : '开源协议'}

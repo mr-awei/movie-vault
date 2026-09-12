@@ -1,4 +1,4 @@
-# YingXia (影匣) Local Video Manager — Product Requirements Document (PRD)
+# YingXia (影海) Local Video Manager — Product Requirements Document (PRD)
 
 | Project | YingXia Local Video Manager & Poster Wall |
 |---|---|
@@ -251,7 +251,7 @@ The user owns a large collection of local video files organized into folders nam
 | Update check | `updateCheck`: GitHub / Gitee dual-source auto-fallback, 20s timeout, launch + periodic check (30min) |
 | System tray | `minimizeToTray`: closing window doesn't quit |
 | About | App info + version + GitHub repo with Star prompt |
-| Logs | main.log (main process console written to disk since v2.2.9) + renderer-console.log (JSON lines) → `%APPDATA%\影匣\logs\` |
+| Logs | main.log (main process console written to disk since v2.2.9) + renderer-console.log (JSON lines) → `%APPDATA%\影海\logs\` |
 | Update prompt | pendingUpdate top banner + download CTA |
 
 ### M12 Visualization & UX
@@ -280,7 +280,7 @@ The user owns a large collection of local video files organized into folders nam
 
 | Item | Requirement |
 |---|---|
-| Data local | All data in `%APPDATA%\影匣\data.json`, nothing uploaded |
+| Data local | All data in `%APPDATA%\影海\data.json`, nothing uploaded |
 | Code / search | Network requests only to 5 sources + image CDNs |
 | Password | Deletion lock hash-stored (SHA-256 salt + password), no plaintext |
 | Credentials | javinfoKey / javapiKey / javdbCookie stored plaintext in `data.json` (acceptable for single-user local, **never synced**) |

@@ -1,12 +1,12 @@
 {
   "name": "local-video-manager",
-  "productName": "影匣",
+  "productName": "影海",
   "version": "2.7.0",
   "description": "Local-only video library manager — poster wall, hover preview, local playback, zero cloud uploads, privacy-first",
   "type": "module",
   "main": "out/main/index.js",
   "author": "",
-  "license": "影匣 双授权协议 v1.0",
+  "license": "影海 双授权协议 v1.0",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
