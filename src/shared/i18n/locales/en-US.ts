@@ -256,6 +256,21 @@ export default {
   'reconcile.ignoreHint': 'Ignore this item — reminder will not pop up again, still found under "Untracked" in sidebar.',
   'reconcile.copyCodesHint': 'Copy all untracked video filenames, comma-separated (paste into Excel playlist / search).',
 
+  // Reconcile reminder: 3-step guidance when new videos are untracked (mirrors OnboardSheetModal)
+  'reconcile.guideDesc': 'The following videos are not yet listed in the playlist Excel. Follow the 3 steps so the wall can categorize them and show synopsis & tags.',
+  'reconcile.step1.title': 'Copy untracked video names',
+  'reconcile.step1.desc': 'Copy the video names not yet in the playlist, then paste them to AI next. The "Ignore" on each item stops future reminders (still found under "Untracked" in sidebar).',
+  'reconcile.step2.title': 'Generate synopsis with the AI prompt',
+  'reconcile.step2.desc': 'The "AI prompt" below already includes these names and embeds the rating rules from the spec. Copy it and send to an AI (Grok recommended) to generate the playlist synopsis.',
+  'reconcile.step2.promptLabel': 'AI prompt (with video names)',
+  'reconcile.step2.copyPrompt': 'Copy prompt',
+  'reconcile.step2.openGrok': 'Generate with Grok',
+  'reconcile.step3.title': 'Update the playlist Excel',
+  'reconcile.step3.desc': 'Paste the AI-generated synopsis into the playlist Excel and save (or open the playlist / go to settings to reconfigure it).',
+  'reconcile.step3.openIntro': 'Open playlist Excel',
+  'reconcile.step3.openSettings': 'Go to playlist settings',
+  'reconcile.step3.rescanHint': 'After saving the playlist, close this window and rescan to apply.',
+
   // ===== About Modal =====
   'about.checkUpdate': 'Check for updates',
   'about.checkFailedShort': 'Update check failed',

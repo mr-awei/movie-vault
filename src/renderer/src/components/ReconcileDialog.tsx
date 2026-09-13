@@ -1,6 +1,10 @@
 ﻿import { useState } from 'react'
 import type { ReconcileResult, RenamePreviewItem } from '../../../shared/types'
 import { t } from '../../../shared/i18n'
+import Icon from './Icon'
+import { buildFullPrompt } from './OnboardSheetModal'
+
+const GROK_URL = 'https://grok.com'
 
 interface Props {
   open: boolean
@@ -22,6 +26,10 @@ interface Props {
   onIgnoreUnlisted?: (path: string) => void | Promise<void>
   /** 取消忽略 */
   onUnignoreUnlisted?: (path: string) => void | Promise<void>
+  /** 打开外部链接（如 Grok） */
+  onOpenExternal?: (url: string) => void
+  /** 关闭对账弹窗并打开库设置（片单 Excel tab），用于重新加载/配置片单 */
+  onOpenLibrarySettings?: () => void
 }
 
 export default function ReconcileDialog({
@@ -35,12 +43,15 @@ export default function ReconcileDialog({
   onPreviewRenames,
   onApplyRenames,
   onIgnoreUnlisted,
-  onUnignoreUnlisted
+  onUnignoreUnlisted,
+  onOpenExternal,
+  onOpenLibrarySettings
 }: Props) {
   const [previews, setPreviews] = useState<RenamePreviewItem[] | null>(null)
   const [applying, setApplying] = useState(false)
   const [applyResult, setApplyResult] = useState<{ ok: number; failed: number } | null>(null)
   const [copied, setCopied] = useState(false)
+  const [promptCopied, setPromptCopied] = useState(false)
   const [showIgnored, setShowIgnored] = useState(false)
   const [pendingIgnores, setPendingIgnores] = useState<Set<string>>(new Set())
 
@@ -49,6 +60,14 @@ export default function ReconcileDialog({
   const missing = result.entries.filter((e) => e.kind === 'missing')
   const unlisted = result.unlisted
   const hasAny = missing.length > 0 || unlisted.length > 0
+
+  // 未收录影片名（去扩展名），用于生成 AI 提示词
+  const unlistedNames = unlisted.map((u) => {
+    const f = u.fileName
+    const dot = f.lastIndexOf('.')
+    return (dot > 0 ? f.slice(0, dot) : f) || f
+  })
+  const fullPrompt = buildFullPrompt(unlistedNames)
 
   async function handlePreview() {
     setApplyResult(null)
@@ -97,17 +116,7 @@ export default function ReconcileDialog({
       >
         <div className="p-5 pb-3 border-b border-white/5">
           <div className="text-white font-semibold text-lg">{t('reconcile.title')}</div>
-          <div className="text-white/50 text-xs mt-1">
-            {t('reconcile.description')}
-            {mdPath ? (
-              <button
-                className="ml-1 text-brand hover:underline"
-                onClick={() => onOpenFile(mdPath)}
-              >
-                {t('reconcile.openIntroFile')}
-              </button>
-            ) : null}
-          </div>
+          <div className="text-white/50 text-xs mt-1">{t('reconcile.description')}</div>
         </div>
 
         <div className="flex-1 overflow-auto p-5 thin-scroll">
@@ -137,122 +146,199 @@ export default function ReconcileDialog({
 
           {unlisted.length > 0 ? (
             <div>
-              <div className="text-amber-400 text-sm font-medium mb-2">
+              <div className="text-amber-400 text-sm font-medium mb-1">
                 {t('reconcile.fileUntracked', { count: unlisted.length })}
-                {onRevealInFolder ? (
-                  <span className="text-white/40 text-xs ml-2">{t('reconcile.fileClickHint')}</span>
-                ) : null}
               </div>
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {unlisted.map((u) => (
-                  <div
-                    key={u.path}
-                    className="inline-flex items-center rounded bg-amber-500/20 text-white/90 text-xs overflow-hidden"
-                  >
-                    <button
-                      className="px-2 py-1 hover:bg-amber-500/40"
-                      title={`${u.path}\n${t('reconcile.fileClickHint')}`}
-                      onClick={() => onRevealInFolder?.(u.path)}
-                    >
-                      {u.fileName}
-                    </button>
-                    {onIgnoreUnlisted ? (
-                      <button
-                        className="px-1.5 py-1 hover:bg-amber-500/40 text-white/50 hover:text-white disabled:opacity-40"
-                        title={t('reconcile.ignoreHint')}
-                        disabled={pendingIgnores.has(u.path)}
-                        onClick={async () => {
-                          setPendingIgnores((prev) => new Set(prev).add(u.path))
-                          try {
-                            await onIgnoreUnlisted(u.path)
-                          } finally {
-                            setPendingIgnores((prev) => {
-                              const next = new Set(prev)
-                              next.delete(u.path)
-                              return next
-                            })
-                          }
-                        }}
+              <p className="text-white/45 text-xs mb-4">{t('reconcile.guideDesc')}</p>
+
+              {/* ===== Step 1：复制未收录影片名 ===== */}
+              <section className="mb-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-md bg-brand/20 text-brand text-[11px] font-bold flex items-center justify-center shrink-0">1</span>
+                  <h3 className="text-white font-medium text-sm">{t('reconcile.step1.title')}</h3>
+                </div>
+                <p className="text-white/50 text-[12px] leading-relaxed mb-3 ml-7">{t('reconcile.step1.desc')}</p>
+                <div className="ml-7">
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {unlisted.map((u) => (
+                      <div
+                        key={u.path}
+                        className="inline-flex items-center rounded bg-amber-500/20 text-white/90 text-xs overflow-hidden"
                       >
-                        {t('reconcile.ignore')}
-                      </button>
-                    ) : null}
+                        <button
+                          className="px-2 py-1 hover:bg-amber-500/40"
+                          title={`${u.path}\n${t('reconcile.fileClickHint')}`}
+                          onClick={() => onRevealInFolder?.(u.path)}
+                        >
+                          {u.fileName}
+                        </button>
+                        {onIgnoreUnlisted ? (
+                          <button
+                            className="px-1.5 py-1 hover:bg-amber-500/40 text-white/50 hover:text-white disabled:opacity-40"
+                            title={t('reconcile.ignoreHint')}
+                            disabled={pendingIgnores.has(u.path)}
+                            onClick={async () => {
+                              setPendingIgnores((prev) => new Set(prev).add(u.path))
+                              try {
+                                await onIgnoreUnlisted(u.path)
+                              } finally {
+                                setPendingIgnores((prev) => {
+                                  const next = new Set(prev)
+                                  next.delete(u.path)
+                                  return next
+                                })
+                              }
+                            }}
+                          >
+                            {t('reconcile.ignore')}
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              {/* 一键清理文件名广告 */}
-              <div className="flex flex-wrap items-center gap-2 mt-1">
-                <button
-                  className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-medium"
-                  onClick={handlePreview}
-                  disabled={applying}
-                >
-                  {t('reconcile.cleanAds')}
-                </button>
-
-                {/* 一键复制所有未收录文件名（中文逗号间隔） */}
-                <button
-                  className="px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 text-white/90 text-xs font-medium ring-1 ring-white/10 transition-colors"
-                  onClick={handleCopyUnlistedCodes}
-                  title={t('reconcile.copyCodesHint')}
-                >
-                  {copied ? t('reconcile.copySuccess') : t('reconcile.copyCodes')}
-                </button>
-              </div>
-              {copied ? (
-                <div className="text-emerald-400 text-[11px] mt-1.5">
-                  ✓ {t('reconcile.copiedCount', { count: unlisted.length })}
-                </div>
-              ) : null}
-
-              {applyResult ? (
-                <div className="mt-2 text-xs">
-                  <span className="text-brand">{t('reconcile.renameSuccess', { count: applyResult.ok })}</span>
-                  {applyResult.failed > 0 ? (
-                    <span className="text-amber-400 ml-2">{t('reconcile.renameFailed', { count: applyResult.failed })}</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-medium"
+                      onClick={handleCopyUnlistedCodes}
+                      title={t('reconcile.copyCodesHint')}
+                    >
+                      {copied ? t('reconcile.copySuccess') : t('reconcile.copyCodes')}
+                    </button>
+                    <button
+                      className="px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 text-white/90 text-xs font-medium ring-1 ring-white/10 transition-colors"
+                      onClick={handlePreview}
+                      disabled={applying}
+                    >
+                      {t('reconcile.cleanAds')}
+                    </button>
+                  </div>
+                  {copied ? (
+                    <div className="text-emerald-400 text-[11px] mt-1.5">
+                      ✓ {t('reconcile.copiedCount', { count: unlisted.length })}
+                    </div>
                   ) : null}
-                  <span className="text-white/40 ml-2">{t('reconcile.rescanAfterEffect')}</span>
-                </div>
-              ) : null}
 
-              {previews !== null ? (
-                <div className="mt-3">
-                  {previews.length === 0 ? (
-                    <div className="text-white/50 text-xs">{t('reconcile.noAdsFound')}</div>
-                  ) : (
-                    <>
-                      <div className="text-white/80 text-xs mb-2">
-                        {t('reconcile.aboutToRename', { count: previews.length })}
-                      </div>
-                      <div className="max-h-40 overflow-auto thin-scroll rounded bg-black/20 p-2 space-y-1">
-                        {previews.map((p) => (
-                          <div key={p.path} className="text-[11px] leading-relaxed">
-                            <span className="text-white/40 line-through">{p.oldName}</span>
-                            <span className="text-brand mx-1">→</span>
-                            <span className="text-white/90">{p.newName}</span>
+                  {applyResult ? (
+                    <div className="mt-2 text-xs">
+                      <span className="text-brand">{t('reconcile.renameSuccess', { count: applyResult.ok })}</span>
+                      {applyResult.failed > 0 ? (
+                        <span className="text-amber-400 ml-2">{t('reconcile.renameFailed', { count: applyResult.failed })}</span>
+                      ) : null}
+                      <span className="text-white/40 ml-2">{t('reconcile.rescanAfterEffect')}</span>
+                    </div>
+                  ) : null}
+
+                  {previews !== null ? (
+                    <div className="mt-3">
+                      {previews.length === 0 ? (
+                        <div className="text-white/50 text-xs">{t('reconcile.noAdsFound')}</div>
+                      ) : (
+                        <>
+                          <div className="text-white/80 text-xs mb-2">
+                            {t('reconcile.aboutToRename', { count: previews.length })}
                           </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-2 mt-2">
-                        <button
-                          className="px-3 py-1 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-medium"
-                          onClick={handleApply}
-                          disabled={applying}
-                        >
-                          {applying ? t('reconcile.renaming') : t('reconcile.confirmRename', { count: previews.length })}
-                        </button>
-                        <button
-                          className="px-3 py-1 rounded-lg bg-ink-700 hover:bg-ink-600 text-white text-xs"
-                          onClick={() => setPreviews(null)}
-                        >
-                          {t('app.cancel')}
-                        </button>
-                      </div>
-                    </>
-                  )}
+                          <div className="max-h-40 overflow-auto thin-scroll rounded bg-black/20 p-2 space-y-1">
+                            {previews.map((p) => (
+                              <div key={p.path} className="text-[11px] leading-relaxed">
+                                <span className="text-white/40 line-through">{p.oldName}</span>
+                                <span className="text-brand mx-1">→</span>
+                                <span className="text-white/90">{p.newName}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              className="px-3 py-1 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-medium"
+                              onClick={handleApply}
+                              disabled={applying}
+                            >
+                              {applying ? t('reconcile.renaming') : t('reconcile.confirmRename', { count: previews.length })}
+                            </button>
+                            <button
+                              className="px-3 py-1 rounded-lg bg-ink-700 hover:bg-ink-600 text-white text-xs"
+                              onClick={() => setPreviews(null)}
+                            >
+                              {t('app.cancel')}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+              </section>
+
+              {/* ===== Step 2：用 AI 提示词生成简介 ===== */}
+              <section className="mb-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-md bg-brand/20 text-brand text-[11px] font-bold flex items-center justify-center shrink-0">2</span>
+                  <h3 className="text-white font-medium text-sm">{t('reconcile.step2.title')}</h3>
+                </div>
+                <p className="text-white/50 text-[12px] leading-relaxed mb-3 ml-7">{t('reconcile.step2.desc')}</p>
+                <div className="ml-7 space-y-3">
+                  <div className="rounded-xl bg-ink-900/60 ring-1 ring-white/5 overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-white/5">
+                      <span className="text-white/60 text-xs">{t('reconcile.step2.promptLabel')}</span>
+                      <button
+                        onClick={() => {
+                          void navigator.clipboard.writeText(fullPrompt)
+                          setPromptCopied(true)
+                          window.setTimeout(() => setPromptCopied(false), 1600)
+                        }}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition ${
+                          promptCopied
+                            ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40'
+                            : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        <Icon name="copy" size={12} />
+                        {promptCopied ? t('app.copied') : t('reconcile.step2.copyPrompt')}
+                      </button>
+                    </div>
+                    <pre className="px-3 py-3 text-[12px] text-white/75 leading-relaxed whitespace-pre-wrap font-mono max-h-56 overflow-y-auto thin-scroll">
+                      {fullPrompt}
+                    </pre>
+                  </div>
+                  {onOpenExternal ? (
+                    <button
+                      onClick={() => onOpenExternal(GROK_URL)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-brand text-ink-900 font-medium hover:bg-brand/90 transition shrink-0"
+                    >
+                      <Icon name="external" size={14} />
+                      {t('reconcile.step2.openGrok')}
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+
+              {/* ===== Step 3：更新片单 Excel ===== */}
+              <section className="mb-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-md bg-brand/20 text-brand text-[11px] font-bold flex items-center justify-center shrink-0">3</span>
+                  <h3 className="text-white font-medium text-sm">{t('reconcile.step3.title')}</h3>
+                </div>
+                <p className="text-white/50 text-[12px] leading-relaxed mb-3 ml-7">{t('reconcile.step3.desc')}</p>
+                <div className="ml-7 flex flex-wrap items-center gap-2">
+                  {mdPath ? (
+                    <button
+                      className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-medium"
+                      onClick={() => onOpenFile(mdPath)}
+                    >
+                      {t('reconcile.step3.openIntro')}
+                    </button>
+                  ) : null}
+                  {onOpenLibrarySettings ? (
+                    <button
+                      className="px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 text-white/90 text-xs font-medium ring-1 ring-white/10 transition-colors"
+                      onClick={onOpenLibrarySettings}
+                    >
+                      {t('reconcile.step3.openSettings')}
+                    </button>
+                  ) : null}
+                </div>
+                <p className="ml-7 text-white/35 text-[11px] mt-2">{t('reconcile.step3.rescanHint')}</p>
+              </section>
 
               {/* 已忽略项目管理 */}
               {ignoredUnlistedPaths.length > 0 ? (

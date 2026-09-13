@@ -100,8 +100,8 @@ function getPromptText(): string {
   return getLocale() === 'en-US' ? PROMPT_TEXT_EN : PROMPT_TEXT_ZH
 }
 
-/** Build the full prompt — locale-aware */
-function buildFullPrompt(codes: string[]): string {
+/** Build the full prompt — locale-aware（ReconcileDialog 复用，给新增视频生成片单提示词） */
+export function buildFullPrompt(codes: string[]): string {
   const prompt = getPromptText()
   const codeList = codes.length > 0 ? codes.join('、') : '（无）'
   const header = getLocale() === 'en-US'

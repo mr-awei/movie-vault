@@ -256,6 +256,21 @@ export default {
   'reconcile.ignoreHint': '忽略该项目，以后不再弹出提醒，但仍可在左侧「未收录」中找到',
   'reconcile.copyCodesHint': '复制所有未收录视频的文件名，中文逗号间隔（方便粘贴到 Excel 片单 / 搜索）',
 
+  // 对账提醒：新增视频未收录时的三步引导（与首次引导 OnboardSheetModal 对齐）
+  'reconcile.guideDesc': '下面这些视频还没写进片单 Excel。按三步处理即可让海报墙正确分类、展示简介与标签。',
+  'reconcile.step1.title': '复制未收录影片名',
+  'reconcile.step1.desc': '先复制下面还没写进片单的影片名，方便下一步粘贴给 AI。每个文件右侧的「忽略」可让它不再提醒（仍可在左侧「未收录」中找到）。',
+  'reconcile.step2.title': '用 AI 提示词生成简介',
+  'reconcile.step2.desc': '下方「AI 提示词」已自动带上这些影片名，并内嵌《通用影片评分与简介规范》的评分口径。复制后发给 AI（推荐 Grok）即可生成片单简介。',
+  'reconcile.step2.promptLabel': 'AI 提示词（含影片名）',
+  'reconcile.step2.copyPrompt': '复制提示词',
+  'reconcile.step2.openGrok': '用 Grok 生成',
+  'reconcile.step3.title': '更新片单 Excel',
+  'reconcile.step3.desc': '把 AI 生成的简介粘贴进片单 Excel 并保存（或直接打开片单 / 去设置重新配置片单）。',
+  'reconcile.step3.openIntro': '打开片单 Excel',
+  'reconcile.step3.openSettings': '去设置片单 Excel',
+  'reconcile.step3.rescanHint': '保存片单后，关闭本窗口并重新扫描即可生效。',
+
   // ===== 关于弹窗 AboutModal =====
   'about.checkUpdate': '检查更新',
   'about.checkFailedShort': '检查更新失败',

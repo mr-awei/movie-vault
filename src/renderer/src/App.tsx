@@ -2074,6 +2074,14 @@ export default function App() {
           setSettings(s)
           await runReconcile(libraryId)
         }}
+        onOpenExternal={(u) => void api.openExternal(u)}
+        onOpenLibrarySettings={() => {
+          if (currentLibrary) {
+            setLibraryId(currentLibrary.id)
+            setLibraryOpen(true)
+            setAddingLibrary(false)
+          }
+        }}
       />
 
       <LibraryModal
