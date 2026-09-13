@@ -1,39 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { DisplayEntry, JavdbDetail, Video } from '../../../shared/types'
+import type { DisplayEntry, MovieMeta, Video } from '../../../shared/types'
 import { hasDocTags, primaryTags, NON_TAG_CATEGORY_NAMES } from '../../../shared/types'
-import { posterUrl, placeholderGradient, titleInitial, formatSize, formatDuration, resolveEntryPoster } from '../lib/util'
+import { posterUrl, placeholderGradient, titleInitial, formatSize, formatDuration, resolveEntryPoster, pureTitle, stringToMutedColor } from '../lib/util'
 import { useFrameFallback } from '../lib/frameFallback'
 import { api } from '../lib/api'
 import Icon from './Icon'
 import { toast } from './Toast'
 import { t } from '../../../shared/i18n'
-import { extractBaseCode } from '../../../shared/code'
 
 interface Props {
   video: Video
   onClose: () => void
   onPlay: (v: Video) => void
   /** 抓取成功回调（用于回写 App 展示数据，下次直接命中本地缓存） */
-  onDetailFetched?: (videoId: string, detail: JavdbDetail) => void
+  onDetailFetched?: (videoId: string, detail: MovieMeta) => void
   /** 截帧/封面更新回调（用于回写 App 列表态，立即刷新封面）。
    *  previewPaths 为空表示不修改原有预览帧；posterSource 默认 'ffmpeg' */
   onPosterFetched?: (videoId: string, posterPath: string, previewPaths?: string[], posterSource?: string) => void
   /** ffprobe 技术参数读取成功回调（回写持久化） */
   onTechInfoFetched?: (videoId: string, tech: Video['techInfo']) => void
-  /** 点击演员/片商/系列/分类 → 请求按该维度筛选并回到首页 */
+  /** 点击演员/制片公司/系列/分类 → 请求按该维度筛选并回到首页 */
   onPickFilter?: (f: { type: 'actor' | 'studio' | 'series' | 'category'; value: string }) => void
   /** 点击标签 → 请求按该标签筛选全部影片 */
   onPickTag?: (tag: string) => void
-  /** 收藏切换（持久化到视频记录） */
-  onToggleFlag?: (id: string, key: 'favorite') => void
-  /** 相关推荐条目（同片商/系列/女演员） */
+  /** 收藏 / 锁定切换（持久化到视频记录） */
+  onToggleFlag?: (id: string, key: 'favorite' | 'locked') => void
+  /** 相关推荐条目（同制片公司/系列/主演） */
   related?: DisplayEntry[]
   /** 点击相关推荐 → 打开该条目详情 */
   onOpenRelated?: (entry: DisplayEntry) => void
-  /** 所属系列 base code（如 HUNTA-468） */
-  seriesBase?: string
-  /** 同系列全部条目（含当前） */
-  seriesMembers?: DisplayEntry[]
   /** {t('detail.edit')}影片信息 */
   onEdit?: (v: Video) => void
   /** 从磁盘删除视频文件（弹二次确认、按需连带删同目录种子文件夹） */
@@ -71,22 +66,8 @@ function formatTech(tech?: Video['techInfo']): string | undefined {
   return p.length ? p.join(' · ') : undefined
 }
 
-/** 失败原因代码（主进程 cacheRemoteImage 产出）→ 本地化人话。
- *  旧版本持久化的中文原因（如「下载超时」）直接原样透传，避免显示翻译占位符。 */
-function renderFailReason(r: string): string {
-  if (r === 'invalid-url') return t('detail.screenshotFailReason.invalidUrl')
-  if (r === 'http-403') return t('detail.screenshotFailReason.http403')
-  const m = /^http-(\d{3})$/.exec(r)
-  if (m) return t('detail.screenshotFailReason.httpStatus', { code: m[1] })
-  if (r === 'too-small') return t('detail.screenshotFailReason.tooSmall')
-  if (r === 'timeout') return t('detail.screenshotFailReason.timeout')
-  if (r === 'cert') return t('detail.screenshotFailReason.cert')
-  if (r === 'network') return t('detail.screenshotFailReason.network')
-  return r
-}
-
-export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, onPosterFetched, onTechInfoFetched, onPickFilter, onPickTag, onToggleFlag, related, onOpenRelated, seriesBase, seriesMembers, onEdit, onDelete }: Props) {
-  const [detail, setDetail] = useState<Video['javdbDetail']>(video.javdbDetail)
+export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, onPosterFetched, onTechInfoFetched, onPickFilter, onPickTag, onToggleFlag, related, onOpenRelated, onEdit, onDelete }: Props) {
+  const [detail, setDetail] = useState<Video['meta']>(video.meta)
   /** 本地 video 副本：截帧/封面更新后立即反映，不必等父组件重新拉取 */
   const [localVideo, setLocalVideo] = useState<Video>(video)
   /** 封面加载失败（路径失效）时标记，触发截帧兜底 */
@@ -105,7 +86,7 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
   const autoFramedRef = useRef(false)
   useEffect(() => {
     setLocalVideo(video)
-    setDetail(video.javdbDetail)
+    setDetail(video.meta)
     setCoverImgError(false)
     setPosterVersion(video.coverVersion ?? 0)
     setPreviewVersion(0)
@@ -117,7 +98,7 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
   const fetchingRef = useRef(false)
   /** 手动「重新截帧」进行中 */
   const [framing, setFraming] = useState(false)
-  /** 手动补齐：无视缓存强制重抓当前作品（多源 JavDB → JavBus）。
+  /** 手动补齐：无视缓存强制重抓当前作品（多源数据源）。
    * 无论数据是否与旧缓存一致，只要拿到新数据就弹窗提示已更新 + 来源；失败弹窗说明原因。 */
   const forceFetch = useCallback(async () => {
     if (fetchingRef.current) return
@@ -125,26 +106,12 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
     setFetching(true)
     setError(null)
     try {
-      if (localVideo.domestic) {
-        // 国产片：不抓 JavDB/JavBus，仅用 ffmpeg 重新截帧（封面 + 预览）
-        await handleGenerateFrames()
-        return
-      }
-      const res = await api.videoFetchJavdbDetail(video.id)
+      const res = await api.videoFetchDetail(video.id)
       if (res?.ok && res.detail) {
         setDetail(res.detail)
         onDetailFetched?.(video.id, res.detail)
-        const src = res.source === 'javbus' ? 'JavBus' : res.source === 'javinfo' ? 'Javinfo' : res.source === 'javapi' ? 'Javapi' : res.source === 'javlibrary' ? 'JavLibrary' : 'JavDB'
-        // v2.2.14：截图下载失败（图床被网络封锁）时如实提示，不再假装完全成功
-        const total = res.detail.samplesTotal ?? 0
-        const got = res.detail.samples?.length ?? 0
-        if (total > got) {
-          const reasons = [...new Set(res.detail.sampleErrors ?? [])].filter(Boolean)
-          const reason = reasons.length > 0 ? reasons.slice(0, 2).map(renderFailReason).join('、') : t('detail.screenshotFailReasonDefault')
-          toast({ text: t('detail.infoUpdatedWithScreenshotFail', { source: src, total, fail: total - got, reason }), tone: 'warn', duration: 8000 })
-        } else {
-          toast({ text: t('detail.infoUpdated', { source: src }), tone: 'ok' })
-        }
+        const src = res.source === 'openlibrary' ? 'OpenLibrary' : res.source === 'justwatch' ? 'JustWatch' : res.source === 'omdb' ? 'OMDb' : res.source === 'wikipedia' ? '维基百科' : 'MovieDB'
+        toast({ text: t('detail.infoUpdated', { source: src }), tone: 'ok' })
       } else {
         const reason = res && !res.ok ? res.error : t('app.unknownReason')
         toast({ text: t('detail.refetchFailReason', { reason: reason ?? t('app.unknownReason') }), tone: 'err' })
@@ -155,8 +122,36 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
       fetchingRef.current = false
       setFetching(false)
     }
-  }, [localVideo.id, localVideo.domestic, onDetailFetched, onPosterFetched])
-  /** ffmpeg 重新截帧（1 封面 + 预览帧），所有视频（含非国产片）都可用 */
+  }, [localVideo.id, onDetailFetched, onPosterFetched])
+  /** 详情页「按网址更新」：粘贴任一数据源网页 URL 直连抓取 */
+  const [urlInput, setUrlInput] = useState('')
+  const fetchByUrl = useCallback(async () => {
+    const url = urlInput.trim()
+    if (!url) return
+    if (fetchingRef.current) return
+    fetchingRef.current = true
+    setFetching(true)
+    setError(null)
+    try {
+      const res = await api.videoFetchByUrl(localVideo.id, url)
+      if (res?.ok && res.detail) {
+        setDetail(res.detail)
+        onDetailFetched?.(localVideo.id, res.detail)
+        const src = res.source === 'openlibrary' ? 'OpenLibrary' : res.source === 'justwatch' ? 'JustWatch' : res.source === 'omdb' ? 'OMDb' : res.source === 'wikipedia' ? '维基百科' : 'MovieDB'
+        setUrlInput('')
+        toast({ text: t('detail.infoUpdated', { source: src }), tone: 'ok' })
+      } else {
+        const reason = res && !res.ok ? res.error : t('app.unknownReason')
+        toast({ text: t('detail.refetchFailReason', { reason: reason ?? t('app.unknownReason') }), tone: 'err' })
+      }
+    } catch (e) {
+      toast({ text: t('detail.refetchFailError', { error: (e as Error)?.message ?? String(e) }), tone: 'err' })
+    } finally {
+      fetchingRef.current = false
+      setFetching(false)
+    }
+  }, [localVideo.id, onDetailFetched, urlInput, onPosterFetched])
+  /** ffmpeg 重新截帧（1 封面 + 预览帧），所有视频都可用 */
   const handleGenerateFrames = useCallback(async () => {
     if (framing) return
     setFraming(true)
@@ -242,7 +237,6 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
   const overlayRef = useRef<HTMLDivElement>(null)
   /** 当前 zoom 浮层显示的图片属于哪一组, 用于滚轮切换 */
   const zoomGroup = useRef<string[]>([])   // 当前轮播的图片 URL 组
-  const zoomGroupKey = useRef<'samples' | 'preview' | null>(null)
   const zoomIndex = useRef(0)
   /** 右键关闭后短暂禁用 hover 自动打开 (防止鼠标还停在缩略图上 scheduleOpen 又开出来) */
   const hoverDisabledUntil = useRef(0)
@@ -261,9 +255,8 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
     closeTimer.current = window.setTimeout(() => setZoomUrl(null), 180)
   }
   /** 记录当前 hover/click 打开的图片属于哪一组, 用于滚轮切换 */
-  const setZoomGroup = (group: string[], key: 'samples' | 'preview', currentUrl: string) => {
+  const setZoomGroup = (group: string[], currentUrl: string) => {
     zoomGroup.current = group
-    zoomGroupKey.current = key
     zoomIndex.current = Math.max(0, group.findIndex(u => u === currentUrl))
   }
   /** 延迟打开：hover 停留 1s 稳定后才开，避免划过误触；右键关闭后 2s 内禁用 */
@@ -290,51 +283,17 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
     }
   }, [])
 
-  // {t('detail.share')}：扫描视频文件夹 .torrent → 转磁链 → 复制第一个 → 弹 toast
-  const handleShare = useCallback(async () => {
-    try {
-      const r = await api.videoShareTorrents(video.id)
-      if (r.items.length === 0) {
-        toast({ text: t('detail.torrentNotFoundInFolder', { dir: r.dir }), tone: 'info', duration: 6000 })
-      } else if (r.copied) {
-        toast({
-          title: t('detail.magnetCopied'),
-          text: `${r.items[0].name}`,
-          tone: 'ok',
-          action: { label: t('detail.copy'), onClick: () => void navigator.clipboard?.writeText(r.items[0].magnet) },
-          duration: 6000
-        })
-      } else {
-        toast({ text: t('detail.magnetFoundButCopyFail', { count: r.items.length }), tone: 'warn', duration: 6000 })
-      }
-    } catch (e) {
-      toast({ text: t('detail.shareFailed', { error: (e as Error).message }), tone: 'err' })
-    }
-  }, [video.id])
-
-  // 判断缓存的 javdbDetail 是否"陈旧"（含远程 URL，可能是修复前缓存的）—— 这种情况重新抓一次升级成本地路径
-  // v2.2.14-fix：加上"关键截图不足 2 张"判定 — 之前番号脏时可能半拉子抓到了 cover（本地）但 samples 空/极少，
-  // 旧 isStale 只看远程 URL 不看数量，误判为"新鲜"导致永远不自动重抓 → 用户每次开详情页都要手动点补齐
-  const isStale = (d: Video['javdbDetail']): boolean => {
+  // 判断缓存的 meta 是否"陈旧"（封面仍是远程 URL，说明是修复前缓存的）—— 这种情况重新抓一次升级成本地路径
+  const isStale = (d: Video['meta']): boolean => {
     if (!d) return true
     if (d.cover && /^https?:\/\//.test(d.cover)) return true
-    const localSamples = (d.samples ?? []).filter((s) => !/^https?:\/\//.test(s))
-    if (d.samples && d.samples.some((s) => /^https?:\/\//.test(s))) return true
-    if (localSamples.length < 2) return true // JavDB/JavBus 正常{t('detail.back')} 6-12 张，少于 2 张视为不完整
     return false
   }
 
   // 打开即展示；缓存命中且不陈旧 → 零请求；否则（首次或陈旧）抓一次保存本地，之后直接命中缓存不再请求
   useEffect(() => {
-    if (video.domestic) {
-      // 国产片：不自动抓取元数据，封面/预览均由 ffmpeg 截帧提供
-      setDetail(video.javdbDetail)
-      setLoading(false)
-      setError(null)
-      return
-    }
-    if (!isStale(video.javdbDetail)) {
-      setDetail(video.javdbDetail)
+    if (!isStale(video.meta)) {
+      setDetail(video.meta)
       setLoading(false)
       setError(null)
       return
@@ -346,10 +305,13 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
   }, [video.id])
 
   const d = detail
-  // 只用本地路径：远程 URL 经 posterUrl 透传会让 Chromium 直连 javdb CDN 触发 403 反盗链
+  // 年份（优先 video.year，缺失时回退到数据源 release date 的年份）
+  const yearText = (() => {
+    const y = video.year ?? (d?.date ? Number(String(d.date).slice(0, 4)) : undefined)
+    return y && !Number.isNaN(y) ? String(y) : undefined
+  })()
+  // 只用本地路径：远程 URL 经 posterUrl 透传会让 Chromium 直连数据源 CDN 触发反盗链
   const isLocal = (u?: string) => !!u && !/^https?:\/\//.test(u)
-  /** 本地可展示的 javdb 截图数量（远程 URL 无法渲染，不算有效预览图） */
-  const localSamples = d?.samples?.filter(isLocal).length ?? 0
   // 手动{t('detail.setAsCover')}（posterSource='manual'，预览帧{t('detail.setAsCover')}）优先级最高，立即生效且持久；
   // 否则用详情真实封面（d.cover），再退回 posterPath
   const originalCover =
@@ -360,23 +322,21 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
         : localVideo.posterPath) || null
 
   // 进入「无预览图」的详情页时自动截帧：与手动「重新截帧」完全一致（1 封面 + 预览帧，走同一 IPC）。
-  // 元数据自动补齐进行中先等待（补齐可能带回 javdb 截图）；补齐结束仍无任何预览图（samples 与
-  // ffmpeg 预览帧均为空）时自动执行一次，成功后预览帧持久化，下次打开直接命中不再重复。
+  // 元数据自动补齐进行中先等待；补齐结束仍无任何预览帧时自动执行一次，成功后预览帧持久化，
+  // 下次打开直接命中不再重复。
   useEffect(() => {
     if (autoFramedRef.current) return
     if (fetchingRef.current || framing) return
     if ((localVideo.previewPaths?.length ?? 0) > 0) return
-    if (localSamples > 0) return
     autoFramedRef.current = true
     void handleGenerateFrames()
-  }, [video.id, localVideo.previewPaths, localSamples, fetching, framing, handleGenerateFrames])
+  }, [video.id, localVideo.previewPaths, fetching, framing, handleGenerateFrames])
 
-  // 自动截帧计划中：本地截图与预览帧均为空且元数据补齐已结束。此期间屏蔽单帧兜底，
+  // 自动截帧计划中：预览帧为空且元数据补齐已结束。此期间屏蔽单帧兜底，
   // 避免单帧兜底与完整截帧两个 ffmpeg 进程同时截同一文件
   const autoFramePlanned =
     !autoFramedRef.current &&
     (localVideo.previewPaths?.length ?? 0) === 0 &&
-    localSamples === 0 &&
     !fetching &&
     !framing
   // 无封面/封面加载失败 → ffmpeg 截帧兜底（懒加载；自动截帧规划中/进行中时暂不触发单帧兜底）
@@ -411,24 +371,14 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
           </button>
           <div className="flex items-center gap-2">
             <button
-              className="no-drag h-8 px-3 rounded-lg flex items-center gap-1.5 bg-ink-700 hover:bg-ink-600 text-white text-sm transition-colors"
-              onClick={handleShare}
-              title={t('detail.scanTorrentTitle')}
+              className="no-drag h-8 px-3 rounded-lg flex items-center gap-1.5 bg-ink-700 hover:bg-ink-600 text-white text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={forceFetch}
+              disabled={fetching || framing}
+              title={t('detail.refetchInfoTitle')}
             >
-              <Icon name="copy" size={13} />
-              {t('detail.share')}
+              <Icon name="refresh" size={13} className={fetching ? 'animate-spin' : ''} />
+              {fetching ? t('detail.processing') : t('detail.refetchInfo')}
             </button>
-            {!video.domestic ? (
-              <button
-                className="no-drag h-8 px-3 rounded-lg flex items-center gap-1.5 bg-ink-700 hover:bg-ink-600 text-white text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={forceFetch}
-                disabled={fetching || framing}
-                title={t('detail.refetchInfoTitle')}
-              >
-                <Icon name="refresh" size={13} className={fetching ? 'animate-spin' : ''} />
-                {fetching ? t('detail.processing') : t('detail.refetchInfo')}
-              </button>
-            ) : null}
             <button
               className="no-drag h-8 px-3 rounded-lg flex items-center gap-1.5 bg-ink-700 hover:bg-ink-600 text-white text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={handleGenerateFrames}
@@ -449,64 +399,126 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                 >
                   <Icon name="heart" size={14} className={video.favorite ? 'fill-current' : ''} />
                 </button>
+                <button
+                  className={`no-drag h-8 w-9 rounded-lg flex items-center justify-center transition-colors ${
+                    localVideo.locked ? 'bg-amber-500 text-black' : 'bg-ink-700 hover:bg-ink-600 text-white'
+                  }`}
+                  onClick={() => {
+                    const next = !localVideo.locked
+                    setLocalVideo((prev) => ({ ...prev, locked: next, lockedAt: next ? Date.now() : undefined }))
+                    onToggleFlag?.(video.id, 'locked')
+                  }}
+                  title={localVideo.locked ? t('lock.unlockTitle') : t('lock.lockTitle')}
+                >
+                  <Icon name={localVideo.locked ? 'lock' : 'unlock'} size={14} />
+                </button>
               </>
             ) : null}
           </div>
         </div>
 
-        {/* 封面 + 元数据 —— 左栏封面(固定2:3)+简介, 右栏标题/按钮/Meta/标签/{t('detail.fileInfo')}
-            封面保持 aspect-[2/3] 海报比例, 不被右栏 self-stretch 撑得过高导致大片模糊背景;
-            简介放到封面下方, 让左栏也有足够高度, 两栏视觉均衡. */}
-        <div className="grid grid-cols-[260px_1fr] gap-6 mb-6 items-start">
-          {/* 左栏：封面(固定 2:3) + 简介(紧跟下方) */}
+        {/* 封面 + 元数据 —— 左栏封面(固定2:3)+文件信息, 右栏标题/按钮/影片信息/标签,
+            剧情简介横跨左右两栏放在最下方, 阅读宽度最舒适. */}
+        {/* 按网址更新：粘贴任一数据源电影页面链接直连抓取 */}
+        <div className="mb-4">
+          <div className="flex items-center gap-2">
+            <input
+              className="no-drag flex-1 h-8 px-3 rounded-lg bg-ink-800 border border-white/10 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-brand/60"
+              type="text"
+              placeholder={t('detail.urlPlaceholder')}
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') fetchByUrl()
+              }}
+            />
+            <button
+              type="button"
+              className="no-drag h-8 px-3 rounded-lg flex items-center gap-1.5 bg-brand hover:bg-brand/80 text-white text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={fetchByUrl}
+              disabled={fetching || !urlInput.trim()}
+            >
+              <Icon name="globe" size={13} />
+              {t('detail.fetchByUrl')}
+            </button>
+          </div>
+          <div className="mt-1.5 text-[11px] text-white/40 flex items-center gap-1">
+            <Icon name="info" size={11} />
+            {t('detail.urlHint')}
+          </div>
+        </div>
+
+        {/* 锁定提示：让用户明确知道此片会被批量补齐自动跳过 */}
+        {localVideo.locked ? (
+          <div className="mb-4 flex items-start gap-2 rounded-lg bg-amber-500/10 ring-1 ring-amber-500/25 px-3 py-2 text-[12px] text-amber-200/90">
+            <Icon name="lock" size={13} className="mt-0.5 shrink-0 text-amber-400" />
+            <span>{t('lock.detailLockedHint')}</span>
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-[300px_1fr] gap-6 mb-6 items-start">
+          {/* 左栏：封面 + 剧情简介，填充左栏空白 */}
           <div className="flex flex-col gap-4">
             <div className="aspect-[2/3] w-full rounded-xl overflow-hidden bg-ink-800 ring-1 ring-white/10 relative shrink-0">
-            {coverSrc ? (
-              <div className="absolute inset-0">
-                {/* 模糊铺底：横竖屏封面完整显示，四周裁切处由模糊同图填充 */}
-                <img
-                  src={posterUrl(coverSrc, posterVersion) ?? ''}
-                  alt=""
-                  aria-hidden
-                  className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl opacity-40"
-                />
-                <img
-                  src={posterUrl(coverSrc, posterVersion) ?? ''}
-                  alt={video.title}
-                  className="relative h-full w-full object-contain poster-img"
-                  onError={() => setCoverImgError(true)}
-                />
+              {coverSrc ? (
+                <div className="absolute inset-0">
+                  {/* 模糊铺底：横竖屏封面完整显示，四周裁切处由模糊同图填充 */}
+                  <img
+                    src={posterUrl(coverSrc, posterVersion) ?? ''}
+                    alt=""
+                    aria-hidden
+                    className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl opacity-40"
+                  />
+                  <img
+                    src={posterUrl(coverSrc, posterVersion) ?? ''}
+                    alt={video.title}
+                    className="relative h-full w-full object-contain poster-img"
+                    onError={() => setCoverImgError(true)}
+                  />
+                </div>
+              ) : (
+                <div
+                  className="h-full w-full flex items-center justify-center text-5xl font-bold text-white/80"
+                  style={{ background: placeholderGradient(video.title) }}
+                >
+                  {titleInitial(video.title)}
+                </div>
+              )}
+            </div>
+
+            {/* 文件信息：文件名、添加时间、完整路径、日期、时长、大小、参数放到封面下方 */}
+            <div className="space-y-1 bg-ink-800/40 rounded-xl p-3.5 ring-1 ring-white/8">
+              <div className="text-xs font-medium text-white/60 mb-1.5 flex items-center gap-1.5">
+                <Icon name="info" size={11} className="text-white/40" />
+                {t('detail.fileInfo')}
               </div>
-            ) : (
-              <div
-                className="h-full w-full flex items-center justify-center text-5xl font-bold text-white/80"
-                style={{ background: placeholderGradient(video.title) }}
-              >
-                {titleInitial(video.title)}
-              </div>
-            )}
-          </div>{/* 封面容器结束 */}
-            {/* 简介 —— 纯文本段落接封面下方, 用细分隔线和封面区分, 无卡片感 */}
-            {video.description ? (
-              <div className="text-[13px] text-white/70 leading-[1.8] whitespace-pre-wrap max-h-[280px] overflow-y-auto pt-4 border-t border-white/10">
-                {video.description}
-              </div>
-            ) : null}
-          </div>{/* 左栏 flex-col 结束 */}
+              <MetaRow label={t('detail.fileName')} value={video.fileName} />
+              {video.addedAt ? (
+                <MetaRow label={t('detail.addedAt')} value={new Date(video.addedAt).toLocaleString('zh-CN')} />
+              ) : null}
+              {video.path ? <MetaRow label={t('detail.fullPath')} value={video.path} /> : null}
+              <MetaRow label={t('detail.date')} value={d?.date} />
+              <MetaRow label={t('detail.duration')} value={d?.duration} />
+              <MetaRow label={t('detail.fileSize')} value={video.fileSize ? formatSize(video.fileSize) : undefined} />
+              <MetaRow label={t('detail.techInfo')} value={formatTech(tech)} />
+            </div>
+          </div>
           <div className="min-w-0 flex flex-col">
             {d ? (
               <span
                 className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium mb-2 ${
-                  d.source === 'javbus'
-                    ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30'
-                    : d.source === 'javinfo'
-                      ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30'
-                      : d.source === 'javapi'
-                        ? 'bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/30'
-                        : 'bg-brand/15 text-brand ring-1 ring-brand/30'
+                  d.source === 'openlibrary'
+                    ? 'bg-indigo-500/15 text-indigo-400 ring-1 ring-indigo-500/30'
+                    : d.source === 'omdb'
+                      ? 'bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/30'
+                      : d.source === 'justwatch'
+                        ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30'
+                        : d.source === 'wikipedia'
+                          ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30'
+                          : 'bg-brand/15 text-brand ring-1 ring-brand/30'
                 }`}
               >
-                {t('detail.dataSource', { source: d.source === 'javbus' ? 'JavBus' : d.source === 'javinfo' ? 'Javinfo' : d.source === 'javapi' ? 'Javapi' : 'JavDB' })}
+                {t('detail.dataSource', { source: d.source === 'openlibrary' ? 'OpenLibrary' : d.source === 'omdb' ? 'OMDb' : d.source === 'justwatch' ? 'JustWatch' : d.source === 'wikipedia' ? '维基百科' : 'MovieDB' })}
               </span>
             ) : null}
             {/* 截帧封面标识：无真实封面，展示的是视频画面里截的一帧（d.cover 有真实封面时不显示） */}
@@ -516,81 +528,20 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                 {t('detail.isFfmpegCoverLabel')}
               </span>
             ) : null}
-            {/* 国产片徽章：纯中文文件夹，不抓元数据，仅 ffmpeg 截帧 */}
-            {video.domestic ? (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium mb-2 bg-green-500/15 text-green-400 ring-1 ring-green-500/30">
-                {t('detail.domesticLabel')}
-              </span>
-            ) : null}
-            {/* 系列徽章：同 base code 多分集共享元数据 */}
-            {seriesBase && seriesMembers && seriesMembers.length > 1 ? (
-              <div className="mb-3">
-                <div className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30 mb-2">
-        {t('detail.belongsToSeries', { series: seriesBase, count: seriesMembers.length })}
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {seriesMembers.map((m, idx) => {
-                    const isCur = m.video?.id === video.id
-                    // 按钮文字：从文件名（去扩展名）剥出 base code，只保留分集后缀，
-                    // 例如 sone-560_1.mp4 → "_1"，hunta-468-cd2.mp4 → "-cd2"。
-                    // 因为 video.title 在 reconcile 时被写成了 Excel 里的 base code（如 SONE-560），
-                    // 所有分集 title 都一样，无法区分，所以必须用原始文件名。
-                    const rawFile = m.video?.fileName ?? ''
-                    const nameNoExt = rawFile.replace(/\.[^.]+$/, '')
-                    const base = extractBaseCode(nameNoExt) || m.code
-                    let label = nameNoExt
-                    if (base) {
-                      const stripped = nameNoExt.replace(new RegExp('^' + base.replace(/[-]/g, '[-_]') + '\\s*', 'i'), '').trim()
-                      label = stripped || nameNoExt
-                    }
-                    return (
-                      <button
-                        key={m.video?.id ?? `${m.code}-${idx}`}
-                        className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
-                          isCur
-                            ? 'bg-brand text-white'
-                            : 'bg-ink-700 hover:bg-ink-600 text-white/80'
-                        }`}
-                        onClick={() => {
-                          if (!isCur && m.video) onOpenRelated?.(m)
-                        }}
-                        title={rawFile}
-                      >
-                        {label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            ) : null}
+
             <div className="flex items-center gap-2.5 mb-1 flex-wrap">
               <div className="text-2xl font-semibold text-white break-all">
-                {extractBaseCode(video.title || '') || video.title}
+                {pureTitle(video.title, video.fileName)}
               </div>
-              {seriesBase && seriesMembers && seriesMembers.length > 1 ? (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-brand text-white shrink-0">
-                  {t('detail.currentEpisodeLabel', {
-                    label:
-                      (() => {
-                        const rawFile = video.fileName ?? ''
-                        const nameNoExt = rawFile.replace(/\.[^.]+$/, '')
-                        const base = extractBaseCode(nameNoExt) || seriesBase
-                        const stripped = nameNoExt
-                          .replace(new RegExp('^' + base.replace(/[-]/g, '[-_]') + '\\s*', 'i'), '')
-                          .trim()
-                        return stripped || t('detail.episodeUnknown')
-                      })()
-                  })}
-                </span>
-              ) : null}
+
             </div>
-            {d?.title && d.title !== video.title ? (
+            {d?.title && d.title !== pureTitle(video.title, video.fileName) ? (
               <div className="text-white/50 text-sm mb-2 break-all">{d.title}</div>
             ) : (
               <div className="mb-2" />
             )}
 
-            {/* 我的推荐评分（md 权威，替换 javdb 评分） */}
+            {/* 我的推荐评分（md 权威，替换 数据源 评分） */}
             {video.rating != null ? (
               <div className="flex items-center gap-2.5 mb-3">
                 <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand/15 ring-1 ring-brand/30">
@@ -604,7 +555,7 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
             ) : null}
 
             {/* 主 CTA 行：参考大厂设计，{t('detail.play')}按钮放在内容区（更突出、离标题/元信息更近），
-                顶栏只保留次要操作（{t('detail.share')}/补齐/收藏）。同时把"{t('detail.edit')}/{t('detail.openLocation')}/{t('detail.deleteFile')}"等
+                顶栏只保留次要操作（补齐/收藏）。同时把"{t('detail.edit')}/{t('detail.openLocation')}/{t('detail.deleteFile')}"等
                 也放这里作为二级按钮组，避免再{t('detail.back')}顶栏。 */}
             <div className="flex flex-wrap items-center gap-2 mb-4">
               <button
@@ -644,12 +595,8 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
               ) : null}
             </div>
 
+            {/* 影片信息：导演/主演/类型/年份等元数据（日期、时长、大小、参数已放到封面下方） */}
             <div className="space-y-1.5 mb-4">
-              <MetaRow label={t('detail.code')} value={d?.code || extractBaseCode(video.title || '') || video.title} />
-              <MetaRow label={t('detail.date')} value={d?.date} />
-              <MetaRow label={t('detail.duration')} value={d?.duration} />
-              <MetaRow label={t('detail.fileSize')} value={video.fileSize ? formatSize(video.fileSize) : undefined} />
-              <MetaRow label={t('detail.techInfo')} value={formatTech(tech)} />
               <MetaRow label={t('detail.director')} value={d?.director} />
               <MetaRow label={t('detail.studio')}>
                 {d?.studio ? (
@@ -673,7 +620,7 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                   </button>
                 ) : undefined}
               </MetaRow>
-              {/* Excel 片单「分类」列的单值（如"剧情"、"单体"），独立于 tagCategories */}
+              {/* Excel 片单「分类」列的单值（如"剧情"、"科幻"），独立于 tagCategories */}
               {localVideo.introCategory ? (
                 <MetaRow label={t('detail.category')}>
                   <button
@@ -685,35 +632,10 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                   </button>
                 </MetaRow>
               ) : null}
-              {/* javdb 评分仅在没有我的评分时兜底显示 */}
+              {/* 数据源 评分仅在没有我的评分时兜底显示 */}
               <MetaRow label={t('detail.score')} value={video.rating != null ? undefined : d?.rating} />
-              {/* 
-                朋友 v2.3.2 在此处加了一行 <MetaRow label="类别"> 直接展示 d.genres。
-                v2.2.13 文档标签分层改造后：
-                - 文档标签（tagCategories 结构化 / tags 平铺）在下方统一「标签」MetaRow 里按 brand 色系分组展示；
-                - 数据源 genres 在 store.ts schemaVersion 迁移时已剥离进 backupTags，
-                  由下方「标签」MetaRow 的「数据源」分类（sky 色系 + 默认折叠 3 个）统一承载；
-                - 朋友这行完全冗余，删除避免两处重复展示 genres + MetaRow label 冲突告警。
-              */}
-              {(() => {
-                const female = d?.actresses?.length ? d.actresses : d?.actors ?? []
-                return female.length > 0 ? (
-                  <MetaRow label={t('detail.actress')}>
-                    <div className="flex flex-wrap gap-1.5 min-w-0">
-                      {female.map((a) => (
-                        <button
-                          key={a}
-                          type="button"
-                          onClick={() => onPickFilter?.({ type: 'actor', value: a })}
-                          className="px-2 py-0.5 rounded-md bg-white/6 ring-1 ring-white/5 text-white/75 text-xs hover:bg-brand/20 hover:text-brand hover:ring-brand/30 transition-colors"
-                        >
-                          {a}
-                        </button>
-                      ))}
-                    </div>
-                  </MetaRow>
-                ) : null
-              })()}
+              <MetaRow label={t('detail.genre')} value={d?.genres?.length ? d.genres.join(' / ') : undefined} />
+              <MetaRow label={t('detail.year')} value={yearText} />
             </div>
 
             {/* v2.2.13 文档标签分层：
@@ -870,134 +792,78 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
             })()}
 
             {loading ? (
-              <div className="mt-4 text-white/40 text-xs">{t('detail.fetchingJavdbDetail')}</div>
+              <div className="mt-4 text-white/40 text-xs">{t('detail.fetchingDetail')}</div>
             ) : null}
             {error ? <div className="mt-4 text-amber-400 text-xs">{error}</div> : null}
 
-            {/* {t('detail.fileInfo')} */}
-            <div className="pt-3 border-t border-white/5 space-y-1">
-              <div className="text-white/40 text-[11px] mb-1.5 flex items-center gap-1.5">
-                <Icon name="info" size={11} className="text-white/30" />
-                {t('detail.fileInfo')}
-              </div>
-              <MetaRow label={t('detail.fileName')} value={video.fileName} />
-              {video.addedAt ? (
-                <MetaRow label={t('detail.addedAt')} value={new Date(video.addedAt).toLocaleString('zh-CN')} />
-              ) : null}
-              {video.lastPlayedAt ? (
-                <MetaRow label={t('detail.lastPlayedAt')} value={new Date(video.lastPlayedAt).toLocaleString('zh-CN')} />
-              ) : null}
-              {video.durationSec ? (
-                <MetaRow label={t('detail.duration')} value={`${Math.floor(video.durationSec / 60)} 分 ${Math.round(video.durationSec % 60)} 秒`} />
-              ) : null}
-              {video.path ? <MetaRow label={t('detail.fullPath')} value={video.path} /> : null}
-            </div>
-          </div>
-        </div>
-
-        {/* 关键截图（来自 javdb）—— 过滤掉陈旧远程 URL（已重抓但还没写回的） */}
-        {(() => {
-          const all = d?.samples ?? []
-          const remoteOnly = all.filter(u => !isLocal(u))
-          const localGroup = all.filter(isLocal)
-          const localZoomGroup = localGroup.map(u => posterUrl(u) ?? u)
-          const total = d?.samplesTotal ?? 0
-          const got = all.length
-          const failedCount = total > got ? total - got : 0
-          const rawReasons = [...new Set(d?.sampleErrors ?? [])].filter(Boolean)
-          const reasonLines = rawReasons.map(renderFailReason)
-          const hasFailed = failedCount > 0
-          const showFailInline = hasFailed && d
-          if (all.length === 0) {
-            // v2.2.14：详情抓到了但截图一张都没有 → 显示原因说明，不再让整个区块神秘消失
-            if (d) {
+            {/* 演员阵容：有 TMDb 头像时展示照片，缺头像时用素色名字块兜底 */}
+            {(() => {
+              const rawProfiles = d?.castProfiles?.length
+                ? d.castProfiles
+                : (d?.cast || d?.actors || []).map((name) => ({ name, photo: undefined as string | undefined, character: undefined as string | undefined }))
+              const profiles = rawProfiles.filter((p, i, arr) => arr.findIndex((q) => q.name === p.name) === i)
+              if (!profiles.length) return null
               return (
-                <div className="mb-6">
-                  <div className="text-white/80 font-medium mb-2 flex items-center gap-2">
-                    <Icon name="info" size={13} className="text-[#FF6B8A] animate-pulse shrink-0" />
-                    {t('detail.keyScreenshotsHeader', { count: failedCount || t('app.none') })}
-                    <span className="text-white/45 text-[12px]">{hasFailed ? t('detail.downloadFailed') : t('detail.notFetched')}</span>
+                <div className="mt-6 mb-2">
+                  <div className="text-xs font-medium text-white/60 mb-3 flex items-center gap-1.5">
+                    <Icon name="users" size={11} className="text-white/40" />
+                    {t('detail.cast')}
                   </div>
-                  <div className="rounded-lg border border-white/5 bg-ink-800/50 px-3 py-2.5 text-[12px] text-amber-400/80 leading-relaxed space-y-1">
-                    {hasFailed ? (
-                      <>
-                        <div>{t('detail.keyScreenshotFailedCount', { count: failedCount })}</div>
-                        {reasonLines.length > 0 ? (
-                          <ul className="list-disc list-inside text-amber-400/90 space-y-0.5 pl-1">
-                            {reasonLines.map((r, i) => <li key={i}>{r}</li>)}
-                          </ul>
-                        ) : (
-                          <div className="text-amber-400/70">{t('detail.screenshotFailReasonDefault')}</div>
-                        )}
-                        <div className="text-white/55 pt-1">{t('detail.keyScreenshotRetryHint')}</div>
-                      </>
-                    ) : t('detail.keyScreenshotNone')}
+                  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3 max-h-[420px] overflow-y-auto overflow-x-hidden thin-scroll pr-1">
+                    {profiles.map((actor, i) => {
+                      const photoUrl = actor.photo ? posterUrl(actor.photo) : null
+                      return (
+                        <button
+                          key={`${actor.name}-${i}`}
+                          type="button"
+                          onClick={() => onPickFilter?.({ type: 'actor', value: actor.name })}
+                          className="text-left group flex flex-col min-w-0"
+                          title={actor.character ? `${actor.name} — ${actor.character}` : actor.name}
+                        >
+                          <div className="aspect-[2/3] w-full rounded-lg overflow-hidden bg-ink-800 ring-1 ring-white/10 mb-1.5 transition-transform duration-200 group-hover:scale-[1.02]">
+                            {photoUrl ? (
+                              <img
+                                src={photoUrl}
+                                alt={actor.name}
+                                loading="lazy"
+                                decoding="async"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                className="w-full h-full flex items-center justify-center text-center text-xs text-white/95"
+                                style={{ backgroundColor: stringToMutedColor(actor.name) }}
+                              >
+                                <span className="line-clamp-3 break-all p-1">{actor.name}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-xs text-white/90 truncate leading-tight">{actor.name}</div>
+                          {actor.character ? (
+                            <div className="text-[10px] text-white/45 truncate leading-tight">{actor.character}</div>
+                          ) : null}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               )
-            }
-            return null
-          }
-          return (
-            <div>
-              <div className="text-white/80 font-medium mb-2 flex items-center gap-2 flex-wrap">
-                {t('detail.keyScreenshotsHeader', { count: all.length })}
-                {remoteOnly.length > 0 ? <span className="text-white/40 text-xs">· {t('detail.remoteUrlCount', { count: remoteOnly.length })}</span> : null}
-                {localGroup.length > 1 ? (
-                  <span className="flex items-center gap-1.5 text-white/45 text-[12px] ml-2">
-                    <Icon name="info" size={14} className="text-[#FF6B8A] animate-pulse shrink-0" />
-                    <span>{t('detail.hoverHint')}</span>
-                  </span>
-                ) : null}
-              </div>
-              {/* 部分截图下载失败（还有能显示的图）—— 顶部显示失败详情 */}
-              {showFailInline && (
-                <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[12px] text-amber-300/90 leading-relaxed">
-                  <div className="font-medium mb-1">
-                    {t('detail.keyScreenshotPartialFail', { got, total, fail: failedCount })}
-                  </div>
-                  {reasonLines.length > 0 ? (
-                    <ul className="list-disc list-inside space-y-0.5 text-amber-200/90">
-                      {reasonLines.map((r, i) => <li key={i}>{r}</li>)}
-                    </ul>
-                  ) : (
-                    <div className="text-amber-300/80">{t('detail.screenshotFailReasonDefault')}</div>
-                  )}
-                </div>
-              )}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {all.map((url, i) => (
-                  <div
-                    key={`${url}_${i}`}
-                    className={`aspect-video rounded-lg overflow-hidden bg-ink-800 ${isLocal(url) ? 'cursor-zoom-in' : 'opacity-30'}`}
-                    onMouseEnter={isLocal(url) ? () => {
-                      const zu = posterUrl(url) ?? url
-                      setZoomGroup(localZoomGroup, 'samples', zu)
-                      cancelClose(); scheduleOpen(zu)
-                    } : undefined}
-                    onMouseLeave={isLocal(url) ? clearOpenTimer : undefined}
-                  >
-                    {isLocal(url) ? (
-                      <img
-                        src={posterUrl(url) ?? ''}
-                        alt={`sample-${i}`}
-                        loading="lazy"
-                        decoding="async"
-                        className="h-full w-full object-cover poster-img transition-transform duration-300 hover:scale-105"
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center text-white/30 text-[11px]">
-                        t('detail.remoteUrlWarning')
-                      </div>
-                    )}
-                  </div>
-                ))}
-               </div>
-            </div>
-          )
-        })()}
+            })()}
 
-        {/* ffmpeg 截帧预览帧（封面外的多张预览，本地 previewPaths）；国产片也走这里 */}
+          </div>
+        </div>
+
+        {/* 剧情简介：横跨左右两栏 */}
+        {video.meta?.synopsis || video.description ? (
+          <div className="mb-6 bg-ink-800/40 rounded-xl p-4 ring-1 ring-white/8">
+            <div className="text-xs font-medium text-white/60 mb-2">{t('detail.synopsis')}</div>
+            <div className="text-[13px] leading-[1.85] text-white/85 whitespace-pre-wrap max-h-[260px] overflow-y-auto thin-scroll">
+              {video.meta?.synopsis || video.description}
+            </div>
+          </div>
+        ) : null}
+
+        {/* ffmpeg 截帧预览帧（封面外的多张预览，本地 previewPaths） */}
         {localVideo.previewPaths && localVideo.previewPaths.length > 0 ? (
           <div className="mb-6">
             <div className="text-white/80 font-medium mb-2 flex items-center gap-1.5 flex-wrap">
@@ -1017,12 +883,12 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                   className="aspect-video rounded-lg overflow-hidden bg-ink-800 cursor-zoom-in relative group/preview"
                   title={t('detail.hoverHint2')}
                   onMouseEnter={() => {
-                    setZoomGroup(previewUrls, 'preview', displayUrl)
+                    setZoomGroup(previewUrls, displayUrl)
                     cancelClose(); scheduleOpen(displayUrl)
                   }}
                   onMouseLeave={clearOpenTimer}
                   onClick={() => {
-                    setZoomGroup(previewUrls, 'preview', displayUrl)
+                    setZoomGroup(previewUrls, displayUrl)
                     setZoomUrl(displayUrl)
                   }}
                 >

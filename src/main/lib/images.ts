@@ -132,12 +132,14 @@ export async function resolvePoster(
         if (p) return { source: 'sidecar', posterPath: p }
         break
       }
-      case 'javdb':
-      case 'javbus':
-      case 'javlibrary':
+      case 'moviedb':
+      case 'omdb':
+      case 'openlibrary':
+      case 'justwatch':
+      case 'wikipedia':
         // 只复用已抓取的数据源缓存；抓取动作由「从数据源获取封面 / 批量补全」显式触发
         if (
-          (video.posterSource === 'javdb' || video.posterSource === 'javbus' || video.posterSource === 'javlibrary') &&
+          (video.posterSource === 'moviedb' || video.posterSource === 'omdb' || video.posterSource === 'openlibrary' || video.posterSource === 'justwatch' || video.posterSource === 'wikipedia') &&
           video.posterPath
         ) {
           try {

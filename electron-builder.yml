@@ -11,16 +11,16 @@ files:
   - package.json
 
 extraResources:
-  - CHANGELOG.md
+  - 更新日志.md
   - CHANGELOG.en.md
   - from: src/main/assets/通用评分与简介规范.md
     to: 通用评分与简介规范.md
-  - from: src/main/assets/AV_Scoring_and_Synopsis_Guide_EN.md
-    to: AV_Scoring_and_Synopsis_Guide_EN.md
+  - from: src/main/assets/Scoring_and_Synopsis_Guide.en.md
+    to: Scoring_and_Synopsis_Guide.en.md
   - from: build/icon.png
     to: icon.png
-  - from: build/yingxia-uninstall-guard.ps1
-    to: yingxia-uninstall-guard.ps1
+  - from: build/yinghai-uninstall-guard.ps1
+    to: yinghai-uninstall-guard.ps1
 
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

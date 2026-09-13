@@ -1,6 +1,6 @@
-﻿import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { DisplayEntry, Video } from '../../../shared/types'
-import { posterUrl, placeholderGradient, titleInitial, titleSecondary } from '../lib/util'
+import { posterUrl, placeholderGradient, titleInitial, titleSecondary, displayTitle } from '../lib/util'
 import { api } from '../lib/api'
 import { t } from '../../../shared/i18n'
 import EntryCard from './EntryCard'
@@ -13,7 +13,7 @@ interface Props {
   onOpen: (e: DisplayEntry) => void
   onEdit: (v: Video) => void
   onOpenMissing: (e: DisplayEntry) => void
-  onToggleFlag?: (id: string, key: 'favorite') => void
+  onToggleFlag?: (id: string, key: 'favorite' | 'locked') => void
   onBrowse: (smart: SmartFilter) => void
   /** 随机推荐（每日刷新 + 手动刷新） */
   recommend: DisplayEntry[]
@@ -53,7 +53,7 @@ function Row({
   onOpen: (e: DisplayEntry) => void
   onEdit: (v: Video) => void
   onOpenMissing: (e: DisplayEntry) => void
-  onToggleFlag?: (id: string, key: 'favorite') => void
+  onToggleFlag?: (id: string, key: 'favorite' | 'locked') => void
   onMore?: () => void
   onRefresh?: () => void
   onPickTag?: (tag: string) => void
@@ -156,6 +156,7 @@ export default function HomeView({ entries, onOpen, onEdit, onOpenMissing, onTog
   }
 
   const heroV = hero?.video
+  const heroTitle = hero ? displayTitle(hero) : heroV?.title ?? ''
   const heroSrc = heroV?.posterPath ? posterUrl(heroV.posterPath, heroV.coverVersion) : null
 
   return (
@@ -177,7 +178,7 @@ export default function HomeView({ entries, onOpen, onEdit, onOpenMissing, onTog
                 style={{ filter: 'saturate(0.85) brightness(0.85)' }}
               />
             ) : (
-              <div className="h-full w-full" style={{ background: placeholderGradient(heroV.title) }} />
+              <div className="h-full w-full" style={{ background: placeholderGradient(heroTitle) }} />
             )}
             {/* 左深右浅，保证文字可读 */}
             <div className="absolute inset-0 bg-gradient-to-r from-ink-900 via-ink-900/70 to-transparent" />
@@ -222,17 +223,17 @@ export default function HomeView({ entries, onOpen, onEdit, onOpenMissing, onTog
               {heroSrc ? (
                 <>
                   <img src={heroSrc} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl opacity-40" />
-                  <img src={heroSrc} alt={heroV.title} className="relative h-full w-full object-contain poster-img" />
+                  <img src={heroSrc} alt={heroTitle} className="relative h-full w-full object-contain poster-img" />
                 </>
               ) : (
-                <div className="h-full w-full flex flex-col items-center justify-center gap-2" style={{ background: placeholderGradient(heroV.title) }}>
+                <div className="h-full w-full flex flex-col items-center justify-center gap-2" style={{ background: placeholderGradient(heroTitle) }}>
                 <div className="w-16 h-16 rounded-2xl bg-white/25 ring-1 ring-white/40 backdrop-blur-md flex items-center justify-center text-2xl font-bold text-white leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] shadow-xl shadow-black/40"
                   style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}
                 >
-                  {titleInitial(heroV.title)}
+                  {titleInitial(heroTitle)}
                 </div>
                 <div className="text-[10px] font-semibold text-white tracking-[0.12em] uppercase truncate max-w-[85%] px-2 text-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
-                  {titleSecondary(heroV.title)}
+                  {titleSecondary(heroTitle)}
                 </div>
                 </div>
               )}
@@ -240,7 +241,7 @@ export default function HomeView({ entries, onOpen, onEdit, onOpenMissing, onTog
 
             <div className="min-w-0 flex-1 pb-1">
               <div className="text-3xl sm:text-4xl font-bold text-white mb-2 truncate drop-shadow-lg">
-                {heroV.title}
+                {heroTitle}
               </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-white/80 text-sm mb-5">
                 {heroV.year ? <span className="font-semibold">{heroV.year}</span> : null}
@@ -250,12 +251,12 @@ export default function HomeView({ entries, onOpen, onEdit, onOpenMissing, onTog
                     {(hero?.score ?? heroV.rating)!.toFixed(2)}
                   </span>
                 ) : null}
-                {heroV.javdbDetail?.studio ? (
-                  <span className="text-white/70">{heroV.javdbDetail.studio}</span>
+                {heroV.meta?.studio ? (
+                  <span className="text-white/70">{heroV.meta.studio}</span>
                 ) : null}
-                {heroV.javdbDetail?.actresses?.[0] ? (
+                {heroV.meta?.cast?.[0] ? (
                   <span className="text-white/70 truncate max-w-[200px]">
-                    {heroV.javdbDetail.actresses.slice(0, 2).join(' · ')}
+                    {heroV.meta.cast.slice(0, 2).join(' · ')}
                   </span>
                 ) : null}
               </div>

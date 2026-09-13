@@ -12,7 +12,7 @@ interface Props {
   onOpen?: (entry: DisplayEntry) => void
 }
 
-/** 解析 javdb 时长字符串为秒（"120分钟" / "2小时30分钟" / "2:00:00"） */
+/** 解析 数据源 时长字符串为秒（"120分钟" / "2小时30分钟" / "2:00:00"） */
 function parseDuration(str?: string): number | null {
   if (!str) return null
   let sec = 0
@@ -170,7 +170,7 @@ export default function StatsPanel({ open, result, onClose, onOpen }: Props) {
     let totalSec = 0
     for (const e of withVideo) {
       const v = e.video!
-      totalSec += v.techInfo?.durationSec ?? parseDuration(v.javdbDetail?.duration) ?? 0
+      totalSec += v.techInfo?.durationSec ?? parseDuration(v.meta?.duration) ?? 0
     }
 
     const scored = entries.filter((e) => typeof e.score === 'number')
@@ -188,7 +188,7 @@ export default function StatsPanel({ open, result, onClose, onOpen }: Props) {
 
     const actorCount = new Map<string, number>()
     for (const e of withVideo) {
-      for (const a of e.video!.javdbDetail?.actors ?? []) {
+      for (const a of e.video!.meta?.actors ?? []) {
         actorCount.set(a, (actorCount.get(a) ?? 0) + 1)
       }
     }
@@ -348,9 +348,9 @@ export default function StatsPanel({ open, result, onClose, onOpen }: Props) {
               )}
             </Section>
 
-            <Section title={t('stats.actressTop10')}>
+            <Section title={t('stats.castTop10')}>
               {stats.topActors.length === 0 ? (
-                <div className="text-white/35 text-xs">{t('stats.noActress')}</div>
+                <div className="text-white/35 text-xs">{t('stats.noCast')}</div>
               ) : (
                 stats.topActors.map(([name, c]) => (
                   <Bar key={name} label={name} count={c} max={maxActor} />

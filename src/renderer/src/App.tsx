@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   DisplayEntry,
   ImageSource,
@@ -6,12 +6,13 @@ import type {
   ReconcileResult,
   Settings,
   SortKey,
+  SourceId,
   Video,
   ViewMode
 } from '../../shared/types'
 import { DEFAULT_IMAGE_PRIORITY, DEFAULT_SETTINGS, entryPrimaryTags, flattenAllTags, hasDocTags } from '../../shared/types'
+import { displayTitle } from './lib/util'
 import { categorizeTag } from '../../shared/tagCategories'
-import { extractBaseCode } from '../../shared/code'
 import { api } from './lib/api'
 import { t, setLocale } from '../../shared/i18n'
 import Toolbar from './components/Toolbar'
@@ -106,9 +107,9 @@ export default function App() {
   const [searchInput, setSearchInput] = useState('')
   /** 多选标签 AND 过滤（侧栏交互） */
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
-  // v2.3.2 类别（genre）筛选：从 javdbDetail.genres 提取单标签，独立于「分类」
+  // v2.3.2 类别（genre）筛选：从 meta.genres 提取单标签，独立于「分类」
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set())
-  /** 演员 / 片商 / 系列 维度筛选（各维度内 OR，跨维度 AND；点击详情页字段触发） */
+  /** 演员 / 制片公司 / 系列 维度筛选（各维度内 OR，跨维度 AND；点击详情页字段触发） */
   const [selectedActors, setSelectedActors] = useState<Set<string>>(new Set())
   const [selectedStudios, setSelectedStudios] = useState<Set<string>>(new Set())
   const [selectedSeries, setSelectedSeries] = useState<Set<string>>(new Set())
@@ -136,11 +137,14 @@ export default function App() {
   /** 删除执行中（防重复点击） */
   const [deleting, setDeleting] = useState(false)
   const [scanning, setScanning] = useState(false)
-  // 隐私护盾：一键模糊所有预览图（防截图泄露成人内容），持久化到 localStorage
+  // 隐私护盾：一键模糊所有预览图（防截图泄露敏感内容），持久化到 localStorage
   const [privacy, setPrivacy] = useState<boolean>(() => localStorage.getItem('vm-privacy') === '1')
   const [progress, setProgress] = useState<{ total: number; done: number; current?: string } | null>(null)
   const [fetchPaused, setFetchPaused] = useState(false)
-  // v2.2.10：实时抓取日志（"javdb 网络失败 → 降级 javbus" 这类过程，右下角浮层滚动展示）
+  // v2.7.x：多选批量锁定（浏览页）
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // v2.2.10：实时抓取日志（"数据源失败 → 降级下一源" 这类过程，右下角浮层滚动展示）
   const [fetchLogs, setFetchLogs] = useState<
     Array<{ code: string; src: string; status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'; detail?: string }>
   >([])
@@ -148,6 +152,10 @@ export default function App() {
   const [batchFailures, setBatchFailures] = useState<Array<{ id: string; title: string; reason: string }> | null>(null)
   const [batchFailuresVisible, setBatchFailuresVisible] = useState(true)
   const [retryingFailures, setRetryingFailures] = useState(false)
+  /** v2.7.x：本次批量补齐自动跳过的文件明细（已锁定 / 文件不存在），结束后弹窗告知用户 */
+  const [skippedFiles, setSkippedFiles] = useState<
+    Array<{ id: string; title: string; reason: 'locked' | 'missing' }> | null
+  >(null)
 
   // === 批量抓取失败明细：打开详情时藏弹窗，关详情时自动恢复 ===
   const prevDetailRef = useRef<Video | null>(null)
@@ -401,9 +409,9 @@ export default function App() {
     }
   }, [view, libraries, libraryId])
 
-  // JavDB 批量抓取：每抓到一张实时刷新该卡片的封面
+  // 数据源批量抓取：每抓到一张实时刷新该卡片的封面
   useEffect(() => {
-    return api.onJavdbFetched(
+    return api.onPosterFetched(
       ({ videoId, posterPath, posterSource }: { videoId: string; posterPath: string; posterSource?: string }) => {
         setReconcile((prev) =>
           prev
@@ -416,7 +424,7 @@ export default function App() {
                         video: {
                           ...e.video,
                           posterPath,
-                          posterSource: (posterSource ?? 'javdb') as ImageSource,
+                          posterSource: (posterSource ?? 'moviedb') as ImageSource,
                           // 同上：文件内容可能已覆盖，自增版本强制列表端刷新
                           coverVersion: (e.video.coverVersion ?? 0) + 1
                         }
@@ -436,21 +444,15 @@ export default function App() {
     return () => clearTimeout(t)
   }, [searchInput])
 
-  // 皮肤同步：cinema/light/magazine/glass + 跟随系统
+  // 皮肤同步：dark（内部复用 theme-cinema 样式）/ light + 跟随系统
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const apply = () => {
       const raw = settings.theme as string
       const effective =
-        raw === 'system'
-          ? mq.matches
-            ? 'cinema'
-            : 'light'
-          : raw === 'dark'
-            ? 'cinema'
-            : raw
+        raw === 'system' ? (mq.matches ? 'cinema' : 'light') : raw === 'dark' ? 'cinema' : 'light'
       const root = document.documentElement
-      root.classList.remove('theme-cinema', 'theme-light', 'theme-magazine', 'theme-glass')
+      root.classList.remove('theme-cinema', 'theme-light')
       root.classList.add(`theme-${effective}`)
       root.style.colorScheme = effective === 'light' ? 'light' : 'dark'
     }
@@ -466,14 +468,12 @@ export default function App() {
   const applyTagsOnly = useMemo(() => {
     let list = [...(reconcile?.entries ?? [])]
     const q = filter.search.trim().toLowerCase()
-    // 搜 hunta-468-cd2 时提取 base code 'hunta-468'，同时匹配同系列其他分集
-    const qBase = extractBaseCode(q).toLowerCase()
     if (q) {
       list = list.filter((e) => {
         const codeLower = e.code.toLowerCase()
         if (codeLower.includes(q)) return true
-        if (qBase && qBase !== q && codeLower.includes(qBase)) return true
         if (e.title.toLowerCase().includes(q)) return true
+        if (displayTitle(e).toLowerCase().includes(q)) return true
         if ((e.description ?? '').toLowerCase().includes(q)) return true
         // v2.2.13 标签分层：搜索扩展到「文档标签 + 备用数据源标签」，
         // 保证用户按 genres 关键词也能命中（backupTags 折叠并不代表不可搜索）
@@ -565,15 +565,15 @@ export default function App() {
     return { categories: catOrder, tags: list }
   }, [applyTagsOnly])
 
-  // 演员 / 片商 / 系列 facet（基于 applyTagsOnly，计数随搜索+tag 联动；用于侧栏像标签一样筛选）
+  // 演员 / 制片公司 / 系列 facet（基于 applyTagsOnly，计数随搜索+tag 联动；用于侧栏像标签一样筛选）
   const metaFacets = useMemo<{ actors: MetaFacet[]; studios: MetaFacet[]; series: MetaFacet[] }>(() => {
     const actors = new Map<string, number>()
     const studios = new Map<string, number>()
     const series = new Map<string, number>()
     for (const e of applyTagsOnly) {
-      const d = e.video?.javdbDetail
-      const female = d?.actresses?.length ? d.actresses : d?.actors ?? []
-      for (const a of female) actors.set(a, (actors.get(a) ?? 0) + 1)
+      const d = e.video?.meta
+      const cast = d?.cast?.length ? d.cast : d?.actors ?? []
+      for (const a of cast) actors.set(a, (actors.get(a) ?? 0) + 1)
       if (d?.studio) studios.set(d.studio, (studios.get(d.studio) ?? 0) + 1)
       if (d?.series) series.set(d.series, (series.get(d.series) ?? 0) + 1)
     }
@@ -582,11 +582,11 @@ export default function App() {
     return { actors: sort(actors), studios: sort(studios), series: sort(series) }
   }, [applyTagsOnly])
 
-  // v2.3.2 类别（genre）facet：从 javdbDetail.genres 提取单标签 + 计数（基于 applyTagsOnly）
+  // v2.3.2 类别（genre）facet：从 meta.genres 提取单标签 + 计数（基于 applyTagsOnly）
   const genreFacets = useMemo<MetaFacet[]>(() => {
     const counts = new Map<string, number>()
     for (const e of applyTagsOnly) {
-      const d = e.video?.javdbDetail
+      const d = e.video?.meta
       if (d?.genres && d.genres.length > 0) {
         for (const g of d.genres) counts.set(g, (counts.get(g) ?? 0) + 1)
       }
@@ -629,30 +629,30 @@ export default function App() {
     }
   }, [applyTagsOnly])
 
-  // 第二层：在 applyTagsOnly 基础上再应用 演员/片商/系列 维度筛选（各维度内 OR，跨维度 AND）
+  // 第二层：在 applyTagsOnly 基础上再应用 演员/制片公司/系列 维度筛选（各维度内 OR，跨维度 AND）
   const applyMetaFilters = useMemo(() => {
     let list = applyTagsOnly
     if (selectedActors.size > 0) {
       list = list.filter((e) => {
-        const d = e.video?.javdbDetail
-        const female = d?.actresses?.length ? d.actresses : d?.actors ?? []
-        return female.some((a) => selectedActors.has(a))
+        const d = e.video?.meta
+        const cast = d?.cast?.length ? d.cast : d?.actors ?? []
+        return cast.some((a) => selectedActors.has(a))
       })
     }
     if (selectedStudios.size > 0) {
       list = list.filter(
-        (e) => !!e.video?.javdbDetail?.studio && selectedStudios.has(e.video.javdbDetail.studio)
+        (e) => !!e.video?.meta?.studio && selectedStudios.has(e.video.meta.studio)
       )
     }
     if (selectedSeries.size > 0) {
       list = list.filter(
-        (e) => !!e.video?.javdbDetail?.series && selectedSeries.has(e.video.javdbDetail.series)
+        (e) => !!e.video?.meta?.series && selectedSeries.has(e.video.meta.series)
       )
     }
     // v2.3.2 类别（genre）筛选：选中 genres 内 OR
     if (selectedGenres.size > 0) {
       list = list.filter((e) => {
-        const d = e.video?.javdbDetail
+        const d = e.video?.meta
         return !!d?.genres && d.genres.some((g) => selectedGenres.has(g))
       })
     }
@@ -706,7 +706,7 @@ export default function App() {
     if (filter.category) list = list.filter((e) => e.category === filter.category)
     const dir = filter.desc ? -1 : 1
     list = list.slice().sort((a, b) => {
-      if (filter.sort === 'title') return a.code.localeCompare(b.code, 'zh') * dir
+      if (filter.sort === 'title') return displayTitle(a).localeCompare(displayTitle(b), 'zh') * dir
       if (filter.sort === 'year') return ((a.video?.year ?? 0) - (b.video?.year ?? 0)) * dir
       if (filter.sort === 'lastPlayed')
         return ((a.video?.lastPlayedAt ?? 0) - (b.video?.lastPlayedAt ?? 0)) * dir
@@ -716,6 +716,81 @@ export default function App() {
     })
     return list
   }, [applySmart, filter.category, filter.sort, filter.desc])
+
+  // 当前库已锁定影片数（进度面板运行时提示：这些会被批量补齐自动跳过）
+  const lockedCount = useMemo(
+    () => (reconcile?.entries ?? []).filter((e) => e.video?.locked).length,
+    [reconcile]
+  )
+
+  // ---------- 多选批量锁定 ----------
+  const toggleSelectMode = useCallback(() => {
+    setSelectMode((m) => {
+      if (m) setSelectedIds(new Set())
+      return !m
+    })
+  }, [])
+
+  const toggleSelectId = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  }, [])
+
+  /** 全选当前筛选结果中所有有真实记录的影片 */
+  const selectAllVisible = useCallback(() => {
+    setSelectedIds(new Set(filtered.filter((e) => e.video?.id).map((e) => e.video!.id)))
+  }, [filtered])
+
+  /** 反选：当前筛选结果中有记录的影片与当前选中集合取反 */
+  const invertSelection = useCallback(() => {
+    const visibleIds = filtered.filter((e) => e.video?.id).map((e) => e.video!.id)
+    setSelectedIds((prev) => new Set(visibleIds.filter((id) => !prev.has(id))))
+  }, [filtered])
+
+  /** 对当前选中项批量设置锁定状态 */
+  const applyLockToSelection = useCallback(
+    async (locked: boolean) => {
+      const ids = [...selectedIds]
+      if (ids.length === 0) {
+        toast({ text: t('lock.selectedNone'), tone: 'warn' })
+        return
+      }
+      const now = Date.now()
+      await api.videoLockMany(ids, locked)
+      setReconcile((prev) =>
+        prev
+          ? {
+              ...prev,
+              entries: prev.entries.map((e) =>
+                e.video && ids.includes(e.video.id)
+                  ? { ...e, video: { ...e.video, locked, lockedAt: locked ? now : undefined } }
+                  : e
+              )
+            }
+          : prev
+      )
+      setSelectedIds(new Set())
+      setSelectMode(false)
+      toast({
+        text: locked ? t('lock.batchLockedToast', { count: ids.length }) : t('lock.batchUnlockedToast', { count: ids.length }),
+        tone: locked ? 'warn' : 'ok'
+      })
+    },
+    [selectedIds]
+  )
+
+  // 离开浏览页 / 切换媒体库时退出多选，避免残留选中项
+  useEffect(() => {
+    if (!selectMode) return
+    if (view !== 'browse') {
+      setSelectMode(false)
+      setSelectedIds(new Set())
+    }
+  }, [view, selectMode, libraryId])
 
   // 分组：选中分类 → 单一 section；flat → 全库单网格；其他 → 按 Excel 分类分组
   const sections = useMemo<WallSection[]>(() => {
@@ -847,105 +922,22 @@ export default function App() {
     setHeroIdx(0)
   }, [reconcile])
 
-  // 详情页相关推荐（同片商 / 系列 / 女演员）
-  /**
-   * 系列分组：
-   * 数据源是每条 entry 的 video + siblingVideos（同 code 多文件在 reconcile 里只生成一条 entry，但 siblingVideos 存了所有兄弟）。
-   * 限制在同 folderName 内，避免跨文件夹误并入。
-   * 最终产出：base code → DisplayEntry[]，其中主 video 和 sibling 都包装成 mini-entry。
-   */
-  const seriesGroups = useMemo(() => {
-    const m = new Map<string, DisplayEntry[]>()
-    for (const e of reconcile?.entries ?? []) {
-      const folder = e.video?.folderName
-      if (!folder) continue
-      const base = extractBaseCode(e.code)
-      if (!base) continue
-      // 只处理有兄弟的 entry（主 video 本身算 1 个）
-      const siblings = e.siblingVideos ?? []
-      if (!e.video || siblings.length === 0) continue
-      const full = [e.video, ...siblings]
-      const miniEntries: DisplayEntry[] = full.map((v) => ({
-        kind: 'matched',
-        category: e.category,
-        order: e.order,
-        code: base,
-        title: v.title || v.fileName,
-        description: e.description,
-        tags: e.tags,
-        tagCategories: e.tagCategories,
-        score: e.score,
-        video: v
-      }))
-      // 合并：同 base code 可能被多条 entry 复用（理论上一条 entry 一组，但兜底安全）
-      const existing = m.get(base) ?? []
-      m.set(base, [...existing, ...miniEntries])
-    }
-    return m
-  }, [reconcile])
+  // 详情页相关推荐（同制片公司 / 系列 / 主演）
 
-  /** 同文件夹内疑似「系列但后缀未识别」提醒（只弹一次，不重复） */
-  const seriesWarnRef = useRef('')
-  useEffect(() => {
-    if (!reconcile) return
-    const byFolder = new Map<string, DisplayEntry[]>()
-    for (const e of reconcile.entries) {
-      const folder = e.video?.folderName
-      if (!folder) continue
-      const list = byFolder.get(folder) ?? []
-      list.push(e)
-      byFolder.set(folder, list)
-    }
-    const warns: string[] = []
-    for (const list of byFolder.values()) {
-      if (list.length < 2) continue
-      const known = new Set<string>()
-      for (const e of list) {
-        const b = extractBaseCode(e.code)
-        if (b !== e.code.toUpperCase()) known.add(b)
-      }
-      for (const e of list) {
-        const c = e.code.toUpperCase()
-        if (extractBaseCode(c) === c) {
-          for (const k of known) {
-            if (c.startsWith(k) && c !== k) {
-              warns.push(e.code)
-              break
-            }
-          }
-        }
-      }
-    }
-    if (warns.length) {
-      const sig = warns.join(',')
-      if (sig !== seriesWarnRef.current) {
-        seriesWarnRef.current = sig
-        showBatchToast({
-          title: t('app.seriesDetected'),
-          ok: 0,
-          failed: 0,
-          bySource: { javapi: 0, javinfo: 0, javdb: 0, javbus: 0, javlibrary: 0 },
-          reasons: warns.slice(0, 8).map((c) => `${c}${warns.length > 8 ? '…' : ''}`),
-          stopped: false,
-          remaining: 0
-        })
-      }
-    }
-  }, [reconcile])
 
   const relatedEntries = useMemo<DisplayEntry[]>(() => {
     if (!detail) return []
-    const d = detail.javdbDetail
-    if (!d?.studio && !d?.series && !(d?.actresses && d.actresses.length)) return []
+    const d = detail.meta
+    if (!d?.studio && !d?.series && !(d?.cast && d.cast.length)) return []
     return (reconcile?.entries ?? [])
       .filter(
         (e) =>
           e.video &&
           e.video.id !== detail.id &&
-          ((d.studio && e.video.javdbDetail?.studio === d.studio) ||
-            (d.series && e.video.javdbDetail?.series === d.series) ||
-            (d.actresses &&
-              e.video.javdbDetail?.actresses?.some((a) => d.actresses!.includes(a))))
+          ((d.studio && e.video.meta?.studio === d.studio) ||
+            (d.series && e.video.meta?.series === d.series) ||
+            (d.cast &&
+              e.video.meta?.cast?.some((a) => d.cast!.includes(a))))
       )
       .slice(0, 12)
   }, [detail, reconcile])
@@ -984,6 +976,7 @@ export default function App() {
     // （之前先 videoScan 再 runReconcile，两次 IPC 各发自己的 emitProgress，进度条弹两轮）
     setScanning(true)
     setProgress(null)
+    setFetchLogs([])
     api
       .libraryScanAndReconcile(libraryId)
       .then((res) => {
@@ -1031,9 +1024,8 @@ export default function App() {
         return
       }
       const otherVideoCount = inspect.otherVideoCount ?? 0
-      const torrentCount = inspect.torrentCount ?? 0
       const otherFileCount = inspect.otherFileCount ?? 0
-      const willDeleteDir = otherVideoCount === 0 && torrentCount > 0 && otherFileCount === 0
+      const willDeleteDir = otherVideoCount === 0 && otherFileCount === 0
 
       setDeletePreview({
         id: v.id,
@@ -1041,7 +1033,6 @@ export default function App() {
         filePath: v.path,
         fileName,
         otherVideoCount,
-        torrentCount,
         otherFileCount,
         scope: willDeleteDir ? 'dir' : 'file',
         dirPath: willDeleteDir ? inspect.dirPath : undefined
@@ -1075,7 +1066,7 @@ export default function App() {
         ? t('app.movedDirToRecycle', { path: r.dirPath ?? '' })
         : t('app.movedFileToRecycle', { file: fileName })
       const cacheDesc = r.removedCache ? `\n${t('app.cleanedCacheCount', { n: r.removedCache })}` : ''
-      const recordDesc = r.removedRecord ? `\n${t('app.clearedJavdbMeta')}` : ''
+      const recordDesc = r.removedRecord ? `\n${t('app.clearedMeta')}` : ''
       toast({ title: t('app.movedToRecycle'), text: desc + cacheDesc + recordDesc + '\n' + t('app.recycleRecoverHint'), tone: 'ok', duration: 5000 })
       // 删除/挪到回收站后{t('common.close')}详情页（用户已无该视频的打开需求）
       setDetail(null)
@@ -1091,13 +1082,13 @@ export default function App() {
     }
   }, [deletePreview, deleting, libraryId])
 
-  const handleDetailFetched = useCallback((videoId: string, detail: Video['javdbDetail']) => {
+  const handleDetailFetched = useCallback((videoId: string, detail: Video['meta']) => {
     setReconcile((prev) =>
       prev
         ? {
             ...prev,
             entries: prev.entries.map((e) =>
-              e.video && e.video.id === videoId ? { ...e, video: { ...e.video, javdbDetail: detail } } : e
+              e.video && e.video.id === videoId ? { ...e, video: { ...e.video, meta: detail } } : e
             )
           }
         : prev
@@ -1204,8 +1195,8 @@ export default function App() {
     }
   }, [])
 
-  const handleFetchJavdb = useCallback(async (videoId: string) => {
-    const updated = await api.videoFetchJavdbPoster(videoId)
+  const handleFetchPoster = useCallback(async (videoId: string) => {
+    const updated = await api.videoFetchPoster(videoId)
     if (updated) {
       setReconcile((prev) =>
         prev
@@ -1227,12 +1218,12 @@ export default function App() {
     tone?: 'ok' | 'warn' | 'err'
     ok: number
     failed: number
-    bySource: { javapi: number; javinfo: number; javdb: number; javbus: number; javlibrary: number }
+    bySource: Record<SourceId, number>
     reasons: string[]
     stopped: boolean
     remaining: number
     /** v2.2.7：按用户的 customSourceOrder 渲染来源分布条，让展示顺序跟实际采集顺序一致 */
-    customSourceOrder?: Array<'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary'>
+    customSourceOrder?: SourceId[]
     /** v2.3.11：补充提示（如「仍有 N 部无封面，可再跑一轮」） */
     hint?: string
   }
@@ -1241,12 +1232,11 @@ export default function App() {
     const tone: 'ok' | 'warn' | 'err' = data.tone ?? (data.stopped || data.failed > 0 ? 'warn' : 'ok')
     const total = data.ok + data.failed
     // v2.2.7：按 customSourceOrder 排 bySource 展示，跟用户实际的采集顺序一致
-    const SOURCE_LABELS: Record<'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary', string> = {
-      javapi: 'Javapi', javinfo: 'Javinfo', javdb: 'JavDB', javbus: 'JavBus', javlibrary: 'JavLibrary'
+    const SOURCE_LABELS: Record<SourceId, string> = {
+      moviedb: 'MovieDB', omdb: 'OMDb', openlibrary: 'OpenLibrary', justwatch: 'JustWatch', wikipedia: '维基百科'
     }
-    const order = data.customSourceOrder ?? (['javapi', 'javinfo', 'javdb', 'javbus', 'javlibrary'] as const)
+    const order: readonly SourceId[] = data.customSourceOrder ?? (['moviedb', 'omdb', 'openlibrary', 'justwatch', 'wikipedia'] as const)
     const bySourceLine = order
-      .filter((s) => s !== 'javlibrary') // 进度条不显示 javlibrary（它没参与 bySource 统计）
       .map((s) => `${SOURCE_LABELS[s]} ${data.bySource[s]}`)
       .join(' · ')
     const title = data.title ?? (tone === 'ok' ? t('app.refetchComplete') : tone === 'warn' ? t('app.refetchPartialFail') : t('app.refetchFail'))
@@ -1288,12 +1278,14 @@ export default function App() {
     toast({ title, text: subtitle, tone, detail, duration: 9000 })
   }
 
-  const handleBatchJavdb = useCallback(async (force = false) => {
+  const handleBatchFetch = useCallback(async (force = false) => {
     if (!libraryId) return
     setScanning(true)
     setProgress(null)
+    // 清空上一轮的抓取日志，避免旧日志被误认为本轮结果
+    setFetchLogs([])
     try {
-      const res = await api.libraryFetchJavdbAll(libraryId, force)
+      const res = await api.libraryFetchAll(libraryId, force)
       // 失败原因按文本去重计数，Top3 给 toast 显示
       const reasonCount: Record<string, number> = {}
       for (const f of res.failures ?? []) {
@@ -1305,20 +1297,31 @@ export default function App() {
         .slice(0, 3)
         .map(([r, n]) => `${r}（×${n}）`)
       const tone: 'ok' | 'warn' | 'err' = res.stopped || res.failed > 0 ? 'warn' : 'ok'
+      const lockedList = (res.lockedSkipped ?? []).map((x) => ({ ...x, reason: 'locked' as const }))
+      const missingList = (res.missingSkipped ?? []).map((x) => ({ ...x, reason: 'missing' as const }))
+      const skippedAll = [...lockedList, ...missingList]
+      const hintParts: string[] = []
+      if (skippedAll.length > 0)
+        hintParts.push(
+          t('lock.skippedToastGeneric', { count: skippedAll.length, locked: lockedList.length, missing: missingList.length })
+        )
+      if (res.remainingNoPoster) hintParts.push(t('app.stillNoPoster', { n: res.remainingNoPoster }))
       showBatchToast({
         title: tone === 'ok' ? t('app.refetchComplete') : t('app.refetchPartialFail'),
-        hint: res.remainingNoPoster
-          ? t('app.stillNoPoster', { n: res.remainingNoPoster })
-          : undefined,
+        hint: hintParts.length ? hintParts.join('；') : undefined,
         tone,
         ok: res.ok,
         failed: res.failed,
-        bySource: { javapi: res.bySource.javapi ?? 0, javinfo: res.bySource.javinfo ?? 0, javdb: res.bySource.javdb ?? 0, javbus: res.bySource.javbus ?? 0, javlibrary: res.bySource.javlibrary ?? 0 },
+        bySource: { moviedb: res.bySource.moviedb ?? 0, omdb: res.bySource.omdb ?? 0, openlibrary: res.bySource.openlibrary ?? 0, justwatch: res.bySource.justwatch ?? 0, wikipedia: res.bySource.wikipedia ?? 0 },
         reasons,
         stopped: res.stopped ?? false,
         remaining: res.remaining ?? 0,
         customSourceOrder: settings.customSourceOrder
       })
+      // v2.7.x：本次自动跳过的文件（锁定 / 文件不存在）→ 弹窗明确告知用户
+      if (skippedAll.length > 0) {
+        setSkippedFiles(skippedAll)
+      }
       // 有失败任务时弹出居中明细窗口
       if (res.failures && res.failures.length > 0) {
         setBatchFailures(res.failures)
@@ -1331,7 +1334,7 @@ export default function App() {
         tone: 'err',
         ok: 0,
         failed: 0,
-        bySource: { javapi: 0, javinfo: 0, javdb: 0, javbus: 0, javlibrary: 0 },
+        bySource: { moviedb: 0, omdb: 0, openlibrary: 0, justwatch: 0, wikipedia: 0 },
         reasons: [`${t('app.requestError')}：${(e as Error)?.message ?? e}`],
         stopped: false,
         remaining: 0
@@ -1360,7 +1363,7 @@ export default function App() {
         const f = failures[i]
         setProgress({ total: failures.length, done: i, current: f.title })
         try {
-          const res = await api.videoFetchJavdbDetail(f.id)
+          const res = await api.videoFetchDetail(f.id)
           if (res?.ok && res.detail) {
             ok++
           } else {
@@ -1380,7 +1383,7 @@ export default function App() {
           tone: 'warn',
           ok,
           failed: stillFailed.length,
-          bySource: { javapi: 0, javinfo: 0, javdb: 0, javbus: 0, javlibrary: 0 },
+          bySource: { moviedb: 0, omdb: 0, openlibrary: 0, justwatch: 0, wikipedia: 0 },
           reasons: [t('app.stillFailedCountHint', { n: stillFailed.length })],
           stopped: false,
           remaining: 0
@@ -1391,7 +1394,7 @@ export default function App() {
           tone: 'ok',
           ok,
           failed: 0,
-          bySource: { javapi: 0, javinfo: 0, javdb: 0, javbus: 0, javlibrary: 0 },
+          bySource: { moviedb: 0, omdb: 0, openlibrary: 0, justwatch: 0, wikipedia: 0 },
           reasons: [],
           stopped: false,
           remaining: 0
@@ -1404,7 +1407,7 @@ export default function App() {
         tone: 'err',
         ok,
         failed: stillFailed.length,
-        bySource: { javapi: 0, javinfo: 0, javdb: 0, javbus: 0, javlibrary: 0 },
+        bySource: { moviedb: 0, omdb: 0, openlibrary: 0, justwatch: 0, wikipedia: 0 },
         reasons: [`${t('app.requestError')}：${(e as Error)?.message ?? e}`],
         stopped: false,
         remaining: 0
@@ -1486,14 +1489,16 @@ export default function App() {
 
   const clearTags = useCallback(() => setSelectedTags(new Set()), [])
 
-  // 收藏切换（持久化到视频记录，同步本地 reconcile）
+  // 收藏 / 锁定切换（持久化到视频记录，同步本地 reconcile）
   const toggleFlag = useCallback(
-    async (id: string, key: 'favorite') => {
+    async (id: string, key: 'favorite' | 'locked') => {
       const entry = reconcile?.entries.find((e) => e.video?.id === id)
       const v = entry?.video
       if (!v) return
       const next = !v[key]
-      const updated = await api.videoUpdate(id, { [key]: next } as Partial<Video>)
+      const patch: Partial<Video> =
+        key === 'locked' ? { locked: next, lockedAt: next ? Date.now() : undefined } : { [key]: next }
+      const updated = await api.videoUpdate(id, patch)
       if (updated) {
         setReconcile((prev) =>
           prev
@@ -1519,10 +1524,38 @@ export default function App() {
             }
           }
         })
+        if (key === 'locked') {
+          toast({
+            text: next ? t('lock.lockedToast') : t('lock.unlockedToast'),
+            tone: next ? 'warn' : 'ok'
+          })
+        }
       }
     },
     [reconcile, libraryId]
   )
+
+  /** v2.7.x：批量补齐结束后弹窗里「全部解锁」——解锁本次因锁定被跳过的所有影片 */
+  const unlockSkippedAll = useCallback(async () => {
+    const lockedItems = (skippedFiles ?? []).filter((x) => x.reason === 'locked')
+    if (lockedItems.length === 0) return
+    const ids = lockedItems.map((x) => x.id)
+    await api.videoLockMany(ids, false)
+    setReconcile((prev) =>
+      prev
+        ? {
+            ...prev,
+            entries: prev.entries.map((e) =>
+              e.video && ids.includes(e.video.id)
+                ? { ...e, video: { ...e.video, locked: false, lockedAt: undefined } }
+                : e
+            )
+          }
+        : prev
+    )
+    setSkippedFiles(null)
+    toast({ text: t('lock.unlockedAll'), tone: 'ok' })
+  }, [skippedFiles])
 
   // ---------- 导航 ----------
 
@@ -1576,7 +1609,7 @@ export default function App() {
     if (s === 'recent') setFilter((f) => ({ ...f, sort: 'lastPlayed', desc: true }))
   }, [])
 
-  // ---------- 演员 / 片商 / 系列 维度筛选 ----------
+  // ---------- 演员 / 制片公司 / 系列 维度筛选 ----------
   const toggleActor = useCallback((a: string) => {
     setSelectedActors((prev) => {
       const n = new Set(prev)
@@ -1715,16 +1748,6 @@ export default function App() {
       : null
 
 
-  const currentEntry = detail
-    ? (reconcile?.entries ?? []).find(
-        (e) =>
-          (e.video && e.video.id === detail.id) ||
-          (e.siblingVideos?.some((s) => s.id === detail.id) ?? false)
-      )
-    : undefined
-  const currentBase = currentEntry ? extractBaseCode(currentEntry.code) : undefined
-  const seriesMembers =
-    currentBase && seriesGroups.has(currentBase) ? seriesGroups.get(currentBase) : undefined
 
   // 启动遮罩：未加载完基础设置前不渲染任何内容（防止隐私锁闪烁泄露）
   if (!loaded) {
@@ -1757,7 +1780,7 @@ export default function App() {
         onTogglePrivacy={togglePrivacy}
         libraryName={currentLibrary?.name}
         onScan={handleScan}
-        onBatchJavdb={handleBatchJavdb}
+        onBatchFetch={handleBatchFetch}
         onBatchProbe={handleBatchProbe}
       />
 
@@ -1902,6 +1925,9 @@ export default function App() {
                 onSetView={setViewMode}
                 onClearAll={clearAllFilters}
                 hasActiveFilters={hasActiveFilters}
+                selectMode={selectMode}
+                selectedCount={selectedIds.size}
+                onToggleSelectMode={toggleSelectMode}
                 mismatch={mismatch}
                 onShowReconcile={() => setReconcileOpen(true)}
               />
@@ -1916,7 +1942,7 @@ export default function App() {
                       onClick={() => toggleActor(a)}
                       className="h-6 px-2 rounded-md text-[11px] flex items-center gap-1 bg-brand/15 text-brand ring-1 ring-brand/30 hover:bg-brand/25 transition-colors"
                     >
-                      {t('app.actresses')}{a}
+                      {t('app.cast')}{a}
                       <Icon name="x" size={11} className="opacity-70" />
                     </button>
                   ))}
@@ -1999,6 +2025,9 @@ export default function App() {
                     onToggleFlag={toggleFlag}
                     onPickTag={handlePickTag}
                     mode="filename"
+                    selectable={selectMode}
+                    selectedIds={selectedIds}
+                    onToggleSelect={toggleSelectId}
                   />
                 ) : (
                   <VirtualizedWall
@@ -2011,6 +2040,9 @@ export default function App() {
                     onPickTag={handlePickTag}
                     onDelete={openDeleteConfirm}
                     aspect={viewMode === 'grid-landscape' ? 'landscape' : 'portrait'}
+                    selectable={selectMode}
+                    selectedIds={selectedIds}
+                    onToggleSelect={toggleSelectId}
                   />
                 )}
               </div>
@@ -2093,7 +2125,7 @@ export default function App() {
         video={editing}
         onClose={() => setEditing(null)}
         onSave={handleSaveMeta}
-        onFetchJavdb={handleFetchJavdb}
+        onFetchPoster={handleFetchPoster}
       />
 
       {detail ? (
@@ -2111,8 +2143,6 @@ export default function App() {
           onPickTag={handlePickTag}
           onToggleFlag={toggleFlag}
           related={relatedEntries}
-          seriesBase={currentBase}
-          seriesMembers={seriesMembers}
           onOpenRelated={(e) => {
             if (e.video) setDetail(e.video)
           }}
@@ -2192,7 +2222,7 @@ export default function App() {
         onExportCodes={(libId, fmt) => window.api.libraryExportCodes(libId, fmt)}
       />
 
-      {/* v2.2.10：实时抓取日志浮层（右下角）。批量补齐期间滚动显示"javdb 失败 → 降级 javbus"，结束自动收起 */}
+      {/* v2.2.10：实时抓取日志浮层（右下角）。批量补齐期间滚动显示"数据源失败 → 降级下一源"，结束自动收起 */}
       <FetchLogOverlay logs={fetchLogs} onDismiss={() => setFetchLogs([])} />
 
       {/* v2.4.1：进度面板（可拖拽、暂停/继续/停止） */}
@@ -2200,6 +2230,7 @@ export default function App() {
         progress={progress}
         scanning={scanning}
         paused={fetchPaused}
+        skippedLocked={lockedCount}
         onPause={() => { setFetchPaused(true); window.api.libraryFetchPause() }}
         onResume={() => { setFetchPaused(false); window.api.libraryFetchResume() }}
         onStop={() => { window.api.libraryFetchStop(); setFetchPaused(false) }}
@@ -2231,7 +2262,9 @@ export default function App() {
             </div>
             <div className="p-5 overflow-y-auto max-h-[60vh] space-y-2">
               {batchFailures.map((f, i) => {
-                const video = reconcile?.entries.find((e) => e.video?.id === f.id)?.video
+                const entry = reconcile?.entries.find((e) => e.video?.id === f.id)
+                const video = entry?.video
+                const failTitle = entry ? displayTitle(entry) : f.title
                 return (
                 <button
                   key={f.id + i}
@@ -2247,7 +2280,7 @@ export default function App() {
                 >
                   <span className="text-xs text-white/30 font-mono mt-0.5">{i + 1}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-white truncate group-hover:text-brand transition-colors" title={f.title}>{f.title}</div>
+                    <div className="text-sm font-medium text-white truncate group-hover:text-brand transition-colors" title={failTitle}>{failTitle}</div>
                     <div className="text-xs text-red-300/80 mt-0.5 break-all">{f.reason || t('app.unknownReason')}</div>
                   </div>
                   <span className="text-[10px] text-white/30 group-hover:text-brand/70 self-center whitespace-nowrap">
@@ -2279,12 +2312,164 @@ export default function App() {
         </div>
       )}
 
+      {/* v2.7.x：多选批量锁定操作条 */}
+      {selectMode && view === 'browse' ? (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[65] flex items-center gap-2 px-3 py-2 rounded-2xl bg-ink-850/95 ring-1 ring-white/15 shadow-2xl shadow-black/60 backdrop-blur-sm animate-fadeIn-fast">
+          <span className="text-sm text-white/80 px-1 whitespace-nowrap">{t('lock.selectedCount', { count: selectedIds.size })}</span>
+          <button
+            type="button"
+            className="h-8 px-2.5 rounded-lg text-xs font-medium bg-white/8 hover:bg-white/15 text-white/80 transition-colors whitespace-nowrap"
+            onClick={selectAllVisible}
+          >
+            {t('lock.selectAll')}
+          </button>
+          <button
+            type="button"
+            className="h-8 px-2.5 rounded-lg text-xs font-medium bg-white/8 hover:bg-white/15 text-white/80 transition-colors whitespace-nowrap"
+            onClick={invertSelection}
+          >
+            {t('lock.invertSelection')}
+          </button>
+          <button
+            type="button"
+            className="h-8 px-2.5 rounded-lg text-xs font-medium bg-white/8 hover:bg-white/15 text-white/80 transition-colors disabled:opacity-40 whitespace-nowrap"
+            onClick={() => setSelectedIds(new Set())}
+            disabled={selectedIds.size === 0}
+          >
+            {t('lock.clearSelection')}
+          </button>
+          <div className="w-px h-5 bg-white/10 mx-0.5" />
+          <button
+            type="button"
+            className="h-8 px-3 rounded-lg text-xs font-medium bg-amber-500 hover:bg-amber-400 text-black transition-colors flex items-center gap-1.5 disabled:opacity-40 whitespace-nowrap"
+            onClick={() => void applyLockToSelection(true)}
+            disabled={selectedIds.size === 0}
+          >
+            <Icon name="lock" size={13} />
+            {t('lock.batchLock')}
+          </button>
+          <button
+            type="button"
+            className="h-8 px-3 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center gap-1.5 disabled:opacity-40 whitespace-nowrap"
+            onClick={() => void applyLockToSelection(false)}
+            disabled={selectedIds.size === 0}
+          >
+            <Icon name="unlock" size={13} />
+            {t('lock.batchUnlock')}
+          </button>
+          <button
+            type="button"
+            className="h-8 w-8 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center"
+            onClick={toggleSelectMode}
+            title={t('lock.exitSelect')}
+          >
+            <Icon name="x" size={14} />
+          </button>
+        </div>
+      ) : null}
+
+      {/* v2.7.x：批量补齐结束后，告知哪些文件被自动跳过（已锁定 / 文件不存在） */}
+      {skippedFiles && skippedFiles.length > 0 && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-modal-backdrop"
+          onClick={() => setSkippedFiles(null)}
+        >
+          <div
+            className="relative w-full max-w-xl max-h-[80vh] overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/10 shadow-2xl shadow-black/50 animate-modal-panel"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(() => {
+              const lockedItems = skippedFiles.filter((x) => x.reason === 'locked')
+              const missingItems = skippedFiles.filter((x) => x.reason === 'missing')
+              return (
+                <>
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                      <h3 className="text-base font-medium text-white truncate">{t('lock.skippedTitle')}</h3>
+                      <span className="text-xs text-white/40 ml-2 shrink-0">{t('lock.skippedCount', { count: skippedFiles.length })}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSkippedFiles(null)}
+                      className="w-7 h-7 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="px-5 pt-3 text-xs text-white/50 leading-relaxed">
+                    {t('lock.skippedHintGeneric', { locked: lockedItems.length, missing: missingItems.length })}
+                  </div>
+                  <div className="p-5 overflow-y-auto max-h-[50vh] space-y-1.5">
+                    {skippedFiles.map((item) => {
+                      const entry = reconcile?.entries.find((e) => e.video?.id === item.id)
+                      return (
+                        <div
+                          key={`${item.reason}-${item.id}`}
+                          className="w-full flex items-center gap-2.5 rounded-lg bg-white/5 px-3 py-2"
+                        >
+                          <Icon
+                            name={item.reason === 'locked' ? 'lock' : 'alert'}
+                            size={13}
+                            className={`shrink-0 ${item.reason === 'locked' ? 'text-amber-400' : 'text-red-400'}`}
+                          />
+                          <span className="text-sm text-white/90 truncate flex-1 min-w-0" title={item.title}>
+                            {item.title}
+                          </span>
+                          <span
+                            className={`text-[10px] shrink-0 px-1.5 py-0.5 rounded ${
+                              item.reason === 'locked' ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/15 text-red-300'
+                            }`}
+                          >
+                            {item.reason === 'locked' ? t('lock.reasonLocked') : t('lock.reasonMissing')}
+                          </span>
+                          {entry?.video ? (
+                            <button
+                              type="button"
+                              className="text-[10px] text-white/40 hover:text-brand shrink-0"
+                              onClick={() => {
+                                setSkippedFiles(null)
+                                setDetail(entry.video!)
+                              }}
+                            >
+                              {t('app.batchFailuresDetail')}
+                            </button>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="flex justify-end items-center gap-3 px-5 py-4 border-t border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => void unlockSkippedAll()}
+                      disabled={lockedItems.length === 0}
+                      className="px-4 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Icon name="unlock" size={13} />
+                      {t('lock.unlockAll')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSkippedFiles(null)}
+                      className="px-4 h-9 rounded-lg bg-brand hover:bg-brand/90 text-white text-sm transition-colors"
+                    >
+                      {t('lock.skippedClose')}
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        </div>
+      )}
+
     </div>
     </ToastProvider>
   )
 }
 
-/** v2.2.10：实时抓取过程浮层（右下角）。批量补齐期间滚动显示"javdb 失败 → 降级 javbus"这类过程提示 */
+/** v2.2.10：实时抓取过程浮层（右下角）。批量补齐期间滚动显示"数据源失败 → 降级下一源"这类过程提示 */
 interface FetchLogItem {
   code: string
   src: string
@@ -2327,18 +2512,17 @@ function FetchLogOverlay({ logs, onDismiss }: { logs: FetchLogItem[]; onDismiss:
   }, [])
   if (logs.length === 0) return null
   const SOURCE_LABEL: Record<string, string> = {
-    javapi: 'Javapi', javinfo: 'Javinfo', javdb: 'JavDB', javbus: 'JavBus', javlibrary: 'JavLibrary'
+    moviedb: 'MovieDB', omdb: 'OMDb', openlibrary: 'OpenLibrary', justwatch: 'JustWatch', wikipedia: '维基百科'
   }
   const line = (l: FetchLogItem) => {
     const label = SOURCE_LABEL[l.src] ?? l.src
     const localizedDetail = (() => {
       if (!l.detail) return ''
-      if (l.detail === 'javapi-not-configured') return t('app.fetchSkippedJavapiNotConfigured')
-      if (l.detail === 'javinfo-not-configured') return t('app.fetchSkippedJavinfoNotConfigured')
-      if (l.detail === 'javdb-disabled') return t('app.fetchSkippedJavdbDisabled')
-      if (l.detail.startsWith('javbus-stopped:')) {
-        const count = l.detail.split(':')[1] ?? '0'
-        return t('app.fetchStoppedJavbusConsecutive').replace('{count}', count)
+      if (l.detail.match(/^(.+)-not-configured$/)) {
+        return t('app.fetchSkippedNotConfigured', { source: label })
+      }
+      if (l.detail.match(/^(.+)-disabled$/)) {
+        return t('app.fetchSkippedDisabled', { source: label })
       }
       return l.detail
     })()
@@ -2420,11 +2604,13 @@ interface ProgressPanelProps {
   progress: { total: number; done: number; current?: string } | null
   scanning: boolean
   paused: boolean
+  /** v2.7.x：当前库已锁定的影片数（运行时提示：这些会被自动跳过） */
+  skippedLocked?: number
   onPause: () => void
   onResume: () => void
   onStop: () => void
 }
-function ProgressPanel({ progress, scanning, paused, onPause, onResume, onStop }: ProgressPanelProps) {
+function ProgressPanel({ progress, scanning, paused, skippedLocked = 0, onPause, onResume, onStop }: ProgressPanelProps) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
   const width = 360
@@ -2508,6 +2694,12 @@ function ProgressPanel({ progress, scanning, paused, onPause, onResume, onStop }
             style={{ width: `${percent}%` }}
           />
         </div>
+        {skippedLocked > 0 ? (
+          <div className="flex items-center gap-1 text-[11px] text-amber-300/90">
+            <Icon name="lock" size={11} className="shrink-0" />
+            {t('lock.progressSkipped', { count: skippedLocked })}
+          </div>
+        ) : null}
         <div className="flex items-center gap-2 pt-0.5">
           {paused ? (
             <button

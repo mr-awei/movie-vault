@@ -1,41 +1,32 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+/** 开头常见的下载站/压制组域名前缀（如 subteam.com@ / www.example.com_ / dl.movie.net-） */
+const LEADING_SITE_RE = /^(?:[a-z0-9-]+\.)+[a-z]{2,}[@_\-\s]+/i
+/** 开头常见的标记前缀（如 【字幕组】、(中字)、[某某压制]） */
+const LEADING_TAG_RE = /^[\[【（(][^\]\)）】]{0,16}[\]\)）】][@_\-\s]*/
+
 /**
- * 清理视频文件名里的"广告污染"：提取番号 + 保留版本标记。
+ * 清理视频文件名开头的「下载站域名 / 标记」前缀（通用清理，不解析任何编号规则）。
  * 例：
- *   489155.com@PRED-828-C.mp4  → PRED-828-C.mp4
- *   【字幕组】SONE-566-uc.mp4   → SONE-566-uc.mp4
- *   www.xxx.com_IPZZ-586.mp4   → IPZZ-586.mp4
- * 返回 null 表示无需改名（没提取到番号 / 原名已干净）。
+ *   subteam.com@Movie.2020.mkv  → Movie.2020.mkv
+ *   【字幕组】Movie.2020.mkv    → Movie.2020.mkv
+ *   www.example.com_Movie.2020.mkv → Movie.2020.mkv
+ * 返回 null 表示无需改名（没有可清理的前缀）。
  */
 export function cleanVideoFileName(fileName: string): string | null {
   const ext = path.extname(fileName)
-  const upper = fileName.toUpperCase()
-  const name = upper.slice(0, upper.length - ext.length)
-  // 2026-08-30 修复：原版正则不带 /i，导致 sone-566-uc.mp4 / ALDN606.mp4 都返回 null。
-  // 改成统一大写后再匹配；用负向断言而非 \b：域名+下划线+番号（com_IPZZ-586）的 `_` 是 word 字符，\b 会失效
-  const re = /(?<![A-Z0-9])[A-Z]{2,}[-_][A-Z0-9]+/
-  const m = re.exec(name)
-  if (!m) return null
-  const code = m[0]
-  const end = m.index + code.length
-  // 番号后的部分（版本标记如 -uc / -C / 1080p 等），去掉前导分隔符；
-  // 空格/点规范化为横线，多个横线压缩
-  const suffix = name
-    .slice(end)
-    .replace(/^[\s._\-～~·]+/, '')
-    .replace(/[\s.]+/g, '-')
-    .replace(/-+/g, '-')
-    .trim()
-  // 若后缀本身是广告词（常见域名/平台残留），直接丢弃
-  const AD_RE = /^(com|org|net|www|官网|完整版|高清|HD|1080p|2160p|4k|8k)(-|$)/i
-  const cleanSuffix = AD_RE.test(suffix) ? '' : suffix
-  const clean = cleanSuffix ? `${code}-${cleanSuffix}` : code
-  const result = clean + ext
-  // 2026-08-30 修复：原版直接 compare fileName（区分大小写），导致用户原小写 → 误判"需要改名为 uppercase"。
-  // 统一按大写比较（result 内部本就是大写）
-  return result === upper ? null : result
+  const stem = fileName.slice(0, fileName.length - ext.length)
+  let s = stem
+  // 反复剥离，覆盖「域名@【标记】片名」这类多重前缀
+  for (let i = 0; i < 3; i++) {
+    const before = s
+    s = s.replace(LEADING_SITE_RE, '').replace(LEADING_TAG_RE, '')
+    if (s === before) break
+  }
+  s = s.trim()
+  if (!s || s === stem) return null
+  return s + ext
 }
 
 /** Windows 保留设备名（单独作为文件名时非法） */

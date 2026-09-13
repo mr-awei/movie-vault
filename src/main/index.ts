@@ -6,9 +6,23 @@ import { registerIpc, runUpdateCheck } from './lib/ipc'
 import { runtime, applyRuntimeSettings } from './lib/runtime'
 import { tMain, setLocale as setMainLocale, subscribeLocale, type Locale } from '../shared/i18n'
 
-// 数据目录固定为 %APPDATA%\local-video-manager（换回旧版目录，避免 productName「影海」
-// 造成的中文目录名；必须在任何 app.getPath('userData') 调用之前设置）
-app.setPath('userData', path.join(app.getPath('appData'), 'local-video-manager'))
+// 数据目录设置：开发模式与正式版使用相同目录名，共用一份数据（movie-vault）
+app.setPath('userData', path.join(app.getPath('appData'), 'movie-vault'))
+
+/**
+ * Windows 控制台默认代码页是 GBK(936)，而 Node/Electron 按 UTF-8 输出中文 → 终端显示成乱码。
+ * 启动时把当前控制台切到 UTF-8(65001)，这样 console.log 的中文能正常显示。
+ * 打包后/无控制台时 chcp 会失败，忽略即可（日志文件本身始终是 UTF-8）。
+ */
+function setupWindowsConsoleUtf8(): void {
+  if (process.platform !== 'win32') return
+  try {
+    execSync('chcp 65001', { stdio: 'ignore' })
+  } catch {
+    /* 无控制台（打包后）或 chcp 不可用，忽略 */
+  }
+}
+setupWindowsConsoleUtf8()
 
 // ------------------------------------------------------------------
 // 单实例锁 + 升级时强制杀掉旧进程（P0 重要修复）
@@ -53,7 +67,7 @@ if (lastVersion && lastVersion !== app.getVersion()) {
 /** v2.5.1：读取 NSIS 安装器写入注册表的语言选择，仅首次安装时使用一次。 */
 function readInstallerLanguage(): Locale | null {
   try {
-    const out = execSync('reg query HKCU\\Software\\YingXia /v InstallerLanguage', { encoding: 'utf8' })
+    const out = execSync('reg query HKCU\\Software\\yinghai /v InstallerLanguage', { encoding: 'utf8' })
     const match = out.match(/InstallerLanguage\s+REG_SZ\s+(\S+)/)
     if (match && (match[1] === 'zh-CN' || match[1] === 'en-US')) return match[1] as Locale
   } catch {
@@ -64,7 +78,7 @@ function readInstallerLanguage(): Locale | null {
 
 function clearInstallerLanguage(): void {
   try {
-    execSync('reg delete HKCU\\Software\\YingXia /v InstallerLanguage /f', { stdio: 'ignore' })
+    execSync('reg delete HKCU\\Software\\yinghai /v InstallerLanguage /f', { stdio: 'ignore' })
   } catch {
     // 忽略删除失败
   }

@@ -1,7 +1,7 @@
-﻿import { memo, useState } from 'react'
+import { memo, useState } from 'react'
 import type { DisplayEntry, Video } from '../../../shared/types'
 import { entryPrimaryTags, hasDocTags } from '../../../shared/types'
-import { posterUrl, placeholderGradient, titleInitial, formatDuration, formatSize } from '../lib/util'
+import { posterUrl, placeholderGradient, titleInitial, formatDuration, formatSize, displayTitle } from '../lib/util'
 import { useFrameFallback } from '../lib/frameFallback'
 import { api } from '../lib/api'
 import { t } from '../../../shared/i18n'
@@ -12,14 +12,20 @@ interface Props {
   onOpen: (e: DisplayEntry) => void
   onEdit: (v: Video) => void
   onOpenMissing: (e: DisplayEntry) => void
-  onToggleFlag?: (id: string, key: 'favorite') => void
+  onToggleFlag?: (id: string, key: 'favorite' | 'locked') => void
   /** 点击标签 → 一键筛选该标签全部影片 */
   onPickTag?: (tag: string) => void
   /** full = 缩略图列表；filename = 纯文件名列表 */
   mode?: 'full' | 'filename'
+  /** v2.7.x：多选模式 —— 点击行切换选中而非打开详情 */
+  selectable?: boolean
+  /** 多选模式下已选中的视频 id 集合 */
+  selectedIds?: Set<string>
+  /** 切换选中状态（多选模式） */
+  onToggleSelect?: (id: string) => void
 }
 
-function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, onPickTag, mode = 'full' }: Props) {
+function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, onPickTag, mode = 'full', selectable = false, selectedIds, onToggleSelect }: Props) {
   if (entries.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-white/40 text-sm px-6 text-center animate-fadeIn">
@@ -39,15 +45,18 @@ function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, o
           const isMissing = e.kind === 'missing'
           const score = e.score ?? v?.rating
           const fav = !!v?.favorite
+          const isLocked = !!v?.locked
+          const canSelect = selectable && !!v?.id
+          const isSelected = !!(v?.id && selectedIds?.has(v.id))
 
           // 文件名列表模式：展示文件名、标签、文件大小、演员等（不显示大图和简介）
           if (mode === 'filename') {
             const actors = v?.actors?.length
               ? v.actors
-              : v?.javdbDetail?.actresses?.length
-                ? v.javdbDetail.actresses
-                : v?.javdbDetail?.actors?.length
-                  ? v.javdbDetail.actors
+              : v?.meta?.cast?.length
+                ? v.meta.cast
+                : v?.meta?.actors?.length
+                  ? v.meta.actors
                   : []
             const tags = (() => {
               // 主标签来源优先 entry.tagCategories → entry.tags（文档权威）；
@@ -58,24 +67,42 @@ function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, o
               if (primary.length) return primary
               return back
             })()
-            const studio = v?.javdbDetail?.studio
-            const series = v?.javdbDetail?.series
+            const studio = v?.meta?.studio
+            const series = v?.meta?.series
+            const title = displayTitle(e)
             return (
               <div
                 key={v?.id ?? e.code}
-                className="cv-list-item group flex items-center gap-3 px-3 py-2 rounded-lg bg-ink-800/40 hover:bg-ink-700/60 ring-1 ring-white/5 transition-colors cursor-pointer"
-                onClick={() => (isMissing ? onOpenMissing(e) : onOpen(e))}
+                className={`cv-list-item group flex items-center gap-3 px-3 py-2 rounded-lg bg-ink-800/40 hover:bg-ink-700/60 ring-1 transition-colors cursor-pointer ${
+                  isSelected ? 'ring-brand ring-2' : 'ring-white/5'
+                }`}
+                onClick={() => {
+                  if (canSelect && v?.id) {
+                    onToggleSelect?.(v.id)
+                    return
+                  }
+                  if (isMissing) onOpenMissing(e)
+                  else onOpen(e)
+                }}
               >
+                {canSelect ? (
+                  <span
+                    className={`w-5 h-5 shrink-0 rounded-md flex items-center justify-center ring-1 transition-colors ${
+                      isSelected ? 'bg-brand text-white ring-brand' : 'bg-black/30 text-white/50 ring-white/30'
+                    }`}
+                  >
+                    <Icon name="check" size={12} className={isSelected ? '' : 'opacity-40'} />
+                  </span>
+                ) : null}
                 {/* 文件名 */}
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13px] text-white/90 truncate" title={v?.fileName ? v.fileName.replace(/\.[^./\\]+$/, '') : e.title || e.code}>
-                    {v?.fileName ? v.fileName.replace(/\.[^./\\]+$/, '') : e.title || e.code}
+                  <div className="text-[13px] text-white/90 truncate" title={title}>
+                    {title}
                   </div>
                   <div className="text-white/35 text-[11px] truncate mt-0.5">
-                    {e.code !== (v?.fileName ? v.fileName.replace(/\.[^./\\]+$/, '') : e.title) ? e.code : ''}
+                    {e.code !== title ? e.code : ''}
                     {studio ? ` · ${studio}` : ''}
                     {series ? ` · ${series}` : ''}
-                    {v?.domestic ? ` · ${t('list.domestic')}` : ''}
                   </div>
                 </div>
 
@@ -136,10 +163,15 @@ function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, o
                     </span>
                   ) : null}
                   {fav ? <Icon name="heart" size={12} className="text-brand fill-current" /> : null}
+                  {isLocked ? (
+                    <span title={t('lock.badge')} className="flex items-center">
+                      <Icon name="lock" size={12} className="text-amber-400" />
+                    </span>
+                  ) : null}
                 </div>
 
                 {/* 操作 */}
-                {!isMissing && v ? (
+                {!isMissing && v && !canSelect ? (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                     <button
                       className="w-7 h-7 rounded-lg bg-black/40 hover:bg-brand text-white flex items-center justify-center no-drag"
@@ -163,6 +195,18 @@ function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, o
                         <Icon name="heart" size={12} className={fav ? 'fill-current' : ''} />
                       </button>
                     ) : null}
+                    {onToggleFlag ? (
+                      <button
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center no-drag ${isLocked ? 'bg-amber-500 text-black' : 'bg-black/40 hover:bg-brand text-white'}`}
+                        onClick={(ev) => {
+                          ev.stopPropagation()
+                          onToggleFlag(v.id, 'locked')
+                        }}
+                        title={isLocked ? t('lock.unlockTitle') : t('lock.lockTitle')}
+                      >
+                        <Icon name={isLocked ? 'lock' : 'unlock'} size={12} />
+                      </button>
+                    ) : null}
                     <button
                       className="w-7 h-7 rounded-lg bg-black/40 hover:bg-ink-600 text-white flex items-center justify-center no-drag"
                       onClick={(ev) => {
@@ -182,18 +226,34 @@ function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, o
           return (
             <div
               key={e.code}
-              className={`cv-list-item group flex items-center gap-3 px-2.5 py-2 rounded-xl bg-ink-800/50 hover:bg-ink-700/70 ring-1 ring-white/5 transition-colors cursor-pointer ${
-                isMissing ? 'opacity-80' : ''
-              }`}
-              onClick={() => (isMissing ? onOpenMissing(e) : onOpen(e))}
+              className={`cv-list-item group flex items-center gap-3 px-2.5 py-2 rounded-xl bg-ink-800/50 hover:bg-ink-700/70 ring-1 transition-colors cursor-pointer ${
+                isSelected ? 'ring-brand ring-2' : 'ring-white/5'
+              } ${isMissing ? 'opacity-80' : ''}`}
+              onClick={() => {
+                if (canSelect && v?.id) {
+                  onToggleSelect?.(v.id)
+                  return
+                }
+                if (isMissing) onOpenMissing(e)
+                else onOpen(e)
+              }}
             >
+              {canSelect ? (
+                <span
+                  className={`w-5 h-5 shrink-0 rounded-md flex items-center justify-center ring-1 transition-colors ${
+                    isSelected ? 'bg-brand text-white ring-brand' : 'bg-black/30 text-white/50 ring-white/30'
+                  }`}
+                >
+                  <Icon name="check" size={12} className={isSelected ? '' : 'opacity-40'} />
+                </span>
+              ) : null}
               {/* 缩略图：无封面时 ffmpeg 截帧兜底，右上角「帧」标识 */}
               <ListThumb video={v} code={e.code} isMissing={isMissing} />
 
               {/* 主信息 */}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[13px] font-medium text-white truncate">{e.code}</span>
+                  <span className="text-[13px] font-medium text-white truncate">{displayTitle(e)}</span>
                   {score != null ? (
                     <span className="flex items-center gap-0.5 text-brand text-[12px] font-semibold shrink-0">
                       <Icon name="star" size={11} className="fill-brand" />
@@ -201,10 +261,15 @@ function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, o
                     </span>
                   ) : null}
                   {fav ? <Icon name="heart" size={12} className="text-brand fill-current shrink-0" /> : null}
+                  {isLocked ? (
+                    <span title={t('lock.badge')} className="flex items-center shrink-0">
+                      <Icon name="lock" size={12} className="text-amber-400" />
+                    </span>
+                  ) : null}
                 </div>
                 <div className="text-white/45 text-[11px] truncate mt-0.5">
                   {v?.year ? `${v.year} · ` : ''}
-                  {v?.javdbDetail?.studio ?? e.category}
+                  {v?.meta?.studio ?? e.category}
                   {v?.durationSec ?? v?.techInfo?.durationSec ? ` · ${formatDuration((v.durationSec ?? v.techInfo!.durationSec)!)}` : ''}
                 </div>
               </div>
@@ -233,7 +298,7 @@ function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, o
               </div>
 
               {/* 操作 */}
-              {!isMissing && v ? (
+              {!isMissing && v && !canSelect ? (
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                   <button
                     className="w-7 h-7 rounded-lg bg-black/40 hover:bg-brand text-white flex items-center justify-center no-drag"
@@ -256,6 +321,16 @@ function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, o
                         title={fav ? t('list.unfavorite') : t('list.favorite')}
                       >
                         <Icon name="heart" size={12} className={fav ? 'fill-current' : ''} />
+                      </button>
+                      <button
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center no-drag ${isLocked ? 'bg-amber-500 text-black' : 'bg-black/40 hover:bg-brand text-white'}`}
+                        onClick={(ev) => {
+                          ev.stopPropagation()
+                          onToggleFlag(v.id, 'locked')
+                        }}
+                        title={isLocked ? t('lock.unlockTitle') : t('lock.lockTitle')}
+                      >
+                        <Icon name={isLocked ? 'lock' : 'unlock'} size={12} />
                       </button>
                     </>
                   ) : null}
@@ -284,10 +359,10 @@ export default memo(ListViewInner)
 /** 列表缩略图：无真实封面时懒加载 ffmpeg 截帧兜底，右上角「帧」标识；完整显示封面（object-contain） */
 function ListThumb({ video, code, isMissing }: { video?: Video | null; code: string; isMissing: boolean }) {
   const [imgError, setImgError] = useState(false)
-  // 封面优先级：手动设的封面（manual）> javdbDetail.cover（真实海报）> 非截帧 posterPath > 截帧 posterPath
+  // 封面优先级：手动设的封面（manual）> meta.cover（真实海报）> 非截帧 posterPath > 截帧 posterPath
   const manualPoster = video?.posterSource === 'manual' && video?.posterPath ? video.posterPath : null
   const detailCover =
-    video?.javdbDetail?.cover && !/^https?:\/\//.test(video.javdbDetail.cover) ? video.javdbDetail.cover : null
+    video?.meta?.cover && !/^https?:\/\//.test(video.meta.cover) ? video.meta.cover : null
   const realPoster =
     video?.posterPath &&
     video.posterSource &&

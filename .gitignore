@@ -18,13 +18,13 @@ build/ffmpeg/
 .tmp-*.mjs
 commit-msg.txt
 
-# 项目内部数据
+# 项目内部数据（AI 工作记忆，含内部笔记，不提交）
+.codebuddy/
 .workbuddy
 
 # 系统 / 日志
 .DS_Store
 *.log
-release-javinfo/
 node_modules/
 dist/
 *.log

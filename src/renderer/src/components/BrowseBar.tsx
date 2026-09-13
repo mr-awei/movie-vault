@@ -21,13 +21,18 @@ interface Props {
   hasActiveFilters: boolean
   mismatch?: { missing: number; unlisted: number } | null
   onShowReconcile: () => void
+  /** v2.7.x：多选批量锁定模式 */
+  selectMode?: boolean
+  selectedCount?: number
+  onToggleSelectMode?: () => void
 }
 
 export default function BrowseBar(props: Props) {
   const {
     libraryName, categoryLabel, smart, onSmart, resultCount,
     sort, onSort, desc, onToggleDesc, groupMode, onToggleGroup,
-    viewMode, onSetView, onClearAll, hasActiveFilters, mismatch, onShowReconcile
+    viewMode, onSetView, onClearAll, hasActiveFilters, mismatch, onShowReconcile,
+    selectMode = false, selectedCount = 0, onToggleSelectMode
   } = props
 
   const sortLabels: Record<SortKey, string> = {
@@ -145,6 +150,22 @@ export default function BrowseBar(props: Props) {
         <Icon name={groupMode === 'flat' ? 'list' : 'layers'} size={13} />
         {groupMode === 'flat' ? t('browse.all') : t('browse.group')}
       </button>
+      {/* 多选：开启后可批量锁定/解锁 */}
+      {onToggleSelectMode ? (
+        <button
+          className={`h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors ${
+            selectMode
+              ? 'bg-brand text-white'
+              : 'bg-ink-700 hover:bg-ink-600 text-white/70'
+          }`}
+          onClick={onToggleSelectMode}
+          title={selectMode ? t('lock.exitSelect') : t('lock.enterSelect')}
+        >
+          <Icon name="check" size={13} />
+          {selectMode ? t('lock.selectedCount', { count: selectedCount }) : t('lock.selectMode')}
+        </button>
+      ) : null}
+
       {/* 视图模式：竖屏预览墙 / 横屏预览墙 / 纯文件名列表 */}
       <div className="inline-flex p-0.5 bg-ink-900/50 border border-white/10 rounded-lg">
         {(

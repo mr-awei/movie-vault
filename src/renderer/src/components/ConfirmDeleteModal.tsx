@@ -29,9 +29,7 @@ export interface DeletePreview {
   fileName: string
   /** 同目录其他视频数 */
   otherVideoCount: number
-  /** 同目录 .torrent 数 */
-  torrentCount: number
-  /** 同目录其他文件数（非视频非种子） */
+  /** 同目录其他文件数（非视频） */
   otherFileCount: number
   /** 删除范围 */
   scope: DeleteScope
@@ -87,11 +85,10 @@ export default function ConfirmDeleteModal({ open, preview, busy, onConfirm, onC
   // 范围说明（按预检结果生成）
   const reasons: string[] = []
   if (isDir) {
-    reasons.push(t('delete.dirReason', { fileName: preview.fileName, torrentCount: preview.torrentCount }))
+    reasons.push(t('delete.dirReason', { fileName: preview.fileName }))
   } else {
     if (preview.otherVideoCount > 0) reasons.push(t('delete.sameDirOtherVideos', { count: preview.otherVideoCount }))
     if (preview.otherFileCount > 0) reasons.push(t('delete.sameDirOtherFiles', { count: preview.otherFileCount }))
-    if (preview.torrentCount === 0) reasons.push(t('delete.noTorrent'))
   }
 
   return (

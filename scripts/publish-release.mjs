@@ -4,7 +4,7 @@
  *   GITHUB_TOKEN=ghp_xxx node scripts/publish-release.mjs
  * 也可覆盖 REPO/TAG/TITLE/INSTALLER_PATH：
  *   GITHUB_TOKEN=ghp_xxx TAG=v2.2.5 TITLE="影海 v2.2.5" \
- *     INSTALLER_PATH="C:/Users/19218/yingxia-release/2026-08-30-0417/影海 Setup 2.2.5.exe" \
+ *     INSTALLER_PATH="C:/Users/19218/yinghai-release/2026-08-30-0417/影海 Setup 2.2.5.exe" \
  *     node scripts/publish-release.mjs
  *
  * 注意：GitHub PAT 必须从环境变量读，绝不硬编码到仓库里——
@@ -19,7 +19,7 @@ if (!TOKEN) {
   console.error('用法：GITHUB_TOKEN=ghp_xxx node scripts/publish-release.mjs');
   process.exit(1);
 }
-const REPO = process.env.GITHUB_REPO || 'mr-awei/yingxia-video-manager';
+const REPO = process.env.GITHUB_REPO || 'mr-awei/yinghai-movie-vault';
 const TAG = process.env.TAG || 'v2.2.5';
 const TITLE = process.env.TITLE || `影海 ${TAG}`;
 const INSTALLER = process.env.INSTALLER_PATH;
@@ -42,7 +42,7 @@ const postJson = (path, body) => new Promise((resolve, reject) => {
     headers: {
       'Authorization': auth,
       'Accept': 'application/vnd.github+json',
-      'User-Agent': 'yingxia-publish',
+      'User-Agent': 'yinghai-publish',
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(data)
     }
@@ -85,7 +85,7 @@ await new Promise((resolve, reject) => {
     headers: {
       'Authorization': auth,
       'Accept': 'application/vnd.github+json',
-      'User-Agent': 'yingxia-publish',
+      'User-Agent': 'yinghai-publish',
       'Content-Type': 'application/octet-stream',
       'Content-Length': stats.size
     }

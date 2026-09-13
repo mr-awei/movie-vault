@@ -57,7 +57,7 @@ interface Props {
   onToggle: (tag: string) => void
   onClear: () => void
 
-  /** 筛选：演员/片商/系列 */
+  /** 筛选：演员/制片公司/系列 */
   actorFacets: MetaFacet[]
   studioFacets: MetaFacet[]
   seriesFacets: MetaFacet[]
@@ -72,7 +72,7 @@ interface Props {
   onClearSeries: () => void
   onClearMetaFilters: () => void
 
-  /** v2.3.2 类别（genre）筛选：独立于分类，从 javdbDetail.genres 提取单标签 */
+  /** v2.3.2 类别（genre）筛选：独立于分类，从 meta.genres 提取单标签 */
   genreFacets: MetaFacet[]
   selectedGenres: Set<string>
   onToggleGenre: (g: string) => void
@@ -167,7 +167,7 @@ function Section({
   )
 }
 
-/** 元信息 facet 单组（演员 / 片商 / 系列） */
+/** 元信息 facet 单组（演员 / 制片公司 / 系列） */
 function FacetGroup({
   title,
   icon,
@@ -550,7 +550,7 @@ function SidebarInner(props: Props) {
               ) : (
                 <div className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
                   {(() => {
-                    // 需求 B：自动归类（order 9000-9998，如【JavBus】高清·字幕）与用户分类分组显示
+                    // 需求 B：自动归类（order 9000-9998，如【数据源】高清·字幕）与用户分类分组显示
                     const autoSections = visibleSections.filter((s) => s.order >= 9000 && s.order < 9999)
                     const normalSections = visibleSections.filter((s) => s.order < 9000 || s.order >= 9999)
                     const renderSection = (s: SectionInfo) => {
@@ -696,10 +696,10 @@ function SidebarInner(props: Props) {
             </div>
           ) : null}
 
-          {/* 女演员 / 片商 / 系列 */}
+          {/* 主演 / 制片公司 / 系列 */}
           {filterTab === 'meta' ? (
             <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
-              <FacetGroup title={t('sidebar.actress')} icon="users" facets={actorFacets} selected={selectedActors} onToggle={onToggleActor} onClear={onClearActors} />
+              <FacetGroup title={t('sidebar.starring')} icon="users" facets={actorFacets} selected={selectedActors} onToggle={onToggleActor} onClear={onClearActors} />
               <FacetGroup title={t('sidebar.studio')} icon="building" facets={studioFacets} selected={selectedStudios} onToggle={onToggleStudio} onClear={onClearStudios} />
               <FacetGroup title={t('sidebar.series')} icon="layers" facets={seriesFacets} selected={selectedSeries} onToggle={onToggleSeries} onClear={onClearSeries} />
             </div>

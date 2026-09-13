@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import type { Settings, ProxyMode, SortKey } from '../../../shared/types'
+import type { Settings, ProxyMode, SortKey, SourceId } from '../../../shared/types'
 import type { UpdateCheckResult } from '../../../shared/api-types'
 import { api } from '../lib/api'
 import Icon from './Icon'
@@ -47,12 +47,12 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'year', get label() { return t('settings.sort.year') } },
   { value: 'random', get label() { return t('settings.sort.random') } }
 ]
-/** 把旧版单一 javdbProxy 字符串迁移到新的多协议代理结构，并对数值兜底 */
+/** 把旧版单一 legacyProxy 字符串迁移到新的多协议代理结构，并对数值兜底 */
 function normalizeProxy(s: Settings): Settings {
-  const anyS = s as Settings & { javdbProxy?: string }
+  const anyS = s as Settings & { legacyProxy?: string }
   let next: Settings = { ...s }
   if (!next.proxyMode) {
-    const raw = anyS.javdbProxy
+    const raw = anyS.legacyProxy
     if (raw) {
       try {
         const u = new URL(raw)
@@ -82,51 +82,49 @@ function normalizeProxy(s: Settings): Settings {
     autoRescan: !!next.autoRescan,
     dataSource: next.dataSource ?? 'auto',
     customSourceOrder: normalizeSourceOrder(next.customSourceOrder),
-    javinfoKey: next.javinfoKey ?? '',
-    javapiUrl: next.javapiUrl ?? 'http://127.0.0.1:8080',
-    javapiKey: next.javapiKey ?? ''
+    
   }
 }
 
 /** 数据源标签（固定英文品牌名，不走 i18n） */
-const SOURCE_LABELS = {
-  javapi: 'Javapi',
-  javinfo: 'Javinfo',
-  javdb: 'JavDB',
-  javbus: 'JavBus',
-  javlibrary: 'JavLibrary'
-} as const
-const ALL_SOURCE_ORDER: Array<'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary'> = ['javapi', 'javinfo', 'javdb', 'javbus', 'javlibrary']
+const SOURCE_LABELS: Record<SourceId, string> = {
+  moviedb: 'MovieDB',
+  omdb: 'OMDb',
+  openlibrary: 'OpenLibrary',
+  justwatch: 'JustWatch',
+  wikipedia: '维基百科'
+}
+const ALL_SOURCE_ORDER: SourceId[] = ['moviedb', 'omdb', 'openlibrary', 'justwatch', 'wikipedia']
 
 /**
  * 数据源三维度信息 —— 改成 getter 函数，每次 render 重新取当前 locale 的翻译。
  * 之前 SOURCE_META 在模块顶层用 t() 固化 tier/risk/cost，切换到英文后还是中文。
  */
-function getSourceMeta(src: 'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary') {
+function getSourceMeta(src: SourceId) {
   return {
     label: SOURCE_LABELS[src],
     tier: t(`settings.source.${src}.tier`),
     risk: t(`settings.source.${src}.risk`),
-    cost: src === 'javinfo' ? t('settings.source.javinfo.cost') : t('settings.source.free'),
+    cost: t('settings.source.free'),
     desc: t(`settings.source.${src}.desc`)
   }
 }
 
 /**
- * 把任意顺序归一化到完整的 5 个源（缺哪个补默认 javapi→javinfo→javdb→javbus→javlibrary），
+ * 把任意顺序归一化到完整的 4 个源（缺哪个补默认 moviedb→omdb→openlibrary→justwatch），
  * 用于 UI 拖拽排序时的初始 / 兜底。
  */
-function normalizeSourceOrder(order?: string[]): Array<'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary'> {
-  if (!Array.isArray(order) || order.length !== 5) return [...ALL_SOURCE_ORDER]
+function normalizeSourceOrder(order?: string[]): SourceId[] {
+  if (!Array.isArray(order) || order.length < 1) return [...ALL_SOURCE_ORDER]
   const set = new Set(order)
   if (ALL_SOURCE_ORDER.some((s) => !set.has(s))) return [...ALL_SOURCE_ORDER]
-  return order as Array<'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary'>
+  return order as SourceId[]
 }
 
 /**
- * 把当前顺序拼成 "Javapi → Javinfo → JavDB → ..." 文案给顶部说明文字用。
+ * 把当前顺序拼成 "MovieDB → OMDb → OpenLibrary → JustWatch" 文案给顶部说明文字用。
  */
-function formatSourceOrder(order?: Array<'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary'>): string {
+function formatSourceOrder(order?: SourceId[]): string {
   const arr = normalizeSourceOrder(order)
   return arr.map((s) => SOURCE_LABELS[s]).join(' → ')
 }
@@ -258,7 +256,7 @@ function SegmentedControl<T extends string>({
   onChange
 }: {
   value: T
-  options: { value: T; label: ReactNode }[]
+  options: { value: T; label: ReactNode; disabled?: boolean }[]
   onChange: (v: T) => void
 }) {
   return (
@@ -267,11 +265,14 @@ function SegmentedControl<T extends string>({
         <button
           key={o.value}
           type="button"
+          disabled={o.disabled}
           onClick={() => onChange(o.value)}
           className={`px-3 py-1.5 rounded-md text-sm transition-all ${
-            value === o.value
-              ? 'bg-ink-700 text-white shadow-sm'
-              : 'text-white/50 hover:text-white/80'
+            o.disabled
+              ? 'opacity-35 cursor-not-allowed'
+              : value === o.value
+                ? 'bg-ink-700 text-white shadow-sm'
+                : 'text-white/50 hover:text-white/80'
           }`}
         >
           {o.label}
@@ -311,15 +312,13 @@ function Select<T extends string>({
 /* ---------------- theme preview card ---------------- */
 type ThemeOption = { value: Settings['theme']; label: string; tagline: string }
 const THEME_OPTIONS: ThemeOption[] = [
-  { value: 'cinema', get label() { return t('settings.theme.cinema') }, get tagline() { return t('settings.theme.cinemaTagline') } },
+  { value: 'dark', get label() { return t('settings.theme.dark') }, get tagline() { return t('settings.theme.darkTagline') } },
   { value: 'light', get label() { return t('settings.theme.light') }, get tagline() { return t('settings.theme.lightTagline') } },
-  { value: 'magazine', get label() { return t('settings.theme.magazine') }, get tagline() { return t('settings.theme.magazineTagline') } },
-  { value: 'glass', get label() { return t('settings.theme.glass') }, get tagline() { return t('settings.theme.glassTagline') } },
   { value: 'system', get label() { return t('settings.theme.system') }, get tagline() { return t('settings.theme.systemTagline') } }
 ]
 function ThemePreview({ theme }: { theme: Settings['theme'] }) {
   const previews: Record<Settings['theme'], ReactNode> = {
-    cinema: (
+    dark: (
       <div
         className="w-full h-full rounded-t-lg overflow-hidden relative"
         style={{
@@ -329,7 +328,7 @@ function ThemePreview({ theme }: { theme: Settings['theme'] }) {
         <div className="absolute top-2 left-3 right-3 h-2 rounded-full bg-white/8" />
         <div className="absolute top-6 left-3 w-10 h-12 rounded bg-white/10 border border-white/5" />
         <div className="absolute top-6 left-[54px] w-10 h-12 rounded bg-white/10 border border-white/5" />
-        <div className="absolute bottom-2 right-3 w-5 h-5 rounded-full bg-[rgb(251,114,153)]/40" />
+        <div className="absolute bottom-2 right-3 w-5 h-5 rounded-full bg-[rgb(45,212,191)]/40" />
       </div>
     ),
     light: (
@@ -341,29 +340,6 @@ function ThemePreview({ theme }: { theme: Settings['theme'] }) {
         <div className="absolute top-6 left-3 w-10 h-12 rounded bg-white border border-black/6 shadow-sm" />
         <div className="absolute top-6 left-[54px] w-10 h-12 rounded bg-white border border-black/6 shadow-sm" />
         <div className="absolute bottom-2 right-3 w-5 h-5 rounded-full bg-[rgb(236,72,127)]/25" />
-      </div>
-    ),
-    magazine: (
-      <div
-        className="w-full h-full rounded-t-lg overflow-hidden relative"
-        style={{ background: 'radial-gradient(1100px 700px at 85% -12%, #4a1a2e 0%, #110c0e 55%)' }}
-      >
-        <div className="absolute top-2 left-3 right-3 h-2 rounded-full bg-white/8" />
-        <div className="absolute top-6 left-3 w-10 h-12 rounded-sm bg-white/8 border border-white/5" />
-        <div className="absolute top-6 left-[54px] w-10 h-12 rounded-sm bg-white/8 border border-white/5" />
-        <div className="absolute top-1/2 left-[54px] w-[1px] h-6 bg-[rgb(251,114,153)]" />
-        <div className="absolute bottom-2 right-3 w-5 h-5 rounded-full bg-[rgb(251,114,153)]/40" />
-      </div>
-    ),
-    glass: (
-      <div
-        className="w-full h-full rounded-t-lg overflow-hidden relative"
-        style={{ background: 'radial-gradient(1200px 900px at 25% -10%, #3d2e6e 0%, #1a1830 45%, #0b0c14 100%)' }}
-      >
-        <div className="absolute top-2 left-3 right-3 h-2 rounded-full bg-white/8 backdrop-blur-sm" />
-        <div className="absolute top-6 left-3 w-10 h-12 rounded-[10px] bg-white/10 border border-white/15 backdrop-blur-md" />
-        <div className="absolute top-6 left-[54px] w-10 h-12 rounded-[10px] bg-white/10 border border-white/15 backdrop-blur-md" />
-        <div className="absolute bottom-2 right-3 w-5 h-5 rounded-full bg-[rgb(167,139,250)]/40" />
       </div>
     ),
     system: (
@@ -436,6 +412,8 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
   const [activeCategory, setActiveCategory] = useState<Category>('general')
   // v2.2.6：顶部 auto 降级文案动态跟着 draft.customSourceOrder 走
   const autoOrderSummary = formatSourceOrder(draft.customSourceOrder)
+  // 数据源步骤里网址的复制反馈（按 URL 区分）
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
   const [dataDir, setDataDir] = useState('')
   const [appVersion, setAppVersion] = useState('')
   const [testResult, setTestResult] = useState<{ ok: boolean; status?: number; error?: string } | null>(null)
@@ -820,23 +798,7 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
                     </div>
                   ) : null}
                 </Card>
-                <Card>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Icon name="cookie" size={16} className="text-white/70" />
-                    <div className="text-white/90 text-sm font-medium">JavDB Cookie</div>
-                  </div>
-                  <Field
-                    label={t("settings.cookieLabel")}
-                    hint={t("settings.cookieHint")}
-                  >
-                    <input
-                      className={inputCls}
-                      placeholder={t("settings.tokenFormatHint")}
-                      value={draft.javdbCookie ?? ''}
-                      onChange={(e) => setDraft({ ...draft, javdbCookie: e.target.value })}
-                    />
-                  </Field>
-                </Card>
+                
                 <Card>
                   <div className="flex items-center gap-2 mb-1">
                     <Icon name="database" size={16} className="text-white/70" />
@@ -849,77 +811,77 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
                     value={draft.dataSource ?? 'auto'}
                     options={[
                       { value: 'auto', label: t('settings.autoDegrade') },
-                      { value: 'javapi', label: 'Javapi' },
-                      { value: 'javinfo', label: 'Javinfo' },
-                      { value: 'javdb', label: 'JavDB' },
-                      { value: 'javbus', label: 'JavBus' },
-                      { value: 'javlibrary', label: 'JavLibrary' }
+                      { value: 'moviedb', label: 'MovieDB', disabled: !!draft.disabledSources?.includes('moviedb') },
+                      { value: 'omdb', label: 'OMDb', disabled: !!draft.disabledSources?.includes('omdb') },
+                      { value: 'openlibrary', label: 'OpenLibrary', disabled: !!draft.disabledSources?.includes('openlibrary') },
+                      { value: 'justwatch', label: 'JustWatch', disabled: !!draft.disabledSources?.includes('justwatch') },
+                      { value: 'wikipedia', label: '维基百科', disabled: !!draft.disabledSources?.includes('wikipedia') }
                     ]}
-                    onChange={(v) => setDraft({ ...draft, dataSource: v as 'auto' | 'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary' })}
+                    onChange={(v) => setDraft({ ...draft, dataSource: v as 'auto' | SourceId })}
                   />
-                  {/* 选中具体数据源时显示介绍；auto 模式不显示 */}
-                  {(draft.dataSource && draft.dataSource !== 'auto') ? (
-                    <div className="mt-3 rounded-lg border border-white/10 bg-white/3 p-3 animate-fadeIn">
-                      {(() => {
-                        const meta = getSourceMeta(draft.dataSource as 'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary')
-                        return (
-                          <>
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <span className="text-white/90 text-xs font-medium">{meta.label}</span>
-                              <span className="text-[10px] text-white/50">{meta.tier} · {meta.risk} · {meta.cost}</span>
-                            </div>
-                            <div className="text-white/60 text-[11.5px] leading-relaxed">{meta.desc}</div>
-                          </>
-                        )
-                      })()}
+                  {/* 数据源明细：每个源可单独启用/禁用，并展示用途介绍；需要 API Key 的来源给出注册步骤 */}
+                  {draft.dataSource === 'auto' ? (
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="text-white/85 text-xs font-medium">{t('settings.sourceOrderDragHint')}</div>
+                      <button
+                        type="button"
+                        className="text-[11px] text-brand hover:text-brand/80 transition-colors no-drag"
+                        onClick={() => setDraft({ ...draft, customSourceOrder: ['moviedb', 'omdb', 'openlibrary', 'justwatch', 'wikipedia'] })}
+                        title={t('settings.restoreRecommendedOrder')}
+                      >
+                        {t('settings.restoreRecommended')}
+                      </button>
                     </div>
                   ) : null}
-                  {/* v2.2.6：自定义数据源采集顺序。auto 模式下生效，按这个顺序降级。
-                      推荐顺序：Javapi（本地免费）→ Javinfo（免风控）→ JavDB → JavBus → JavLibrary
-                      （任一源连续网络失败 3 部自动跳过；JavBus 连续失败 3 部直接停止整批）
-                      鼠标拖拽 ⠿ 调整顺序；点 ↑↓ 按钮也行。 */}
-                  {draft.dataSource === 'auto' ? (
-                    <div className="mt-3 rounded-lg border border-white/10 bg-white/3 p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-white/85 text-xs font-medium">{t("settings.sourceOrderDragHint")}</div>
-                        <button
-                          type="button"
-                          className="text-[11px] text-brand hover:text-brand/80 transition-colors no-drag"
-                          onClick={() => setDraft({ ...draft, customSourceOrder: ['javapi', 'javinfo', 'javdb', 'javbus', 'javlibrary'] })}
-                          title={t('settings.restoreRecommendedOrder')}
+                  <div className="mt-2 space-y-2">
+                    {(draft.customSourceOrder ?? ['moviedb', 'omdb', 'openlibrary', 'justwatch', 'wikipedia']).map((src, idx, arr) => {
+                      const meta = getSourceMeta(src)
+                      const enabled = !draft.disabledSources?.includes(src)
+                      const forced = draft.dataSource === src
+                      const apiRequired = src === 'moviedb' || src === 'omdb'
+                      return (
+                        <div
+                          key={src}
+                          draggable={draft.dataSource === 'auto'}
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = 'move'
+                            e.dataTransfer.setData('text/plain', String(idx))
+                          }}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            const from = Number(e.dataTransfer.getData('text/plain'))
+                            if (Number.isNaN(from) || from === idx) return
+                            const next = arr.slice()
+                            const [moved] = next.splice(from, 1)
+                            next.splice(idx, 0, moved)
+                            setDraft({ ...draft, customSourceOrder: next })
+                          }}
+                          className={`rounded-lg border p-3 transition-opacity ${
+                            enabled ? 'border-white/10 bg-white/3' : 'border-white/5 bg-white/3 opacity-55'
+                          } ${forced ? 'ring-1 ring-brand/50' : ''}`}
                         >
-                          {t('settings.restoreRecommended')}
-                        </button>
-                      </div>
-                      <div className="space-y-1.5">
-                        {(draft.customSourceOrder ?? ['javapi', 'javinfo', 'javdb', 'javbus', 'javlibrary']).map((src, idx, arr) => {
-                          const meta = getSourceMeta(src)
-                          return (
-                            <div
-                              key={src}
-                              draggable
-                              onDragStart={(e) => {
-                                e.dataTransfer.effectAllowed = 'move'
-                                e.dataTransfer.setData('text/plain', String(idx))
-                              }}
-                              onDragOver={(e) => e.preventDefault()}
-                              onDrop={(e) => {
-                                e.preventDefault()
-                                const from = Number(e.dataTransfer.getData('text/plain'))
-                                if (Number.isNaN(from) || from === idx) return
-                                const next = arr.slice()
-                                const [moved] = next.splice(from, 1)
-                                next.splice(idx, 0, moved)
-                                setDraft({ ...draft, customSourceOrder: next })
-                              }}
-                              className="flex items-center gap-2 rounded-md bg-ink-800/60 ring-1 ring-white/8 px-2.5 py-1.5 cursor-move hover:ring-white/15 transition-shadow"
-                              title={t('settings.dragReorder')}
-                            >
-                              <span className="text-white/30 cursor-grab text-sm leading-none select-none">⠿</span>
-                              <span className="text-[10px] text-white/40 w-3 tabular-nums">{idx + 1}</span>
-                              <span className="text-white/90 text-xs font-medium shrink-0">{meta.label}</span>
-                              <span className="text-white/50 text-[10px] truncate">{meta.tier} · {meta.risk} · {meta.cost}</span>
+                          <div className="flex items-center gap-2">
+                            <Toggle
+                              on={enabled}
+                              onChange={(v) =>
+                                setDraft({
+                                  ...draft,
+                                  disabledSources: v
+                                    ? (draft.disabledSources ?? []).filter((s) => s !== src)
+                                    : [...(draft.disabledSources ?? []), src]
+                                })
+                              }
+                            />
+                            <span className="text-white/90 text-xs font-medium">{meta.label}</span>
+                            <span className="text-[10px] text-white/50">{meta.tier} · {meta.risk} · {meta.cost}</span>
+                            {apiRequired ? (
+                              <span className="text-[10px] text-amber-400/90 border border-amber-400/30 rounded px-1.5 py-0.5">{t('settings.source.requiresApi')}</span>
+                            ) : null}
+                            <span className="text-[10px] text-white/40">{enabled ? t('settings.general.enabled') : t('settings.general.disabled')}</span>
+                            {draft.dataSource === 'auto' ? (
                               <div className="ml-auto flex items-center gap-0.5 no-drag">
+                                <span className="text-white/30 cursor-grab text-sm leading-none select-none">⠿</span>
                                 <button
                                   type="button"
                                   disabled={idx === 0}
@@ -947,48 +909,108 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
                                   ↓
                                 </button>
                               </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                      <div className="mt-2 text-white/35 text-[10.5px] leading-relaxed">
-                        {t('settings.network.fetchLogic')}
-                      </div>
+                            ) : null}
+                          </div>
+                          <div className="mt-1.5 text-white/55 text-[11.5px] leading-relaxed">{meta.desc}</div>
+                          {apiRequired ? (
+                            <details className="mt-2 group">
+                              <summary className="text-[11px] text-brand cursor-pointer select-none list-none flex items-center gap-1">
+                                <span className="inline-block transition-transform group-open:rotate-90">▸</span>
+                                <span>{t('settings.source.stepsTitle')}</span>
+                              </summary>
+                              <div className="mt-1.5 text-white/45 text-[11px] leading-relaxed space-y-0.5">
+                                {t(`settings.source.${src}.steps`).split('\n').map((rawLine, idx) => {
+                                  const line = rawLine.replace(/\r$/, '')
+                                  const m = line.match(/https?:\/\/[^\s，。；、）]+/)
+                                  if (!m) return <div key={idx}>{line}</div>
+                                  const before = line.slice(0, m.index!)
+                                  const url = m[0]
+                                  const after = line.slice(m.index! + url.length)
+                                  return (
+                                    <div key={idx}>
+                                      <span className="whitespace-pre-wrap">
+                                        {before}
+                                        <span className="text-brand/80">{url}</span>
+                                        <button
+                                          type="button"
+                                          onClick={async (e) => {
+                                            e.stopPropagation()
+                                            try {
+                                              await navigator.clipboard?.writeText(url)
+                                              setCopiedUrl(url)
+                                              window.setTimeout(() => setCopiedUrl((p) => (p === url ? null : p)), 1500)
+                                            } catch {}
+                                          }}
+                                          className="no-drag inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-brand hover:text-white hover:bg-brand/20 transition-colors align-middle"
+                                          title={t('settings.source.copyUrl')}
+                                        >
+                                          <Icon name={copiedUrl === url ? 'check' : 'copy'} size={10} />
+                                          {copiedUrl === url ? t('app.copied') : t('settings.source.copyUrl')}
+                                        </button>
+                                        {after}
+                                      </span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </details>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {draft.dataSource === 'auto' ? (
+                    <div className="mt-2 text-white/35 text-[10.5px] leading-relaxed">
+                      {t('settings.network.fetchLogic')}
                     </div>
                   ) : null}
-                  <Field
-                    label={t("settings.localJavapiUrl")}
-                    hint={t("settings.localJavapiUrlHint")}
-                  >
-                    <input
-                      className={inputCls}
-                      placeholder="http://127.0.0.1:8080"
-                      value={draft.javapiUrl ?? 'http://127.0.0.1:8080'}
-                      onChange={(e) => setDraft({ ...draft, javapiUrl: e.target.value.trim() })}
-                    />
-                  </Field>
-                  <Field
-                    label={t("settings.localJavapiKey")}
-                    hint={t("settings.localJavapiKeyHint")}
-                  >
-                    <input
-                      className={inputCls}
-                      placeholder={t('settings.skipJavapiPlaceholder')}
-                      value={draft.javapiKey ?? ''}
-                      onChange={(e) => setDraft({ ...draft, javapiKey: e.target.value.trim() })}
-                    />
-                  </Field>
-                  <Field
-                    label={t("settings.javinfoApiKey")}
-                    hint={t("settings.javinfoApiKeyHint")}
-                  >
-                    <input
-                      className={inputCls}
-                      placeholder={t('settings.skipJavinfoPlaceholder')}
-                      value={draft.javinfoKey ?? ''}
-                      onChange={(e) => setDraft({ ...draft, javinfoKey: e.target.value.trim() })}
-                    />
-                  </Field>
+
+                  {/* 数据源密钥：MovieDB / OMDb 必需，Open Library 可选 */}
+                  <div className="mt-3 pt-3 border-t border-white/10">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon name="lock" size={14} className="text-white/60" />
+                      <div className="text-white/85 text-xs font-medium">{t('settings.apiKeys')}</div>
+                    </div>
+                    <div className="text-white/40 text-[11px] mb-3">{t('settings.apiKeysDesc')}</div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-white/60 text-xs mb-1.5">{t('settings.movieDbKeyLabel')}</label>
+                        <input
+                          className={inputCls}
+                          type="text"
+                          placeholder="TMDB API Key"
+                          value={draft.movieDbKey ?? ''}
+                          onChange={(e) => setDraft({ ...draft, movieDbKey: e.target.value })}
+                        />
+                        <div className="text-white/35 text-[10.5px] mt-1 leading-relaxed">{t('settings.movieDbKeyHint')}</div>
+                      </div>
+                      <div>
+                        <label className="block text-white/60 text-xs mb-1.5">{t('settings.omdbKeyLabel')}</label>
+                        <input
+                          className={inputCls}
+                          type="text"
+                          placeholder="OMDb API Key"
+                          value={draft.omdbKey ?? ''}
+                          onChange={(e) => setDraft({ ...draft, omdbKey: e.target.value })}
+                        />
+                        <div className="text-white/35 text-[10.5px] mt-1 leading-relaxed">{t('settings.omdbKeyHint')}</div>
+                      </div>
+                      <div>
+                        <label className="block text-white/60 text-xs mb-1.5">{t('settings.openLibraryKeyLabel')}</label>
+                        <input
+                          className={inputCls}
+                          type="text"
+                          placeholder="—"
+                          value={draft.openLibraryKey ?? ''}
+                          onChange={(e) => setDraft({ ...draft, openLibraryKey: e.target.value })}
+                        />
+                        <div className="text-white/35 text-[10.5px] mt-1 leading-relaxed">{t('settings.openLibraryKeyHint')}</div>
+                      </div>
+                    </div>
+                    <FieldRow label={t("settings.includeAdult")} hint={t("settings.includeAdultHint")}>
+                      <Toggle on={!!draft.includeAdult} onChange={(v) => setDraft({ ...draft, includeAdult: v })} />
+                    </FieldRow>
+                  </div>
                 </Card>
                 <Card>
                   <div className="flex items-center gap-2 mb-1">
@@ -1228,7 +1250,7 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
                       className={`${inputCls} w-24`}
                       type="number"
                       min={0}
-                      value={draft.scanMinSizeMB ?? 100}
+                      value={draft.scanMinSizeMB ?? 0}
                       onChange={(e) =>
                         setDraft({ ...draft, scanMinSizeMB: Math.max(0, Number(e.target.value) || 0) })
                       }

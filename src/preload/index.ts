@@ -16,20 +16,22 @@ const api: AppApi = {
   videoList: (filter) => ipcRenderer.invoke(IPC.videoList, filter),
   videoGet: (id) => ipcRenderer.invoke(IPC.videoGet, id),
   videoUpdate: (id, patch) => ipcRenderer.invoke(IPC.videoUpdate, id, patch),
+  videoLockMany: (ids, locked) => ipcRenderer.invoke(IPC.videoLockMany, ids, locked),
   videoScan: (libraryId) => ipcRenderer.invoke(IPC.videoScan, libraryId),
   videoOpen: (id) => ipcRenderer.invoke(IPC.videoOpen, id),
   videoRegeneratePoster: (id) => ipcRenderer.invoke(IPC.videoRegeneratePoster, id),
-  videoFetchJavdbPoster: (id) => ipcRenderer.invoke(IPC.videoFetchJavdbPoster, id),
-  libraryFetchJavdbAll: (libraryId, force) => ipcRenderer.invoke(IPC.libraryFetchJavdbAll, libraryId, force),
+  videoFetchPoster: (id) => ipcRenderer.invoke(IPC.videoFetchPoster, id),
+  libraryFetchAll: (libraryId, force) => ipcRenderer.invoke(IPC.libraryFetchAll, libraryId, force),
   libraryFetchPause: () => ipcRenderer.invoke(IPC.libraryFetchPause),
   libraryFetchResume: () => ipcRenderer.invoke(IPC.libraryFetchResume),
   libraryFetchStop: () => ipcRenderer.invoke(IPC.libraryFetchStop),
-  videoFetchJavdbDetail: (id, codeOverride) =>
-    ipcRenderer.invoke(IPC.videoFetchJavdbDetail, id, codeOverride),
+  videoFetchDetail: (id, idOverride) =>
+    ipcRenderer.invoke(IPC.videoFetchDetail, id, idOverride),
+  videoFetchByUrl: (id, url) =>
+    ipcRenderer.invoke(IPC.videoFetchByUrl, id, url),
   videoRenameFile: (id, newTitle) => ipcRenderer.invoke(IPC.videoRenameFile, id, newTitle),
   videoProbe: (id) => ipcRenderer.invoke(IPC.videoProbe, id),
   libraryBatchProbe: (libraryId) => ipcRenderer.invoke(IPC.libraryBatchProbe, libraryId),
-  videoShareTorrents: (id) => ipcRenderer.invoke(IPC.videoShareTorrents, id),
   videoDeleteFile: (id) => ipcRenderer.invoke(IPC.videoDeleteFile, id),
   videoInspectForDelete: (id) => ipcRenderer.invoke(IPC.videoInspectForDelete, id),
   videoSwitchPoster: (id, source) => ipcRenderer.invoke(IPC.videoSwitchPoster, id, source),
@@ -40,10 +42,10 @@ const api: AppApi = {
   cacheClear: () => ipcRenderer.invoke(IPC.cacheClear),
   ffmpegStatus: () => ipcRenderer.invoke(IPC.ffmpegStatus),
   appUninstall: (keepUser: boolean) => ipcRenderer.invoke(IPC.appUninstall, keepUser),
-  onJavdbFetched: (cb) => {
+  onPosterFetched: (cb) => {
     const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as never)
-    ipcRenderer.on(IPC.javdbFetched, handler)
-    return () => ipcRenderer.removeListener(IPC.javdbFetched, handler)
+    ipcRenderer.on(IPC.posterFetched, handler)
+    return () => ipcRenderer.removeListener(IPC.posterFetched, handler)
   },
   shellRevealInFolder: (p) => ipcRenderer.invoke(IPC.shellRevealInFolder, p),
   settingsGet: () => ipcRenderer.invoke(IPC.settingsGet),

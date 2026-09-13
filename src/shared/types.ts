@@ -1,6 +1,8 @@
 // 跨主进程/渲染进程的共享类型定义（纯接口，无 Node/DOM 依赖）
 
-export type ImageSource = 'manual' | 'sidecar' | 'javdb' | 'javbus' | 'javlibrary' | 'javapi' | 'javinfo' | 'ffmpeg' | 'placeholder'
+/** 数据源标识（新增数据源时只需在这里加一个值） */
+export type SourceId = 'moviedb' | 'omdb' | 'openlibrary' | 'justwatch' | 'wikipedia'
+export type ImageSource = 'manual' | 'sidecar' | 'ffmpeg' | 'placeholder' | SourceId
 export type SortKey = 'title' | 'year' | 'added' | 'lastPlayed' | 'random' | 'score'
 /** 浏览页视图模式：竖屏预览墙 / 横屏预览墙 / 纯文件名列表 */
 export type ViewMode = 'grid-portrait' | 'grid-landscape' | 'list-filename'
@@ -25,7 +27,7 @@ export interface Video {
   libraryId: string
   path: string
   fileName: string
-  /** 视频所在外文件夹名（用于匹配/封面查找/javdb 搜索的更干净来源） */
+  /** 视频所在外文件夹名（用于匹配/封面查找/数据源 搜索的更干净来源） */
   folderName?: string
   title: string
   year?: number
@@ -55,37 +57,52 @@ export interface Video {
   coverVersion?: number
   durationSec?: number
   fileSize?: number
+  /** 文件内容指纹（大小 + 头部 64KB 的 sha1），用于"文件哈希去重" */
+  contentHash?: string
   /** ffprobe 读取的视频技术参数（编码/分辨率/码率等） */
   techInfo?: TechInfo
   addedAt: number
   lastPlayedAt?: number
   /** 用户收藏（♥），持久化到视频记录 */
   favorite?: boolean
-  /** javdb 详情页抓取的元数据（缓存；缺失时点击卡片时再抓） */
-  javdbDetail?: JavdbDetail
-  /** 演员名单（从数据源抓取回填，用于检索/展示；演员维度筛选仍优先用 javdbDetail.actresses） */
+  /** 数据源 详情页抓取的元数据（缓存；缺失时点击卡片时再抓） */
+  meta?: MovieMeta
+  /** 演员名单（从数据源抓取回填，用于检索/展示；演员维度筛选仍优先用 meta.cast） */
   actors?: string[]
   /** ffmpeg 批量截帧生成的预览图本地路径（横屏预览墙使用），最多 PREVIEW_COUNT 张 */
   previewPaths?: string[]
-  /** 国产片：纯中文文件夹且无番号，不自动抓取元数据，仅用 ffmpeg 截帧 */
-  domestic?: boolean
-  /** v2.2.4：reconcile else 分支自动抓 javdb 元数据时的最后尝试时间戳；
-   *  7 天内抓过且失败的跳过，避免反复浪费 JavDB 配额。缺失字段 = 从未抓过 */
+  /** v2.2.4：reconcile else 分支自动抓 数据源 元数据时的最后尝试时间戳；
+   *  7 天内抓过且失败的跳过，避免反复浪费 数据源 配额。缺失字段 = 从未抓过 */
   lastMetaFetchAt?: number
 
   frameFailedAt?: number
-  /** Excel 片单「分类」列的单值（如"剧情"、"单体"），独立字段不进 tagCategories；
+  /** v2.7.x：锁定后批量补齐 / 强制批量补齐都会自动跳过此片（详情页手动补齐不受限），
+   *  避免手动修正过的信息被再次抓取覆盖。 */
+  locked?: boolean
+  /** 锁定时间戳（便于排序/展示；缺失表示从未锁定） */
+  lockedAt?: number
+  /** Excel 片单「分类」列的单值（如"剧情"、"科幻"），独立字段不进 tagCategories；
    *  详情页 MetaRow 单独展示。无片单或未匹配时为 undefined。v2.6.5 起引入。 */
   introCategory?: string
 }
 
-/** javdb 视频详情页抓取的元数据 */
-export interface JavdbDetail {
+/** 演员头像与角色信息 */
+export interface ActorProfile {
+  name: string
+  /** 本地头像路径（已缓存），缺失时展示名字色块 */
+  photo?: string
+  /** 饰演角色（TMDb 等数据源提供时显示） */
+  character?: string
+}
+
+/** 数据源详情页抓取的元数据 */
+export interface MovieMeta {
   uid: string
-  code: string
+  /** 外部源检索 id（如 MovieDB id / IMDb id / OpenLibrary work key；详情主键、封面缓存 key） */
+  externalId: string
   /** 完整标题（含系列等） */
   title: string
-  /** 封面原图 URL（javdb） */
+  /** 封面原图 URL（数据源） */
   cover?: string
   date?: string
   duration?: string
@@ -93,26 +110,20 @@ export interface JavdbDetail {
   studio?: string
   series?: string
   rating?: string
-  /** 类别（通常是有碼/無碼/歐美/動漫等） */
+  /** 类别（如 剧情/科幻/喜剧 等） */
   genres: string[]
   /** 演员名（全部演员，男女混合） */
   actors: string[]
-  /** 女演员名单（JavDB 页面中演员链接后的 ♀ 标识）；旧数据可能缺失，facet 会回退到 actors */
-  actresses?: string[]
-  /** 关键截图（原图 URL 列表） */
-  samples: string[]
-  /**
-   * v2.2.14：解析到的原始样本总数（samples 是下载成功的本地路径，可能被失败过滤掉）。
-   * 当 samplesTotal > samples.length 时说明有 N 张截图下载失败（常见原因：DMM / javdb CDN 被网络封锁）。
-   * 旧数据无此字段。
-   */
-  samplesTotal?: number
-  /** 下载失败截图的原因代码列表（去重后，如 'http-403'、'http-404'、'timeout'、'cert'、'network'、'invalid-url'、'too-small'）；由前端按语言翻译成人话。旧数据无此字段 */
-  sampleErrors?: string[]
-  /** 解析器版本标记：v2 = zip 配对解析器（2026-08-26 修复男演员混入）。旧数据无此字段。 */
+  /** 主演名单（统一字段命名；旧数据可能缺失，facet 会回退到 actors） */
+  cast?: string[]
+  /** 演员详情（头像 + 角色），TMDb 有数据时回填 */
+  castProfiles?: ActorProfile[]
+  /** 剧情简介 / 概述（来自数据源 overview/Plot/extract/description 等） */
+  synopsis?: string
+  /** 解析器版本标记：v2 = 当前解析器。旧数据无此字段。 */
   parseVer?: number
-  /** 数据来源：javdb / javbus / javlibrary / javapi / javinfo（旧数据无此字段，默认视为 javdb） */
-  source?: 'javdb' | 'javbus' | 'javlibrary' | 'javapi' | 'javinfo'
+  /** 数据来源（旧数据无此字段，默认视为 moviedb） */
+  source?: SourceId
   fetchedAt: number
 }
 
@@ -142,23 +153,26 @@ export interface Settings {
   playerPath: string
   /** ffmpeg 可执行文件路径，为空则在 PATH 中查找 */
   ffmpegPath: string
-  /** 皮肤：cinema 影院沉浸 / light 现代明亮 / magazine 杂志艺术 / glass 玻璃拟态 / system 跟随系统 */
-  theme: 'cinema' | 'light' | 'magazine' | 'glass' | 'system'
+  /** 皮肤：dark 深色 / light 浅色 / system 跟随系统（仅保留一明一暗两种外观） */
+  theme: 'dark' | 'light' | 'system'
   /** 海报墙密度：large 大图沉浸 / standard 标准 / compact 高密度 */
   posterDensity: 'large' | 'standard' | 'compact'
-  /** 可选：javdb.com 登录 Cookie（某些网络/登录态下搜索需带 Cookie） */
-  javdbCookie: string
-  /** 数据源：auto 自动降级（Javapi→Javinfo→JavDB→JavBus→JavLibrary）/ javapi 只用本地 Javapi / javinfo 只用 Javinfo / javdb 只用 JavDB / javbus 只用 JavBus / javlibrary 只用 JavLibrary（调试用） */
-  dataSource: 'auto' | 'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary'
-  /** auto 模式下的自定义源优先级（1-5）；未设置时用推荐顺序 Javapi→Javinfo→JavDB→JavBus→JavLibrary */
-  customSourceOrder?: Array<'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary'>
-  /** 本地自托管 javapi 服务地址（如 http://127.0.0.1:8080），留空则跳过该源 */
-  javapiUrl: string
-  /** 本地自托管 javapi 的 API key（启动时 AUTH_API_KEYS 指定的值） */
-  javapiKey: string
-  /** javinfo.dev 聚合 API key（app.javinfo.dev 注册领取免费额度，按量计费） */
-  javinfoKey: string
-  /** 代理模式（取代旧版单一 javdbProxy 字符串） */
+  /** 数据源：auto 自动降级；或指定单一源（调试用） */
+  dataSource: 'auto' | SourceId
+  /** auto 模式下的自定义源优先级；未设置时用推荐顺序 */
+  customSourceOrder?: SourceId[]
+  /** 被用户关闭（禁用）的数据源；auto 模式下这些源不会被尝试，detail 与海报抓取均跳过 */
+  disabledSources?: SourceId[]
+  /** OMDb API key（http://www.omdbapi.com/ 注册获取免费额度） */
+  omdbKey: string
+  /** MovieDB API key（https://www.themoviedb.org 注册获取免费额度） */
+  movieDbKey: string
+  /** MovieDB 搜索是否包含成人内容（对应 TMDb include_adult；默认 false 排除） */
+  includeAdult: boolean
+  /** Open Library API key（可选，Open Library 无需 API key） */
+  openLibraryKey: string
+  /** JustWatch API key（可选，JustWatch 无需 API key） */
+  /** 代理模式（取代旧版单一 legacyProxy 字符串） */
   proxyMode: ProxyMode
   /** 代理主机（IP 或域名），system 模式可留空 */
   proxyHost: string
@@ -170,11 +184,11 @@ export interface Settings {
   proxyPass: string
   /** 启动时/库变化时自动重扫本库（MD 驱动对账） */
   autoRescan: boolean
-  /** JavDB 批量抓取并发数（1-8，越大越快但风控风险高） */
+  /** 批量抓取并发数（1-8，越大越快但风险高） */
   fetchConcurrency: number
-  /** JavDB 批量抓取每条之间的间隔毫秒（限速，降低封禁风险，默认 600） */
+  /** 批量抓取每条之间的间隔毫秒（限速，降低封禁风险，默认 600） */
   fetchIntervalMs: number
-  /** 扫描时跳过小于该体积（MB）的视频文件（过滤短视频/广告样片；0 = 不过滤） */
+  /** 扫描时跳过小于该体积（MB）的视频文件（过滤短视频/预告片；0 = 不过滤） */
   scanMinSizeMB: number
   /** 开机自启 */
   launchAtLogin: boolean
@@ -190,7 +204,7 @@ export interface Settings {
   lockEnabled: boolean
   /** 扫描富集并发数（1-8：ffprobe 探测 / 截帧等） */
   scanConcurrency: number
-  /** 扫描最小文件大小（MB）；0 = 不限。小于该值的视频不进入媒体库（过滤短视频/广告） */
+  /** 扫描最小文件大小（MB）；0 = 不限。小于该值的视频不进入媒体库（过滤短视频/预告片） */
   /** 隐私锁密码哈希（SHA-256 salt+password）；为空表示未上锁 */
   lockHash?: string
   /** 隐私锁随机盐（十六进制），与 lockHash 配套 */
@@ -243,10 +257,10 @@ export interface ScanProgress {
   total: number
   done: number
   current?: string
-  /** v2.2.10：实时抓取事件（每个源尝试一次推一条），渲染层可显示"javdb 失败 → 降级 javbus"这类过程提示 */
+  /** v2.2.10：实时抓取事件（每个源尝试一次推一条），渲染层可显示"数据源失败 → 降级下一源"这类过程提示 */
   fetchEvent?: {
     code: string
-    src: 'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary'
+    src: SourceId
     status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'
     detail?: string
   }
@@ -262,22 +276,24 @@ export interface OpenResult {
 export const DEFAULT_SETTINGS: Settings = {
   playerPath: '',
   ffmpegPath: '',
-  theme: 'cinema',
+  theme: 'dark',
   posterDensity: 'standard',
-  javdbCookie: '',
-  javinfoKey: '',
-  javapiUrl: 'http://127.0.0.1:8080',
-  javapiKey: '',
+  
+  omdbKey: '',
+  movieDbKey: '',
+  openLibraryKey: '',
+  includeAdult: false,
   proxyMode: 'none',
   proxyHost: '',
   proxyPort: '',
   dataSource: 'auto',
+  disabledSources: [],
   proxyUser: '',
   proxyPass: '',
   autoRescan: false,
   fetchConcurrency: 2,
   fetchIntervalMs: 600,
-  scanMinSizeMB: 100,
+  scanMinSizeMB: 0,
   launchAtLogin: false,
   scanOnStartup: true,
   minimizeToTray: false,
@@ -295,23 +311,24 @@ export const DEFAULT_SETTINGS: Settings = {
   listViewMode: 'flat'
 }
 
-/** 默认海报来源优先级：手动 > 同名图 > javapi（本地免费）> javinfo > javdb > javbus > 截帧 > 占位 */
+/** 默认海报来源优先级：手动 > 同名图 > moviedb > omdb > openlibrary > justwatch > wikipedia > 截帧 > 占位 */
 export const DEFAULT_IMAGE_PRIORITY: ImageSource[] = [
   'manual',
   'sidecar',
-  'javapi',
-  'javinfo',
-  'javdb',
-  'javbus',
+  'moviedb',
+  'omdb',
+  'openlibrary',
+  'justwatch',
+  'wikipedia',
   'ffmpeg',
   'placeholder'
 ]
 
 // ---------- Excel 片单解析结果 ----------
 
-/** Excel 片单中的单条影片信息（名字=番号，简介，标签） */
+/** Excel 片单中的单条影片信息（名字=externalId，简介，标签） */
 export interface IntroItem {
-  /** 番号 / 文件名匹配键，如 SONE-560 */
+  /** externalId / 文件名匹配键，如 SONE-560 */
   code: string
   /** 简介正文 */
   description: string
@@ -319,9 +336,9 @@ export interface IntroItem {
   tags: string[]
   /** 结构化标签：分类 → 标签列表（新格式 `**标签**：` 块解析；旧格式无此块为空） */
   tagCategories?: Record<string, string[]>
-  /** 推荐评分（Excel 片单中的评分列，0-10 分；权威，覆盖 javdb） */
+  /** 推荐评分（Excel 片单中的评分列，0-10 分；权威，覆盖数据源） */
   score?: number
-  /** Excel 片单「分类」列的单值，如 "剧情"、"单体"，独立于 tagCategories */
+  /** Excel 片单「分类」列的单值，如 "剧情"、"科幻"，独立于 tagCategories */
   category?: string
   /** 原始行文本 */
   raw: string
@@ -350,7 +367,7 @@ export interface DisplayEntry {
   category: string
   /** 分类顺序，用于排序 */
   order: number
-  /** 番号 / 文件名匹配键 */
+  /** externalId / 文件名匹配键 */
   code: string
   /** 展示标题（默认等于 code） */
   title: string
@@ -358,12 +375,10 @@ export interface DisplayEntry {
   tags: string[]
   /** 结构化标签（文档分类），供侧栏按文档类别分组展示 */
   tagCategories?: Record<string, string[]>
-  /** 推荐评分（md 权威，覆盖 javdb） */
+  /** 推荐评分（md 权威，覆盖 数据源） */
   score?: number
   /** 匹配到磁盘文件时的视频记录（用于海报与播放）；缺失时为 undefined */
   video?: Video
-  /** 同 code 的分集 / 多碟兄弟文件（reconcile 时 findFilesForCode 可能返回多个，主 entry 只取第一个做 video） */
-  siblingVideos?: Video[]
 }
 
 /** 文件夹存在但未收录进 md 的文件 */

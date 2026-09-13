@@ -1,14 +1,14 @@
 {
-  "name": "local-video-manager",
+  "name": "local-movie-vault",
   "productName": "影海",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "description": "Local-only video library manager — poster wall, hover preview, local playback, zero cloud uploads, privacy-first",
   "type": "module",
   "main": "out/main/index.js",
   "author": "",
   "license": "影海 双授权协议 v1.0",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node -e \"process.platform==='win32'&&require('node:child_process').execSync('chcp 65001',{stdio:'ignore'})\" && cross-env NODE_ENV=development electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "preview": "electron-vite preview",
@@ -18,6 +18,7 @@
     "app-builder-bin": "^4.2.0",
     "builder-util": "^24.13.1",
     "socks": "^2.8.9",
+    "socks-proxy-agent": "^8.0.5",
     "undici": "^6.28.0",
     "xlsx": "^0.18.5"
   },
@@ -28,6 +29,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
+    "cross-env": "^10.1.0",
     "electron": "^31.3.0",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.3.0",

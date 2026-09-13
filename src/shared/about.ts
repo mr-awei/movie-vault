@@ -52,18 +52,19 @@ export const ABOUT_ZH: About = {
   /** 较长描述 */
   description:
     '影海是一款面向本地影片收藏的桌面管理工具：选择视频文件夹 + Excel 片单文件，即可生成可按分类浏览的海报墙。' +
-    'Excel 片单为唯一权威来源（分类 / 简介 / 标签 / 评分），支持 JavDB 封面与详情抓取并本地永久缓存、四种皮肤、' +
-    '虚拟滚动大库流畅、隐私护盾一键模糊预览图，以及按演员 / 片商 / 系列筛选与统计看板。',
+    'Excel 片单为权威来源（分类 / 简介 / 标签 / 评分），支持从公开影视数据库（TMDB、OMDb、OpenLibrary、JustWatch）' +
+    '抓取封面与详情并本地永久缓存、深色 / 浅色 / 跟随系统主题、虚拟滚动大库流畅、隐私护盾一键模糊预览图，' +
+    '以及按演员 / 制片公司 / 系列筛选与统计看板。',
   /** 作者 / 团队 */
   author: '影海',
   /** 版权起始年份 */
   year: 2026,
   /** 许可证 */
   license: '影海 双授权协议 v1.0',
-  licenseUrl: 'https://github.com/mr-awei/yingxia-video-manager/blob/main/LICENSE',
+  licenseUrl: 'https://github.com/mr-awei/yinghai-movie-vault/blob/main/LICENSE',
 
   /** 开源仓库地址（About 弹窗用于引导点亮 Star） */
-  github: 'https://github.com/mr-awei/yingxia-video-manager',
+  github: 'https://github.com/mr-awei/yinghai-movie-vault',
 
   /** 外部链接（留空不渲染） */
   links: [
@@ -71,13 +72,13 @@ export const ABOUT_ZH: About = {
       key: 'github',
       label: 'GitHub',
       icon: 'external',
-      url: 'https://github.com/mr-awei/yingxia-video-manager'
+      url: 'https://github.com/mr-awei/yinghai-movie-vault'
     },
     {
       key: 'gitee',
       label: 'Gitee',
       icon: 'external',
-      url: 'https://gitee.com/mr-awei/yingxia-video-manager'
+      url: 'https://gitee.com/mr-awei/yinghai-movie-vault'
     },
     {
       key: 'feedback',
@@ -101,36 +102,37 @@ export const ABOUT_ZH: About = {
   thirdParty: [
     { name: 'undici', license: 'MIT', url: 'https://github.com/nodejs/undici' },
     { name: 'archiver', license: 'MIT', url: 'https://github.com/archiverjs/node-archiver' },
-    { name: 'JavDB', license: '数据来源', url: 'https://javdb.com/' }
+    { name: 'TMDB', license: 'Data source', url: 'https://www.themoviedb.org/' }
   ]
 }
 
 export const ABOUT_EN: About = {
-  name: 'YingXia',
+  name: 'yinghai',
   tagline: 'Local video poster wall · Excel-sheet-driven private library',
   description:
-    'YingXia is a desktop tool for managing local video collections: point it at a video folder plus an Excel sheet, ' +
+    'yinghai is a desktop tool for managing local video collections: point it at a video folder plus an Excel sheet, ' +
     'and it generates a browseable poster wall organized by categories. The Excel sheet is the single source of truth ' +
-    '(categories / descriptions / tags / ratings). Optional JavDB metadata scraping with permanent local cache, ' +
-    'four themes, smooth virtual scrolling for large libraries, a privacy shield that blurs preview thumbnails, ' +
+    '(categories / descriptions / tags / ratings). Optional metadata scraping from public film databases ' +
+    '(TMDB, OMDb, OpenLibrary, JustWatch) with permanent local cache, ' +
+    'dark / light / system themes, smooth virtual scrolling for large libraries, a privacy shield that blurs preview thumbnails, ' +
     'plus actor / studio / series filtering and a statistics dashboard.',
   author: 'Ying Xia',
   year: 2026,
   license: 'Ying Xia Dual License v1.0',
-  licenseUrl: 'https://github.com/mr-awei/yingxia-video-manager/blob/main/LICENSE',
-  github: 'https://github.com/mr-awei/yingxia-video-manager',
+  licenseUrl: 'https://github.com/mr-awei/yinghai-movie-vault/blob/main/LICENSE',
+  github: 'https://github.com/mr-awei/yinghai-movie-vault',
   links: [
     {
       key: 'github',
       label: 'GitHub',
       icon: 'external',
-      url: 'https://github.com/mr-awei/yingxia-video-manager'
+      url: 'https://github.com/mr-awei/yinghai-movie-vault'
     },
     {
       key: 'gitee',
       label: 'Gitee',
       icon: 'external',
-      url: 'https://gitee.com/mr-awei/yingxia-video-manager'
+      url: 'https://gitee.com/mr-awei/yinghai-movie-vault'
     },
     {
       key: 'feedback',
@@ -150,7 +152,7 @@ export const ABOUT_EN: About = {
   thirdParty: [
     { name: 'undici', license: 'MIT', url: 'https://github.com/nodejs/undici' },
     { name: 'archiver', license: 'MIT', url: 'https://github.com/archiverjs/node-archiver' },
-    { name: 'JavDB', license: 'Data source', url: 'https://javdb.com/' }
+    { name: 'TMDB', license: 'Data source', url: 'https://www.themoviedb.org/' }
   ]
 }
 

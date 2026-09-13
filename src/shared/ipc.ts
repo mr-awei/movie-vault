@@ -16,18 +16,22 @@ export const IPC = {
   videoList: 'video:list',
   videoGet: 'video:get',
   videoUpdate: 'video:update',
+  // v2.7.x：批量设置锁定状态（一次落盘）
+  videoLockMany: 'video:lockMany',
   videoScan: 'video:scan',
   videoOpen: 'video:open',
   videoRegeneratePoster: 'video:regeneratePoster',
-  // javdb 封面抓取
-  videoFetchJavdbPoster: 'video:fetchJavdbPoster',
-  // javdb 补齐所有信息：批量抓封面 + 详情（演员/时长/关键截图等），标签来自 MD
-  libraryFetchJavdbAll: 'library:fetchJavdbAll',
+  // 数据源封面抓取
+  videoFetchPoster: 'video:fetchPoster',
+  // 数据源补齐所有信息：批量抓封面 + 详情（演员/时长/关键截图等），标签来自 MD
+  libraryFetchAll: 'library:fetchAll',
   libraryFetchPause: 'library:fetchPause',
   libraryFetchResume: 'library:fetchResume',
   libraryFetchStop: 'library:fetchStop',
-  // javdb 详情抓取
-  videoFetchJavdbDetail: 'video:fetchJavdbDetail',
+  // 数据源详情抓取
+  videoFetchDetail: 'video:fetchDetail',
+  // 详情页「按网址更新」：粘贴任一数据源网页 URL 直连抓取
+  videoFetchByUrl: 'video:fetchByUrl',
   // 编辑标题后同步修改磁盘文件名（v2.6.5）
   videoRenameFile: 'video:renameFile',
   // ffmpeg 兜底截帧：随机截 1 张封面 + 15 张预览图
@@ -40,13 +44,11 @@ export const IPC = {
   videoProbe: 'video:probe',
   // v2.3.7 批量补齐视频时长：对当前库所有缺时长视频 ffprobe 读取时长写 techInfo
   libraryBatchProbe: 'library:batchProbe',
-  // 分享：扫描视频文件夹的 .torrent 并转磁链
-  videoShareTorrents: 'video:shareTorrents',
-  // 从磁盘删除视频文件（按需连带删除同目录种子文件夹）
+  // 从磁盘删除视频文件（按需连带删除所在目录）
   videoDeleteFile: 'video:deleteFile',
-  // 预检：列出 video 所在目录的"其他视频数"和"是否含 .torrent"，供删除前确认
+  // 预检：列出 video 所在目录的其他文件数，供删除前确认
   videoInspectForDelete: 'video:inspectForDelete',
-  // 封面来源切换：数据源图（javdb/javbus/javlibrary）↔ FFmpeg 截帧图
+  // 封面来源切换：数据源图（各数据源）↔ FFmpeg 截帧图
   videoSwitchPoster: 'video:switchPoster',
   // 文件批量改名（清理文件名广告）
   libraryPreviewRenames: 'library:previewRenames',
@@ -60,7 +62,7 @@ export const IPC = {
   // 卸载应用（危险操作）
   appUninstall: 'app:uninstall',
   // 事件：批量抓取时，每抓到一张实时推送（main -> renderer）
-  javdbFetched: 'javdb:fetched',
+  posterFetched: 'poster:fetched',
   // 设置
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
@@ -87,11 +89,11 @@ export const IPC = {
   // 事件（主进程 -> 渲染进程）
   scanProgress: 'scan:progress',
   // 片单变化事件（预留）
-  // 仅扫描媒体库番号清单（不弹保存对话框、不写文件，供向导打开时自动加载）
+  // 仅扫描媒体库影片清单（不弹保存对话框、不写文件，供向导打开时自动加载）
   libraryGetCodes: 'library:getCodes',
-  // 导出番号清单为 txt 或 xlsx（模板：带 编号/品番/简介/评分/标签/备注/封面路径 表头）
+  // 导出影片清单为 txt 或 xlsx（模板：带 编号/分类/推荐评分/简介 表头）
   libraryExportCodes: 'library:exportCodes',
-  // 返回内置规范文件路径（通用评分与简介规范.md）
+  // 返回内置规范文件路径（中文：通用评分与简介规范.md / 英文：Scoring_and_Synopsis_Guide.en.md）
   specGet: 'system:specGet'
 } as const
 

@@ -6,7 +6,7 @@
 // 流程：
 //   1) 校验版本号格式 vX.Y.Z（去掉 v）
 //   2) bump package.json 版本
-//   3) 若 CHANGELOG.md 顶部还不是该版本，插入占位段（发布前可手动补充内容后重新跑）
+//   3) 若 更新日志.md 顶部还不是该版本，插入占位段（发布前可手动补充内容后重新跑）
 //   4) git add + commit + tag vX.Y.Z
 //   5) 推送 main + tag 到 Gitee 和 GitHub
 //   6) 提示等待 GitHub Actions（.github/workflows/release.yml）自动构建发布
@@ -17,11 +17,14 @@
 import { execSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const GH = 'https://github.com/mr-awei/yingxia-video-manager.git'
-const GE = 'https://gitee.com/mr-awei/yingxia-video-manager.git'
+// 与 git remote 保持一致：origin → GitHub（mr-awei/movie-vault）、gitee → Gitee 同名仓库
+const GH = 'https://github.com/mr-awei/movie-vault.git'
+const GE = 'https://gitee.com/mr-awei/movie-vault.git'
 
-const root = path.dirname(path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'))
+// 用 fileURLToPath 解码路径（避免 "Movie Vault" 空格被 URL 编码为 %20 导致 chdir 失败）
+const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 process.chdir(root)
 
 const arg = process.argv[2]?.trim()
@@ -47,20 +50,22 @@ if (pkg.version === ver) {
   console.log(`package.json → ${ver}`)
 }
 
-// 2) CHANGELOG 顶部占位（若还不是该版本）
-const clPath = path.join(root, 'CHANGELOG.md')
+// 2) 更新日志 顶部占位（若还不是该版本）
+//    兼容两种版本标题写法：Keep a Changelog「## [x.y.z]」与旧式「## vx.y.z（date）」
+const clPath = path.join(root, '更新日志.md')
 const cl = readFileSync(clPath, 'utf-8')
-if (cl.includes(`## v${ver}（`)) {
-  console.log(`CHANGELOG 已有 v${ver} 段，跳过`)
+const hasSection = cl.includes(`## [${ver}]`) || cl.includes(`## v${ver}（`)
+if (hasSection) {
+  console.log(`更新日志 已有 ${ver} 段，跳过`)
 } else {
   const date = new Date().toISOString().slice(0, 10)
   const rest = cl.replace(/^# 更新日志（Changelog）\s*\n+/i, '').trimStart()
   writeFileSync(
     clPath,
-    `# 更新日志（Changelog）\n\n## v${ver}（${date}）\n\n**待补充**：请在发布前把本次改动写进这一段（可重复执行本脚本，已存在时不会覆盖）。\n\n${rest}`,
+    `# 更新日志（Changelog）\n\n## [${ver}] - ${date}\n\n**待补充**：请在发布前把本次改动写进这一段（可重复执行本脚本，已存在时不会覆盖）。\n\n${rest}`,
     'utf-8'
   )
-  console.log(`CHANGELOG 已插入 v${ver} 占位段（发布前请补充内容，之后可重跑）`)
+  console.log(`更新日志 已插入 ${ver} 占位段（发布前请补充内容，之后可重跑）`)
 }
 
 // 3) 提交 + tag
@@ -94,6 +99,6 @@ for (const [name, url] of [
 // 5) 提示
 console.log(`\n==============================================`)
 console.log(` 已推送 ${tag}，等待 GitHub Actions 自动构建发布`)
-console.log(` 查看进度：https://github.com/mr-awei/yingxia-video-manager/actions`)
+console.log(` 查看进度：https://github.com/mr-awei/movie-vault/actions`)
 console.log(` 注意：Gitee 无 CI，Gitee Release 由 Actions 同步 GitHub 下载链接`)
 console.log(`==============================================`)

@@ -3,8 +3,8 @@
 # 影海自定义 NSIS 逻辑
 # 安装器侧：把安装语言写入注册表，供卸载器与应用首次启动读取。
 # 卸载器侧：卸载欢迎页之后新增「保留用户数据」复选框页面（默认勾选 = 保留）：
-#           取消勾选并二次确认后，卸载流程尝试删除 %APPDATA%\local-video-manager。
-# 安全红线：删除前必须通过 yingxia-uninstall-guard.ps1 校验 —— 检测到媒体库路径
+#           取消勾选并二次确认后，卸载流程尝试删除 %APPDATA%\movie-vault。
+# 安全红线：删除前必须通过 yinghai-uninstall-guard.ps1 校验 —— 检测到媒体库路径
 #           与用户数据目录重叠时拒绝删除，绝不触碰用户设定的媒体库里的任何文件。
 
 !macro customInit
@@ -17,7 +17,7 @@
   StrCpy $R0 "zh-CN"
   Goto +2
   StrCpy $R0 "en-US"
-  WriteRegStr HKCU "Software\YingXia" "InstallerLanguage" $R0
+  WriteRegStr HKCU "Software\yinghai" "InstallerLanguage" $R0
 
   # 检测旧版本是否仍在运行
   FindWindow $0 "" "影海"
@@ -25,17 +25,17 @@
   StrCmp $LANGUAGE "2052" 0 +3
   MessageBox MB_OK|MB_ICONEXCLAMATION "检测到 影海 正在运行。请先彻底关闭应用（包括右下角的托盘图标），然后重新运行安装器。"
   Goto +2
-  MessageBox MB_OK|MB_ICONEXCLAMATION "YingXia is currently running. Please close the application completely (including the tray icon), then run the installer again."
+  MessageBox MB_OK|MB_ICONEXCLAMATION "yinghai is currently running. Please close the application completely (including the tray icon), then run the installer again."
   Abort
 InitEnd:
 !macroend
 
 !macro customUnInit
-  # 保护脚本随安装目录分发（resources\yingxia-uninstall-guard.ps1）。
+  # 保护脚本随安装目录分发（resources\yinghai-uninstall-guard.ps1）。
   # 卸载 Section 会删除整个安装目录，因此提前把脚本复制到 $PLUGINSDIR 备用；
   # 删除确认页 leave 回调里还有一次兜底复制。
   InitPluginsDir
-  CopyFiles /SILENT "$INSTDIR\resources\yingxia-uninstall-guard.ps1" "$PLUGINSDIR\yingxia-uninstall-guard.ps1"
+  CopyFiles /SILENT "$INSTDIR\resources\yinghai-uninstall-guard.ps1" "$PLUGINSDIR\yinghai-uninstall-guard.ps1"
 
   # 解析应用内卸载入口传来的参数（/YXKEEPDATA 或 /YXDELDATA）。
   # 不带参数时（系统「应用和功能」卸载）保留原行为：显示数据页由用户选择。
@@ -92,7 +92,7 @@ InitEnd:
     Abort
 
     # 语言：优先安装时写入的注册表；缺省按 MUI 语言 ID 回退
-    ReadRegStr $R9 HKCU "Software\YingXia" "InstallerLanguage"
+    ReadRegStr $R9 HKCU "Software\yinghai" "InstallerLanguage"
     StrCmp $R9 "" 0 langReady
     StrCmp $LANGUAGE "2052" 0 +3
     StrCpy $R9 "zh-CN"
@@ -112,7 +112,7 @@ InitEnd:
     StrCpy $R5 "保留用户数据（媒体文件不受影响）"
     Goto langOk
     langEn:
-    StrCpy $R1 "Keep YingXia app data?"
+    StrCpy $R1 "Keep yinghai app data?"
     StrCpy $R2 "App data includes library configuration, posters, cache and logs. If unchecked, this data is removed after uninstalling."
     StrCpy $R3 "Your media files and media libraries will never be deleted."
     StrCpy $R4 "Keep user data"
@@ -165,13 +165,13 @@ InitEnd:
 !macroend
 
 # 卸载 Section（un.install）内联执行：用户确认删除后，先由保护脚本校验
-# 媒体库路径与用户数据目录是否重叠，安全时才删除 %APPDATA%\local-video-manager。
+# 媒体库路径与用户数据目录是否重叠，安全时才删除 %APPDATA%\movie-vault。
 # 注意：此宏被 electron-builder 插入在 Section "un.install" 内部，不能声明新的 Section。
 !macro customUnInstall
   StrCmp $yxDelConfirmed "1" 0 yxDataDone
 
   # 保护脚本在 unInit 阶段已复制到 $PLUGINSDIR（$INSTDIR 此时已删除）
-  IfFileExists "$PLUGINSDIR\yingxia-uninstall-guard.ps1" yxRunGuard
+  IfFileExists "$PLUGINSDIR\yinghai-uninstall-guard.ps1" yxRunGuard
 
   StrCmp $yxLang "zh-CN" 0 +3
   MessageBox MB_OK|MB_ICONEXCLAMATION "未找到用户数据保护脚本，为安全起见已保留用户数据。"
@@ -182,7 +182,7 @@ InitEnd:
   yxRunGuard:
   # 保护脚本：校验媒体库路径与用户数据目录是否重叠，安全时删除用户数据目录
   #   exit 0 → 已安全删除；exit 9 → 路径重叠（拒删）；exit 8 → 解析失败（保守不删）
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "$PLUGINSDIR\yingxia-uninstall-guard.ps1" -DataDirOverride "$APPDATA\local-video-manager"'
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "$PLUGINSDIR\yinghai-uninstall-guard.ps1" -DataDirOverride "$APPDATA\movie-vault"'
   Pop $0
 
   StrCmp $0 0 yxDataDone

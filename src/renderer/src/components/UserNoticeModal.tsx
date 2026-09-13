@@ -84,70 +84,36 @@ function ZhContent() {
   return (
     <>
       <Section title={t('notice.section1')}>
-        本软件（"影海"）是一款<strong className="text-white">仅供个人使用的本地视频文件管理工具</strong>，其核心功能为：
-        扫描本地文件夹、读取视频元数据、生成本地海报墙、管理本地视频库。
-        本软件<strong className="text-amber-300">不提供、不存储、不传播任何片源内容</strong>，亦不连接任何涉嫌传播违法内容的资源服务器，
-        不提供下载、上传、分享、传播涉嫌违法内容的功能。本软件对用户本地已存在的视频文件不进行任何形式的主动获取或传播。
+        本软件「影海 / Movie Vault」是一款<strong className="text-white">本地视频文件整理与管理工具</strong>。
+        它会扫描您指定的本地文件夹，识别影片并匹配公开影视资料库的元数据（标题、年份、简介、演职员、评分、分类等），
+        生成可视化的海报墙与统计看板。本软件<strong className="text-amber-300">不提供、不存储、不分发任何视频文件或片源</strong>；
+        所有影视文件均来自您本机已有的文件，软件仅做本地读取与展示。
       </Section>
 
       <Section title={t('notice.section2')}>
-        用户应严格遵守《中华人民共和国刑法》《中华人民共和国治安管理处罚法》《中华人民共和国网络安全法》
-        《中华人民共和国未成年人保护法》《中华人民共和国民法典》等法律法规，不得利用本软件从事：
-        <ul className="list-disc list-inside space-y-1 mt-2 text-white/70 pl-2">
-          <li>制作、复制、出版、贩卖、传播任何涉嫌淫秽、暴力、血腥、恐怖或其他违反国家规定的内容；</li>
-          <li>实施任何侵犯他人合法权益（包括但不限于著作权、肖像权、名誉权、隐私权）的行为；</li>
-          <li>从事任何违反国家法律、行政法规及国家政策的活动。</li>
-        </ul>
+        为补充影片信息，本软件会在您授权后联网查询<strong className="text-white">公开的影视数据库</strong>
+        （如 TMDB、OMDb、OpenLibrary、JustWatch 等第三方服务）。这些服务由各自运营方提供，其内容与可用性不在本软件控制范围内。
+        联网前请确认您所在地区可合法访问相关服务，并遵守其服务条款与隐私政策。
+        本软件<strong className="text-amber-300">不会上传您的本地文件</strong>，仅发送影片名称等检索关键词。
       </Section>
 
       <Section title={t('notice.section3')} highlight>
-        <p>
-          <strong className="text-amber-300">《中华人民共和国刑法》第三百六十三条【制作、复制、出版、贩卖、传播淫秽物品牟利罪】</strong>：
-          以牟利为目的，制作、复制、出版、贩卖、传播淫秽物品的，处三年以下有期徒刑、拘役或者管制，并处罚金；
-          情节严重的，处三年以上十年以下有期徒刑，并处罚金；情节特别严重的，处十年以上有期徒刑或者无期徒刑，并处罚金或者没收财产。
-        </p>
-        <p>
-          <strong className="text-amber-300">《中华人民共和国刑法》第三百六十四条【传播淫秽物品罪】</strong>：
-          传播淫秽的书刊、影片、音像、图片或者其他淫秽物品，情节严重的，处二年以下有期徒刑、拘役或者管制；
-          向不满十八周岁的未成年人传播淫秽物品的，从重处罚。
-        </p>
-        <p>
-          <strong className="text-amber-300">《中华人民共和国治安管理处罚法》第六十八条</strong>：
-          制作、运输、复制、出售、出租、传播淫秽物品的，处十日以上十五日以下拘留，可以并处五千元以下罚款；
-          情节较轻的，处五日以下拘留或者五百元以下罚款。
-        </p>
-        <p>
-          <strong className="text-amber-300">《中华人民共和国网络安全法》第十二条</strong>：
-          任何个人和组织使用网络应当遵守宪法法律，遵守公共秩序，尊重社会公德，
-          不得利用网络从事危害国家安全、荣誉和利益，传播淫秽色情、赌博、暴力、凶杀、恐怖、煽动分裂、破坏民族团结等违法活动及信息。
-        </p>
-        <p>
-          <strong className="text-amber-300">《中华人民共和国未成年人保护法》第五十一条</strong>：
-          禁止制作、复制、出版、传播含有淫秽、暴力、凶杀、恐怖、极端等内容的图书、报刊、电影、广播电视节目、音像制品、网络音视频等。
-        </p>
-        <p>
-          <strong className="text-amber-300">《中华人民共和国民法典》第一千零一十九条</strong>：
-          任何组织或者个人未经肖像权人同意，不得以丑化、污损，或者利用信息技术手段伪造等方式侵害他人的肖像权。
-          未经肖像权人同意，肖像作品权利人不得以发表、复制、发行、出租、展览等方式使用或者公开肖像权人的肖像。
-        </p>
+        您应对加入媒体库的文件承担全部责任，确保您对该文件享有合法的持有、观看与管理权利。
+        请勿将本软件用于任何<strong className="text-white">侵犯他人著作权、肖像权、隐私权等合法权益</strong>，
+        或违反法律法规的活动。请尊重影视作品的版权，仅在法律允许的范围内使用本软件。
       </Section>
 
       <Section title={t('notice.section4')}>
-        严禁向未满十八（18）周岁的未成年人传播、展示或提供任何涉嫌淫秽、色情、暴力、恐怖或其他不适宜未成年人的内容。
-        依据上述法律法规及《未成年人保护法》相关规定，向未成年人传播相关内容的，将依法从重处罚。
+        本软件按"现状"提供，开发者<strong className="text-white">不参与、不认可、不承担</strong>
+        用户使用本软件所产生的任何法律风险与责任。因使用本软件产生的任何纠纷或损失，由使用者自行承担。
+        开发者保留依法向有关主管部门报告、协助调查的权利。
       </Section>
 
       <Section title={t('notice.section5')}>
-        本软件开发者仅提供本地文件管理与检索工具，<strong className="text-white">不参与、不认可、不承担</strong>
-        用户使用本软件所从事的任何违法活动所产生的法律责任。本软件开发者保留依法向有关主管部门报告、协助调查的权利。
-        所有法律责任由使用本软件从事违法活动的当事人自行承担。
-      </Section>
-
-      <Section title={t('notice.section6')}>
-        继续使用本软件即视为您已阅读、理解并同意本须知全部内容，并承诺依法、合规地使用本软件。
+        继续使用本软件即视为您已阅读、理解并同意本须知全部内容。
         <br />
         <span className="text-white/50 text-[12px]">
-          本软件仅用于合法合规的本地文件管理。请自觉遵守国家法律法规，文明使用软件工具。
+          本软件仅供个人合法合规地整理与管理本地视频文件之用。请自觉遵守国家法律法规，文明使用软件工具。
         </span>
       </Section>
     </>
@@ -158,50 +124,40 @@ function EnContent() {
   return (
     <>
       <Section title={t('notice.section1')}>
-        This software ("YingXia") is a <strong className="text-white">local video file management tool for personal use only</strong>.
-        Its core features are scanning local folders, reading video metadata, generating a local poster wall, and managing your local video library.
-        This software <strong className="text-amber-300">does not provide, store, or distribute any media content</strong>,
-        nor does it connect to any server that distributes illegal content. It does not offer functions for downloading, uploading, sharing, or distributing illegal content.
-        The software will not actively acquire or transmit any video files that already exist on your local machine.
+        This app ("Movie Vault") is a <strong className="text-white">local video file organizer and manager</strong>.
+        It scans your chosen local folders, identifies movies, and matches metadata from public film databases
+        (title, year, synopsis, cast, ratings, genres, etc.), building a visual poster wall and statistics dashboard.
+        This software <strong className="text-amber-300">does not provide, host, or distribute any video files</strong>;
+        all media comes from files already on your device—the app only reads and displays them locally.
       </Section>
 
       <Section title={t('notice.section2')}>
-        You agree to use this software in compliance with all applicable local laws and regulations. You must not use this software to:
-        <ul className="list-disc list-inside space-y-1 mt-2 text-white/70 pl-2">
-          <li>Create, copy, publish, sell, or distribute any obscene, violent, gory, terrorist, or otherwise illegal content;</li>
-          <li>Infringe upon the lawful rights of others, including but not limited to copyright, portrait rights, reputation rights, and privacy rights;</li>
-          <li>Engage in any activity that violates applicable laws, administrative regulations, or public policies.</li>
-        </ul>
+        To enrich movie information, the app may query <strong className="text-white">public film databases</strong>
+        online with your permission (such as TMDB, OMDb, OpenLibrary, JustWatch, and other third-party services).
+        These services are operated by their respective providers; their content and availability are outside our control.
+        Before querying, please ensure lawful access in your region and comply with each service's terms and privacy policy.
+        The app <strong className="text-amber-300">never uploads your local files</strong>—only search keywords such as movie titles are sent.
       </Section>
 
       <Section title={t('notice.section3')} highlight>
-        <p>
-          This software is intended solely for managing video files that you already lawfully possess on your local device.
-          It does not facilitate the acquisition of new content, nor does it enable distribution to third parties.
-        </p>
-        <p>
-          Depending on your jurisdiction, sharing or distributing adult content may be subject to legal restrictions.
-          You are solely responsible for ensuring that your use of this software complies with the laws of your country or region.
-        </p>
+        You are solely responsible for any files you add to your library and must ensure you have the legal right
+        to hold, view, and manage them. Do not use this app to <strong className="text-white">infringe upon others' copyright,
+        portrait, privacy, or other lawful rights</strong>, or to violate any laws or regulations.
+        Please respect film copyrights and use the app only within the bounds of the law.
       </Section>
 
       <Section title={t('notice.section4')}>
-        It is strictly prohibited to transmit, display, or provide any obscene, pornographic, violent, terrorist, or otherwise inappropriate content to minors under the age of 18.
-        Users who distribute such content to minors may face severe legal penalties under applicable laws.
+        This software is provided "as is". The developer <strong className="text-white">does not participate in, endorse, or assume</strong>
+        any legal risk or liability arising from your use of it. Any dispute or loss resulting from use is borne solely by the user.
+        The developer reserves the right to cooperate with authorities as required by law.
       </Section>
 
       <Section title={t('notice.section5')}>
-        The developer of this software provides only a local file management and indexing tool and
-        <strong className="text-white"> does not participate in, endorse, or assume liability</strong> for any illegal activities conducted by users.
-        All legal liability arising from misuse of this software rests solely with the individual user.
-      </Section>
-
-      <Section title={t('notice.section6')}>
-        By continuing to use this software, you acknowledge that you have read, understood, and agreed to all the terms above,
-        and you commit to using this software in a lawful and compliant manner.
+        By continuing to use this software, you acknowledge that you have read, understood, and agreed to all the terms above.
         <br />
         <span className="text-white/50 text-[12px]">
-          This software is intended solely for lawful local file management. Please use software tools responsibly and in compliance with applicable laws.
+          This app is intended solely for personal, lawful organization and management of your local video files.
+          Please use software tools responsibly and in compliance with applicable laws.
         </span>
       </Section>
     </>

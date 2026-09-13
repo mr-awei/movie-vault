@@ -13,13 +13,17 @@ interface Props {
   onOpen: (entry: DisplayEntry) => void
   onEdit: (v: Video) => void
   onOpenMissing: (entry: DisplayEntry) => void
-  onToggleFlag?: (id: string, key: 'favorite') => void
+  onToggleFlag?: (id: string, key: 'favorite' | 'locked') => void
   /** 点击标签 → 一键筛选该标签全部影片 */
   onPickTag?: (tag: string) => void
   /** 从磁盘删除视频文件 */
   onDelete?: (v: Video) => void
   /** 卡片宽高比：portrait 竖屏(2:3) / landscape 横屏(16:9) */
   aspect?: 'portrait' | 'landscape'
+  /** v2.7.x：多选模式（批量锁定用） */
+  selectable?: boolean
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
 }
 
 const GAP = 16
@@ -37,7 +41,7 @@ type Row =
  * 只渲染可见行 ± OVERSCAN。整个应用只有这一个滚动容器，
  * 大库（几百上千部）DOM 数量恒定为一屏几十张，滚动性能与库大小无关。
  */
-function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag, onPickTag, onDelete, aspect = 'portrait' }: Props) {
+function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag, onPickTag, onDelete, aspect = 'portrait', selectable = false, selectedIds, onToggleSelect }: Props) {
   const RATIO = aspect === 'landscape' ? 9 / 16 : 3 / 2
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
@@ -114,7 +118,7 @@ function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag
     if (y > scrollTop + height + OVERSCAN * rowH) continue
     if (isTitle) {
       visible.push(
-        // min-w-0 + truncate：超长分类名（如「大规模群P / 哈雷姆 / 大乱交（核心推荐）」）截断，不撑爆视图
+        // min-w-0 + truncate：超长分类名（如「科幻 / 悬疑 / 动作（核心推荐）」）截断，不撑爆视图
         <div key={row.key} className="absolute inset-x-0 flex items-baseline gap-2 px-1 min-w-0" style={{ top: y, height: TITLE_H }}>
           <h2 className="section-title text-white font-semibold text-lg leading-none truncate min-w-0">{row.title}</h2>
           <span className="text-white/40 text-xs shrink-0 tabular-nums">{row.count} {t('browse.unit')}</span>
@@ -129,7 +133,7 @@ function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag
         >
           {row.items.map((e, ci) => (
             <div key={`${e.code}-${ci}`} style={{ width: colW, height: colW * RATIO }} className="shrink-0">
-              <EntryCard entry={e} onOpen={onOpen} onEdit={onEdit} onOpenMissing={onOpenMissing} onToggleFlag={onToggleFlag} onPickTag={onPickTag} onDelete={onDelete} aspect={aspect} />
+              <EntryCard entry={e} onOpen={onOpen} onEdit={onEdit} onOpenMissing={onOpenMissing} onToggleFlag={onToggleFlag} onPickTag={onPickTag} onDelete={onDelete} aspect={aspect} selectable={selectable} selected={!!(e.video?.id && selectedIds?.has(e.video.id))} onToggleSelect={onToggleSelect} />
             </div>
           ))}
         </div>
@@ -138,9 +142,10 @@ function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag
   }
 
   return (
-    <div ref={wrapRef} onScroll={onScroll} className="h-full overflow-auto thin-scroll pr-1">
+    <div ref={wrapRef} onScroll={onScroll} className="h-full overflow-x-hidden overflow-y-auto thin-scroll pr-1">
       {/* paddingBottom 让最底部一行卡片下方留 80px 缓冲，确保滚到底时最后一行完整可见（不被滚动容器底部裁切） */}
-      <div style={{ position: 'relative', height: Math.max(totalH, height), minWidth: 0, paddingBottom: 80 }}>
+      {/* paddingRight 让最右侧一列卡片与窗口边框保持 20px 间距，避免悬浮按钮/预览贴到边框触发系统缩放边缘抽动 */}
+      <div style={{ position: 'relative', height: Math.max(totalH, height), minWidth: 0, paddingBottom: 80, paddingRight: 20 }}>
         {visible}
       </div>
     </div>

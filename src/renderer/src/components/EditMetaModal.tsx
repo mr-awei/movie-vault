@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Video } from '../../../shared/types'
-import { posterUrl, placeholderGradient, titleInitial } from '../lib/util'
+import type { Video, ImageSource } from '../../../shared/types'
+import { posterUrl, placeholderGradient, titleInitial, pureTitle } from '../lib/util'
 import Icon from './Icon'
 import { t } from '../../../shared/i18n'
 
@@ -8,10 +8,15 @@ interface Props {
   video: Video | null
   onClose: () => void
   onSave: (id: string, patch: Partial<Video>) => void
-  onFetchJavdb: (id: string) => Promise<Video | null>
+  onFetchPoster: (id: string) => Promise<Video | null>
 }
 
-export default function EditMetaModal({ video, onClose, onSave, onFetchJavdb }: Props) {
+/** 判断封面地址是本地路径（含 lm:// / file:// / Windows 盘符） */
+function isLocalCover(u?: string): boolean {
+  return !!u && (/^lm:\/\//.test(u) || /^file:\/\//.test(u) || /^[A-Za-z]:[\\/]|^\//.test(u) || !/^https?:\/\//.test(u))
+}
+
+export default function EditMetaModal({ video, onClose, onSave, onFetchPoster }: Props) {
   const [title, setTitle] = useState('')
   const [year, setYear] = useState('')
   const [rating, setRating] = useState('')
@@ -19,22 +24,35 @@ export default function EditMetaModal({ video, onClose, onSave, onFetchJavdb }: 
   const [tagInput, setTagInput] = useState('')
   const [description, setDescription] = useState('')
   const [manualPoster, setManualPoster] = useState('')
-  const [javdbPoster, setJavdbPoster] = useState<string | null>(null)
-  const [javdbBusy, setJavdbBusy] = useState(false)
+  const [数据源Poster, setSourcePoster] = useState<string | null>(null)
+  const [数据源PosterSource, setSourcePosterSource] = useState<ImageSource | null>(null)
+  const [sourceBusy, setSourceBusy] = useState(false)
   const [saveToast, setSaveToast] = useState<string | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!video) return
-    setTitle(video.title)
+    setTitle(pureTitle(video.title, video.fileName))
     setYear(video.year ? String(video.year) : '')
     setRating(video.rating != null ? String(video.rating) : '')
     setTags([...video.tags])
     setTagInput('')
     setDescription(video.description ?? '')
-    setManualPoster(video.posterSource === 'manual' ? video.posterPath ?? '' : '')
-    setJavdbPoster(video.posterSource === 'javdb' ? video.posterPath ?? null : null)
-    setJavdbBusy(false)
+    // 编辑页预览与详情页封面保持一致：手动封面 > meta.cover 本地路径 > posterPath
+    const isManual = video.posterSource === 'manual'
+    setManualPoster(isManual ? video.posterPath ?? '' : '')
+    if (!isManual) {
+      const metaLocal = video.meta?.cover && isLocalCover(video.meta.cover) ? video.meta.cover : null
+      const cover = metaLocal ?? video.posterPath ?? null
+      setSourcePoster(cover)
+      setSourcePosterSource(
+        (metaLocal && video.meta?.source ? video.meta.source : video.posterSource) ?? 'moviedb'
+      )
+    } else {
+      setSourcePoster(null)
+      setSourcePosterSource('moviedb')
+    }
+    setSourceBusy(false)
     setSaveToast(null)
     // 自动聚焦标题
     setTimeout(() => titleRef.current?.focus(), 50)
@@ -43,8 +61,8 @@ export default function EditMetaModal({ video, onClose, onSave, onFetchJavdb }: 
   if (!video) return null
 
   const previewUrl =
-    manualPoster || javdbPoster || video.posterPath
-      ? posterUrl(manualPoster || javdbPoster || video.posterPath)
+    manualPoster || 数据源Poster || video.posterPath
+      ? posterUrl(manualPoster || 数据源Poster || video.posterPath)
       : null
 
   function addTag() {
@@ -61,23 +79,26 @@ export default function EditMetaModal({ video, onClose, onSave, onFetchJavdb }: 
     setTags(tags.filter((x) => x !== t))
   }
 
-  async function handleJavdb() {
-    setJavdbBusy(true)
+  async function handleFetchPoster() {
+    setSourceBusy(true)
     try {
-      const updated = await onFetchJavdb(video!.id)
+      const updated = await onFetchPoster(video!.id)
       if (updated?.posterPath) {
         setManualPoster('')
-        setJavdbPoster(updated.posterPath)
+        setSourcePoster(updated.posterPath)
+        setSourcePosterSource(updated.posterSource ?? 'moviedb')
       }
     } finally {
-      setJavdbBusy(false)
+      setSourceBusy(false)
     }
   }
 
   function handleSave() {
     // 简介与标签以「Excel 片单」为权威来源，这里不写回，避免被下次对账覆盖
+    const trimmed = title.trim()
+    const nextTitle = trimmed ? pureTitle(trimmed) : pureTitle(video!.title, video!.fileName)
     const patch: Partial<Video> = {
-      title: title.trim() || video!.title,
+      title: nextTitle,
       year: year ? Number(year) : undefined,
       rating: rating ? Number(rating) : undefined,
       tags
@@ -85,9 +106,9 @@ export default function EditMetaModal({ video, onClose, onSave, onFetchJavdb }: 
     if (manualPoster.trim()) {
       patch.posterPath = manualPoster.trim()
       patch.posterSource = 'manual'
-    } else if (javdbPoster) {
-      patch.posterPath = javdbPoster
-      patch.posterSource = 'javdb'
+    } else if (数据源Poster) {
+      patch.posterPath = 数据源Poster
+      patch.posterSource = 数据源PosterSource ?? 'moviedb'
     }
     onSave(video!.id, patch)
     setSaveToast(t('editMeta.saved'))
@@ -145,19 +166,19 @@ export default function EditMetaModal({ video, onClose, onSave, onFetchJavdb }: 
                 </div>
                 <button
                   className="no-drag w-full px-3.5 py-2.5 rounded-lg bg-brand/90 hover:bg-brand text-white text-sm font-medium disabled:opacity-50 transition-all shadow-md shadow-brand/20"
-                  onClick={handleJavdb}
-                  disabled={javdbBusy}
+                  onClick={handleFetchPoster}
+                  disabled={sourceBusy}
                 >
-                  {javdbBusy ? (
+                  {sourceBusy ? (
                     <span className="inline-flex items-center justify-center gap-2">
                       <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                       {t('editMeta.fetching')}
                     </span>
-                  ) : t('editMeta.fetchCoverFromJavdb')}
+                  ) : t('editMeta.fetchCover')}
                 </button>
-                {javdbPoster ? (
+                {数据源Poster ? (
                   <div className="inline-flex items-center justify-center gap-1 w-full text-emerald-400 text-[11px] font-medium">
-                    ✓ {t('editMeta.fetchedFromJavdb')}
+                    ✓ {t('editMeta.fetchedFromSource')}
                   </div>
                 ) : null}
                 <div className="pt-4 border-t border-white/5">

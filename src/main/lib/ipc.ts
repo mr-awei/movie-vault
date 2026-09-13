@@ -1,4 +1,4 @@
-﻿import { app, BrowserWindow, ipcMain, dialog, shell, clipboard } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, clipboard } from 'electron'
 import { createHash, randomBytes } from 'node:crypto'
 import { IPC } from '../../shared/ipc'
 import type { ReconcileResult } from '../../shared/types'
@@ -12,18 +12,18 @@ import { reconcileLibrary } from './reconcile'
 import { openVideo } from './player'
 import { resolvePoster, generatePreviewSet, frameLog } from './images'
 import { postersCacheDir } from './images'
-import { cacheRemoteImage } from './javdb'
-import { extractBaseCode, extractCode } from '../../shared/code'
+import { cacheRemoteImage } from './image-util'
+import { extractMovieQuery } from '../../shared/code'
 import { testProxyConnectivity } from './proxy'
 import { detectFfmpeg } from './ffmpegEnv'
 import { applyRuntimeSettings } from './runtime'
-import { findAndParseTorrents } from './torrent'
 import { probeVideo, probeImage } from './ffprobe'
 import { previewRenames, applyRenames, safeFileBaseName } from './rename'
-import { DEFAULT_IMAGE_PRIORITY, type JavdbDetail, type Library, type ScanProgress, type Settings, type Video, type ImageSource, type UpdateSource, type TechInfo } from '../../shared/types'
+import { DEFAULT_IMAGE_PRIORITY, type MovieMeta, type SourceId, type Library, type ScanProgress, type Settings, type Video, type ImageSource, type UpdateSource, type TechInfo } from '../../shared/types'
 import { type UpdateCheckResult, type UpdateAssetInfo } from '../../shared/api-types'
 // v2.2.4 抽到独立模块（让 reconcile.ts 也能调 fetchDetailSmart，无循环依赖）
-import { fetchDetailSmart, createSmartFetchState, fetchPosterSmart, type SmartFetchState } from './javdb-smart'
+import { fetchDetailSmart, createSmartFetchState, fetchPosterSmart, type SmartFetchState } from './fetch-meta'
+import { fetchDetailByUrl } from './fetch-by-url'
 
 // 当前活跃的批量补齐状态（供 pause/resume/stop 控制）
 let activeFetchState: SmartFetchState | null = null
@@ -68,43 +68,43 @@ async function readReconcileCache(libraryId: string): Promise<ReconcileResult | 
 }
 
 /**
- * 多源详情聚合：JavDB（最准，已有 Cookie）→ JavBus（自动绕过年龄验证）。
+ * 多源详情聚合（MovieDB → OMDb → OpenLibrary → JustWatch）。
  * 任一源成功即返回（本地化图片后由调用方写库）；全部失败返回 null。
  */
 interface MovieDetailResult {
-  detail: JavdbDetail | null
+  detail: MovieMeta | null
   /** 命中来源（success 时） */
-  source?: 'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary'
+  source?: SourceId
   /** 全部失败时的原因描述 */
   error?: string
 }
 
 /**
  * 把详情里的 cover 转成可写 posterPath 的本地路径。
- * javdb.ts / javbus.ts 返回的 detail.cover 已是**本地缓存路径**（内部已下载到磁盘），
+ * 数据源模块返回的 detail.cover 已是**本地缓存路径**（内部已下载到磁盘），
  * 直接复用即可；若个别源返回 http(s) URL 则用 cacheRemoteImage 下载。
  * 返回 null 表示无可用封面（不覆盖原 posterPath）。
  */
 /**
  * 封面替换前的图片有效性验证：ffprobe 能读出分辨率且不小于阈值。
- * javapi/javdb 下载的封面可能是损坏/截断/空内容的坏图（文件存在但 ffprobe 读不出尺寸），
+ * 数据源/数据源 下载的封面可能是损坏/截断/空内容的坏图（文件存在但 ffprobe 读不出尺寸），
  * 直接替换会覆盖现有 ffmpeg 截帧导致黑屏，必须验证通过才允许替换。
  */
 async function isCoverUsable(filePath: string, settings: Settings): Promise<boolean> {
   const dim = await probeImage(filePath, settings)
   if (!dim) return false
-  // 正常 JAV 封面至少几百像素；<100px 视为坏图/占位
+  // 正常封面至少几百像素；<100px 视为坏图/占位
   return dim.width >= 100 && dim.height >= 100
 }
 
 /**
  * 把详情里的 cover 转成可写 posterPath 的本地路径。
- * javdb.ts / javbus.ts 返回的 detail.cover 已是**本地缓存路径**（内部已下载到磁盘），
+ * 数据源模块返回的 detail.cover 已是**本地缓存路径**（内部已下载到磁盘），
  * 直接复用即可；若个别源返回 http(s) URL 则用 cacheRemoteImage 下载。
  * **替换前必须通过 isCoverUsable 验证（分辨率正常），验证失败返回 null（不覆盖原 posterPath）。**
  */
 async function resolveDetailCover(
-  detail: JavdbDetail,
+  detail: MovieMeta,
   videoId: string,
   settings: Settings
 ): Promise<string | null> {
@@ -123,14 +123,14 @@ async function resolveDetailCover(
       return null
     }
   }
-  // http(s) URL → 下载本地。key 用 `cover-<CODE>` 而非 videoId：
+  // http(s) URL → 下载本地。缓存 key 用封面文件名（含源前缀）而非 videoId：
   // 避免与 ffmpeg 截帧封面 <videoId>.jpg 同名冲突（下载坏图会覆盖掉可用截帧）。
-  const coverKey = detail.code ? `cover-${detail.code.toUpperCase()}` : videoId
+  const coverKey = detail.externalId ? `cover-${detail.externalId.toUpperCase()}` : videoId
   const local = await cacheRemoteImage(
     detail.cover,
     coverKey,
     settings,
-    detail.source === 'javbus' ? 'https://www.seedmm.bond' : detail.source === 'javinfo' ? 'https://api.javinfo.dev' : 'https://javdb.com'
+    detail.source === 'moviedb' ? 'https://www.themoviedb.org' : detail.source === 'openlibrary' ? 'https://openlibrary.org' : detail.source === 'justwatch' ? 'https://www.justwatch.com' : detail.source === 'wikipedia' ? 'https://zh.wikipedia.org' : 'https://www.omdbapi.com'
   ).catch(() => null)
   if (!local) return null
   // 下载后验证分辨率：损坏/全黑/截断的图不替换（避免用坏图覆盖现有 ffmpeg 截帧）
@@ -142,32 +142,6 @@ async function resolveDetailCover(
 }
 
 /**
- * 删除该视频的 ffmpeg 截帧预览图（<videoId>_preview_<n>.jpg）。
- * 封面文件 <videoId>.jpg 会被真实封面下载覆盖复用，不删；只清截帧预览图，
- * 避免「真实封面 + 截帧预览」同时在磁盘/记录里残留。
- */
-async function removeFfmpegPreviewFiles(videoId: string): Promise<void> {
-  try {
-    const dir = postersCacheDir()
-    const entries = await fs.readdir(dir)
-    const prefix = `${videoId}_preview_`
-    for (const f of entries) {
-      const lower = f.toLowerCase()
-      if (lower.startsWith(prefix) && lower.endsWith('.jpg')) {
-        await fs.unlink(path.join(dir, f)).catch(() => {})
-      }
-    }
-  } catch {
-    /* 缓存目录不存在 */
-  }
-}
-
-/** 从详情里取本地化的真实预览图（截图已缓存到本地，跳过远程 URL） */
-function localSamples(detail: JavdbDetail | null | undefined): string[] {
-  return (detail?.samples ?? []).filter((s) => !!s && !/^https?:\/\//.test(s))
-}
-
-/**
  * 把数据源详情回填到 Video 顶层字段（无 Excel 片单视频用得上）。
  * v2.2.13 标签分层后：
  * - actors：演员名单
@@ -176,9 +150,9 @@ function localSamples(detail: JavdbDetail | null | undefined): string[] {
  * - backupTags：数据源 genres 单独写入（UI 折叠为一行「备用标签」，无文档时兜底作为主标签）
  * - title：仅当视频未受简介管理（无 descriptionSource）且当前标题就是文件名时，用数据源标题覆盖
  */
-function backfillFromDetail(v: Video, detail: JavdbDetail): Partial<Video> {
+function backfillFromDetail(v: Video, detail: MovieMeta): Partial<Video> {
   const patch: Partial<Video> = {}
-  const actors = detail.actresses && detail.actresses.length ? detail.actresses : detail.actors
+  const actors = detail.cast && detail.cast.length ? detail.cast : detail.actors
   if (actors && actors.length) patch.actors = actors
   if (!v.year && detail.date) {
     const y = Number(String(detail.date).slice(0, 4))
@@ -235,11 +209,10 @@ function normalizeAsset(raw: unknown): UpdateAssetInfo | null {
 }
 
 /**
- * 清理某个视频的关联缓存文件（封面 / ffmpeg 截图 / javdb/javbus 下载的信息图）。
+ * 清理某个视频的关联缓存文件（封面 / ffmpeg 截图 / 数据源下载的信息图）。
  * 命名规则（均在 postersCacheDir 下）：
  * - 视频专属：`<videoId>.jpg` + `<videoId>_preview_N.jpg`（封面 + ffmpeg 预览）
- * - 按番号共享：`javdb-cover-<CODE>.jpg` / `javdb-sample-<CODE>-N.jpg`、
- *   `javbus-cover-<CODE>.jpg` / `javbus-sample-<CODE>-N.jpg`
+ * - 按externalId共享：`数据源-cover-<CODE>.jpg`（封面；多片共用同一外部源元数据时共享）
  * 共享文件删除前检查：若其他视频仍引用同一文件（同系列多分集共用元数据），则保留。
  * 返回删除的文件数。
  */
@@ -258,19 +231,9 @@ async function cleanVideoCacheFiles(video: Video): Promise<{ removed: number; ke
     if (video.posterPath) referencedByVideo.add(path.normalize(video.posterPath))
     for (const p of video.previewPaths ?? []) referencedByVideo.add(path.normalize(p))
 
-    // 番号（用于 javdb/javbus 共享缓存匹配）
-    const detailCode = video.javdbDetail?.code ?? video.title ?? ''
-    const code = extractCode(detailCode).toUpperCase()
+    // 视频专属缓存前缀（按 video.id 收集；数据源缓存按各自命名规则单独处理）
     const prefixes = new Set<string>()
     prefixes.add(`${video.id}`)
-    if (code) {
-      prefixes.add(`javdb-cover-${code}`)
-      prefixes.add(`javdb-sample-${code}`)
-      prefixes.add(`javbus-cover-${code}`)
-      prefixes.add(`javbus-sample-${code}`)
-      prefixes.add(`javlibrary-cover-${code}`)
-      prefixes.add(`javlibrary-sample-${code}`)
-    }
 
     // 其他视频仍在引用的缓存文件（同系列多分集共享）——不可删
     const stillReferenced = new Set<string>()
@@ -293,7 +256,7 @@ async function cleanVideoCacheFiles(video: Video): Promise<{ removed: number; ke
       if (!matched) continue
       const abs = path.join(cacheDir, f)
       // 视频专属文件（videoId 前缀）且被本视频引用过 → 直接删
-      // 共享文件（javdb/javbus）→ 仅当无其他视频引用才删
+      // 共享文件（数据源/数据源）→ 仅当无其他视频引用才删
       if (stillReferenced.has(path.normalize(abs))) {
         kept++
         continue
@@ -363,12 +326,12 @@ function detectUrgency(notes: string, minimumVersion?: string, currentVersion?: 
 async function fetchMovieDetail(
   code: string,
   settings: Settings,
-  onEvent?: (e: { code: string; src: 'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary'; status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'; detail?: string }) => void,
-  /** v2.6.5：true = 手工输入的番号，各数据源不再对它做「从文件名猜番号」的提取 */
+  onEvent?: (e: { code: string; src: SourceId; status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'; detail?: string }) => void,
+  /** v2.6.5：true = 手工输入的externalId，各数据源不再对它做「从文件名猜externalId」的提取 */
   manual = false
 ): Promise<MovieDetailResult> {
   // v2.2.6：fetchDetailSmart 已统一处理所有 5 个源（含顺序、降级、错误信息），
-  // 这里保留 wrapper 是为了让 videoFetchJavdbDetail 等老调用方零改动；
+  // 这里保留 wrapper 是为了让 videoFetchDetail 等老调用方零改动；
   // fetchDetailSmart 内部会按 settings.dataSource / customSourceOrder 自动分支。
   const state = createSmartFetchState()
   return await fetchDetailSmart(code, settings, state, onEvent, manual)
@@ -416,7 +379,7 @@ export async function runUpdateCheck(): Promise<UpdateCheckResult> {
   const s = await repo.getSettings()
   const preferred = s.updateSource ?? 'gitee'
   const current = app.getVersion()
-  const repoPath = 'mr-awei/yingxia-video-manager'
+  const repoPath = 'mr-awei/yinghai-movie-vault'
 
   const baseResult: UpdateCheckResult = {
     source: preferred,
@@ -444,7 +407,7 @@ export async function runUpdateCheck(): Promise<UpdateCheckResult> {
           : `https://api.github.com/repos/${repoPath}/releases/latest`,
         {
           headers: {
-            'User-Agent': 'yingxia',
+            'User-Agent': 'yinghai',
             ...(source === 'github' ? { Accept: 'application/vnd.github+json' } : {})
           },
           // 大陆网络下 GitHub API TCP/TLS 能通但 HTTP 层不响应，
@@ -667,6 +630,21 @@ export function registerIpc(): void {
   ipcMain.handle(IPC.videoList, (_e, filter: any) => repo.listVideos(filter ?? {}))
   ipcMain.handle(IPC.videoGet, (_e, id: string) => repo.getVideo(id))
   ipcMain.handle(IPC.videoUpdate, (_e, id: string, patch: any) => repo.updateVideo(id, patch))
+  // v2.7.x：批量设置锁定状态 —— 一次 applyVideoChanges 落盘，避免逐条全量写 data.json
+  ipcMain.handle(IPC.videoLockMany, async (_e, ids: string[], locked: boolean) => {
+    if (!Array.isArray(ids) || ids.length === 0) return 0
+    const idSet = new Set(ids)
+    const all = await repo.listVideos({})
+    const now = Date.now()
+    const changes: repo.VideoChange[] = all
+      .filter((v) => idSet.has(v.id))
+      .map((v) => ({
+        type: 'update' as const,
+        video: { ...v, locked, lockedAt: locked ? now : undefined }
+      }))
+    await repo.applyVideoChanges(changes)
+    return changes.length
+  })
   ipcMain.handle(IPC.videoScan, async (_e, libraryId: string) => {
     const lib = (await repo.listLibraries()).find((l) => l.id === libraryId)
     if (!lib) throw new Error('媒体库不存在')
@@ -688,12 +666,12 @@ export function registerIpc(): void {
     return repo.updateVideo(id, { posterSource: r.source, posterPath: r.posterPath })
   })
 
-  // ---------- javdb 封面抓取 ----------
-  ipcMain.handle(IPC.videoFetchJavdbPoster, async (_e, id: string) => {
+  // ---------- 数据源 封面抓取 ----------
+  ipcMain.handle(IPC.videoFetchPoster, async (_e, id: string) => {
     const v = await repo.getVideo(id)
     if (!v) throw new Error('视频不存在')
     const settings = await repo.getSettings()
-    // v2.2.8：海报抓取也按 customSourceOrder 降级（原来硬走 JavDB）
+    // v2.2.8：海报抓取也按 customSourceOrder 降级（原来硬走 数据源）
     const localPath = await fetchPosterSmart(v, settings)
     if (!localPath) return null
     // 替换前验证图片有效性：下载损坏/截断的坏图不替换（避免黑屏）
@@ -701,67 +679,95 @@ export function registerIpc(): void {
       await fs.unlink(localPath).catch(() => {})
       return null
     }
-    return repo.updateVideo(id, { posterSource: 'javdb', posterPath: localPath })
+    return repo.updateVideo(id, { posterSource: 'moviedb', posterPath: localPath })
   })
 
-  // ---------- javdb 详情抓取 ----------
-  ipcMain.handle(IPC.videoFetchJavdbDetail, async (_e, id: string, codeOverride?: string) => {
+  // ---------- 数据源 详情抓取 ----------
+  ipcMain.handle(IPC.videoFetchDetail, async (_e, id: string, idOverride?: string) => {
     const v = await repo.getVideo(id)
     if (!v) throw new Error('视频不存在')
     const settings = await repo.getSettings()
-    // v2.6.5：搜索源优先级改为「手工番号 → title → folderName → fileName」。
-    // codeOverride = 用户手工输入的番号（文件名/标题识别不出番号时的兜底入口）。
-    const manual = typeof codeOverride === 'string' ? codeOverride.trim() : ''
-    const rawCode = (manual || v.title || v.folderName || v.fileName || '').trim()
+    // v2.6.5：搜索源优先级改为「手工输入 → title → folderName → fileName」。
+    // idOverride = 用户手工输入的检索词/ID（文件名/标题识别不出时的人工兜底入口）。
+    const manual = typeof idOverride === 'string' ? idOverride.trim() : ''
+    // v2.7.x：优先用数据源已更新的标题（meta.title）作为检索词，避免继续拿旧文件名搜索
+    const rawCode = (manual || v.meta?.title || v.title || v.folderName || v.fileName || '').trim()
     if (!rawCode) return null
     if (manual) {
-      console.log(`[ipc] videoFetchJavdbDetail 手工番号：${v.fileName} -> ${manual}`)
+      console.log(`[ipc] videoFetchDetail 手工输入：${v.fileName} -> ${manual}`)
     }
-    // 手工番号跳过 extractCode 清洗（用户已给出确定番号，如 476MLA-203 数字开头会被误判）；
-    // 否则保留作者库的「剥分集后缀取 base code」清洗（SONE-560_1 → SONE-560）
-    const code = manual ? rawCode : extractBaseCode(rawCode) || rawCode
-    // v2.2.10：单点补齐也推 fetchEvent（右下角浮层实时显示"javdb 失败 → 降级 javbus"）
+    // 检索词交给 fetchDetailSmart 内部统一用 extractMovieQuery 解析（标题+年份+ID），此处直接透传
+    const code = rawCode
+    // v2.2.10：单点补齐也推 fetchEvent（右下角浮层实时显示"数据源 失败 → 降级 数据源"）
     const mr = await fetchMovieDetail(
       code,
       settings,
       (e) => {
-        emitProgress({ libraryId: v.libraryId, total: 1, done: 0, current: v.title, fetchEvent: e })
+        emitProgress({ libraryId: v.libraryId, total: 1, done: 0, current: v.meta?.title || v.title, fetchEvent: { ...e, code: v.meta?.title || v.title || e.code } })
       },
       !!manual
     )
     // v2.2.13-fix：无论成功/失败，结束前发一次 done=1，让前端 Toast 有机会 dismiss
-    emitProgress({ libraryId: v.libraryId, total: 1, done: 1, current: v.title })
+    emitProgress({ libraryId: v.libraryId, total: 1, done: 1, current: v.meta?.title || v.title })
     if (!mr.detail) return { ok: false as const, error: mr.error || '未获取到数据' }
-    await repo.updateVideo(id, { javdbDetail: mr.detail, ...backfillFromDetail(v, mr.detail) })
+    await repo.updateVideo(id, { meta: mr.detail, ...backfillFromDetail(v, mr.detail) })
     // **列表/详情封面同步**：详情抓取成功且有真实封面，但视频当前是 ffmpeg 截帧 / 占位 / 无封面时，
-    // 用 detail.cover 覆盖（否则列表页还是错误的视频帧）；同时删除旧的 ffmpeg 截帧预览图，
-    // 预览图换成真实截图（本地），避免「真实封面 + 截帧」同时残留
+    // 用 detail.cover 覆盖（否则列表页还是错误的视频帧）
     const coverLocal = await resolveDetailCover(mr.detail, id, settings)
     const patch: Partial<Video> = {}
     if (coverLocal) {
-      patch.posterSource = mr.detail.source ?? 'javdb'
+      patch.posterSource = mr.detail.source ?? 'moviedb'
       patch.posterPath = coverLocal
-      // v2.2.14-fix：样本图一张都没拿到时，**保留**原有 ffmpeg 预览帧——
-      // 之前无条件用 samples（空数组）覆盖 previewPaths + 删除预览帧文件，
-      // 导致「补齐信息」后预览帧神秘消失（哪怕提示成功）。
-      const samples = localSamples(mr.detail)
-      if (samples.length) {
-        patch.previewPaths = samples
-        await removeFfmpegPreviewFiles(id)
-      }
     }
     await repo.updateVideo(id, patch)
     for (const w of BrowserWindow.getAllWindows()) {
       if (!w.isDestroyed()) {
-        w.webContents.send(IPC.javdbFetched, {
+        w.webContents.send(IPC.posterFetched, {
           videoId: id,
           posterPath: coverLocal,
-          posterSource: mr.detail.source ?? 'javdb',
-          previewPaths: coverLocal && localSamples(mr.detail).length ? localSamples(mr.detail) : undefined
+          posterSource: mr.detail.source ?? 'moviedb'
         })
       }
     }
-    return { ok: true as const, detail: mr.detail, source: mr.source ?? ('javdb' as const) }
+    return { ok: true as const, detail: mr.detail, source: mr.source ?? ('moviedb' as const) }
+  })
+
+  // ---------- 详情页「按网址更新」 ----------
+  ipcMain.handle(IPC.videoFetchByUrl, async (_e, id: string, url?: string) => {
+    const v = await repo.getVideo(id)
+    if (!v) throw new Error('视频不存在')
+    const settings = await repo.getSettings()
+    if (!url || !url.trim()) return { ok: false as const, error: '请粘贴电影页面网址' }
+    const errors: string[] = []
+    const mr = await fetchDetailByUrl(
+      url.trim(),
+      settings,
+      (m) => errors.push(m)
+    )
+    if (!mr) {
+      return {
+        ok: false as const,
+        error: errors.length ? errors.join('；') : '未从该网址获取到数据（请确认链接正确且对应数据源已配置密钥）'
+      }
+    }
+    await repo.updateVideo(id, { meta: mr.detail, ...backfillFromDetail(v, mr.detail) })
+    const coverLocal = await resolveDetailCover(mr.detail, id, settings)
+    const patch: Partial<Video> = {}
+    if (coverLocal) {
+      patch.posterSource = mr.detail.source ?? 'moviedb'
+      patch.posterPath = coverLocal
+    }
+    await repo.updateVideo(id, patch)
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) {
+        w.webContents.send(IPC.posterFetched, {
+          videoId: id,
+          posterPath: coverLocal,
+          posterSource: mr.detail.source ?? 'moviedb'
+        })
+      }
+    }
+    return { ok: true as const, detail: mr.detail, source: mr.source }
   })
 
   // ---------- 编辑标题后同步修改磁盘文件名（v2.6.5）----------
@@ -814,15 +820,45 @@ export function registerIpc(): void {
     }
   })
 
-  ipcMain.handle(IPC.libraryFetchJavdbAll, async (_e, libraryId: string, force = false) => {
-    console.log('[ipc] libraryFetchJavdbAll libraryId=', libraryId, 'force=', force)
+  ipcMain.handle(IPC.libraryFetchAll, async (_e, libraryId: string, force = false) => {
+    console.log('[ipc] libraryFetchAll libraryId=', libraryId, 'force=', force)
     const lib = (await repo.listLibraries()).find((l) => l.id === libraryId)
     if (!lib) throw new Error('媒体库不存在')
     const settings = await repo.getSettings()
-    const videos = await repo.listVideos({ libraryId })
+    const allVideos = await repo.listVideos({ libraryId })
+    // v2.7.x：「锁定」的影片无论普通/强制批量补齐都自动跳过（详情页手动补齐不受限）。
+    // 跳过明细随结果返回，UI 结束后明确告知用户。
+    const lockedSkipped = allVideos
+      .filter((v) => v.locked)
+      .map((v) => ({ id: v.id, title: v.meta?.title || v.title }))
+    // v2.7.x：文件已不存在的失效记录也跳过（不去浪费请求；下次扫描会自动清理掉）
+    const missingSkipped: Array<{ id: string; title: string }> = []
+    const videos = allVideos.filter((v) => {
+      if (v.locked) return false
+      if (!v.path || !existsSync(v.path)) {
+        missingSkipped.push({ id: v.id, title: v.meta?.title || v.title })
+        return false
+      }
+      return true
+    })
+    if (lockedSkipped.length > 0 || missingSkipped.length > 0) {
+      console.log(
+        `[ipc] libraryFetchAll 跳过 ${lockedSkipped.length} 部锁定 / ${missingSkipped.length} 部失效（文件不存在），共 ${allVideos.length} 部`
+      )
+    }
     if (videos.length === 0) {
       emitProgress({ libraryId, total: 0, done: 0 })
-      return 0
+      return {
+        ok: 0,
+        failed: 0,
+        bySource: { moviedb: 0, omdb: 0, openlibrary: 0, justwatch: 0, wikipedia: 0 } as Record<SourceId, number>,
+        failures: [],
+        stopped: false,
+        remaining: 0,
+        remainingNoPoster: 0,
+        lockedSkipped,
+        missingSkipped
+      }
     }
     // 抓取并发数 / 间隔（限速、降风控），Settings 中可配。
     // 修复：`Math.floor(x) || 默认值` 在 x=0 时会被默认值顶掉（0 无法生效）——
@@ -833,19 +869,19 @@ export function registerIpc(): void {
       : 2
     const rawInterval = Math.floor(settings.fetchIntervalMs)
     const baseInterval = Number.isFinite(rawInterval) && rawInterval >= 0 ? rawInterval : 600
-    // 强制重抓模式：每部都重搜，量极大；并发降到 1、间隔 2 秒，避免触发 JavDB 反爬 (HTTP 403)。
+    // 强制重抓模式：每部都重搜，量极大；并发降到 1、间隔 2 秒，避免触发 数据源 反爬 (HTTP 403)。
     // 普通补齐保持用户配置的并发/间隔。
     const concurrency = force ? 1 : baseConcurrency
     const interval = force ? 3000 : baseInterval
     let done = 0
     let ok = 0
     let failed = 0
-    const bySource: { javapi: number; javinfo: number; javdb: number; javbus: number; javlibrary: number } = { javapi: 0, javinfo: 0, javdb: 0, javbus: 0, javlibrary: 0 }
+    const bySource: Record<SourceId, number> = { moviedb: 0, omdb: 0, openlibrary: 0, justwatch: 0, wikipedia: 0 }
     const failures: Array<{ id: string; title: string; reason: string }> = []
     const smartState = createSmartFetchState()
     activeFetchState = smartState
-    // 系列去重：同 base code 只抓一次，其余分集复用（HUNTA-468CD1/CD2 → 抓一次）
-    const seriesCache = new Map<string, JavdbDetail>()
+    // 同检索词复用：本批内同名影片（同片多文件）只抓一次，其余直接复用，节省请求额度
+    const queryCache = new Map<string, MovieMeta>()
     let idx = 0
     // v2.2.10-fix4：批量写盘——worker 内只收集变更，全部结束后一次 applyVideoChanges，
     // 不再逐条 updateVideo 全量写 4.7MB data.json（大库 4680 部 = 4680 次全量写 → 小时级）。
@@ -884,49 +920,27 @@ export function registerIpc(): void {
     const worker = async () => {
       while (idx < videos.length && !smartState.stop) {
         const v = videos[idx++]
-        // 本轮是否发过网络请求（封面抓取 / 详情抓取）——有才延时，避免无请求也空等
-        let madeRequest = false
-        emitProgress({ libraryId, total: videos.length, done, current: v.title })
-
-        // 0) 国产片（纯中文文件夹）：不抓 JavDB/JavBus 元数据，仅用 ffmpeg 截帧（封面 + 15 预览）
-        if (v.domestic) {
-          // v2.3.11：刚截帧失败过（损坏文件）→ 本轮跳过，不再白等几分钟超时
-          const needFrame =
-            !frameFailedRecently(v) &&
-            (!v.posterPath || v.posterSource === 'placeholder' || !v.previewPaths?.length)
-          if (needFrame) {
-            const set = await generatePreviewSet(v, settings).catch(() => null)
-            if (set && (set.coverPath || set.previewPaths.length)) {
-              const patch: Partial<Video> = {}
-              if (set.coverPath) {
-                patch.posterSource = 'ffmpeg'
-                patch.posterPath = set.coverPath
-              }
-              if (set.previewPaths.length) patch.previewPaths = set.previewPaths
-              await applyPatch(v, patch)
-              if (set.coverPath) {
-                for (const w of BrowserWindow.getAllWindows()) {
-                  if (!w.isDestroyed()) {
-                    w.webContents.send(IPC.javdbFetched, { videoId: v.id, posterPath: set.coverPath })
-                  }
-                }
-              }
-              ok++
-            }
-          }
+        // 防御：批量执行期间被临时锁定 → 同样跳过，不发任何请求
+        if (v.locked) {
           done++
-          emitProgress({ libraryId, total: videos.length, done, current: v.title })
+          emitProgress({ libraryId, total: videos.length, done, current: v.meta?.title || v.title })
           continue
         }
+        // 本轮是否发过网络请求（封面抓取 / 详情抓取）——有才延时，避免无请求也空等
+        let madeRequest = false
+        const displayTitle = v.meta?.title || v.title
+        emitProgress({ libraryId, total: videos.length, done, current: displayTitle })
+
+        // 0) 所有影片统一走「封面抓取 → 详情抓取」流程（元数据抓取对所有影片开放）
 
         // 1) 封面：仅缺封面/占位图才抓。force 不重抓海报——海报是图片、URL 基本不变，
-        //    本地缓存命中即可；重抓只会浪费 JavDB/JavBus 请求额度并加剧 403。
+        //    本地缓存命中即可；重抓只会浪费 数据源/数据源 请求额度并加剧 403。
         if (!v.posterPath || v.posterSource === 'placeholder') {
           madeRequest = true
-          // v2.2.8：海报抓取按 customSourceOrder 降级（原来硬走 JavDB）→ 失败则 ffmpeg 批量截帧兜底
-          const javdbPoster = await fetchPosterSmart(v, settings)
-          let localPath: string | null = javdbPoster
-          let source: ImageSource = 'javdb'
+          // v2.2.8：海报抓取按 customSourceOrder 降级（原来硬走 数据源）→ 失败则 ffmpeg 批量截帧兜底
+          const 数据源Poster = await fetchPosterSmart(v, settings)
+          let localPath: string | null = 数据源Poster
+          let source: ImageSource = 'moviedb'
           let previews: string[] | undefined
           // 替换前验证图片有效性：下载损坏/截断的坏图视为失败 → 走 ffmpeg 截帧兜底
           if (localPath && !(await isCoverUsable(localPath, settings))) {
@@ -947,7 +961,7 @@ export function registerIpc(): void {
             await repo.updateVideo(v.id, patch)
             for (const w of BrowserWindow.getAllWindows()) {
               if (!w.isDestroyed()) {
-                w.webContents.send(IPC.javdbFetched, { videoId: v.id, posterPath: localPath })
+                w.webContents.send(IPC.posterFetched, { videoId: v.id, posterPath: localPath })
               }
             }
             ok++
@@ -955,76 +969,70 @@ export function registerIpc(): void {
         }
 
         // 2) 缺详情或详情陈旧（含远程 URL） → 抓详情
-        const d = v.javdbDetail
-        // parseVer !== 2：旧解析器写入的数据（演员可能混入男演员），需要重抓覆盖；
-        // parseVer === 2：新版解析器已重抓成功，跳过以节省 JavDB 请求额度（避免触发 403）。
+        const d = v.meta
+        // parseVer !== 2：旧解析器写入的数据，需要重抓覆盖；
+        // parseVer === 2：当前解析器已抓过，跳过以节省请求额度。
         const detailStale =
           !d ||
           d.parseVer !== 2 ||
           (d.cover ? /^https?:\/\//.test(d.cover) : false) ||
-          (d.samples ? d.samples.some((s) => /^https?:\/\//.test(s)) : false)
-        const fetchCodeRaw = v.title || v.folderName || v.fileName || ''
-        const raw = extractCode(fetchCodeRaw)
-        const base = extractBaseCode(raw) || raw
-        // 同系列已在本次抓取过 → 直接复用，不重复请求
-        const seriesHit = base && base !== raw.toUpperCase() ? seriesCache.get(base) : undefined
-        if (seriesHit) {
-          applyPatch(v, { javdbDetail: seriesHit, ...backfillFromDetail(v, seriesHit) })
+          // v2.7.x：新版 MovieDB 详情会回填演员头像，旧数据缺失时视为陈旧，触发重新抓取
+          (d.source === 'moviedb' && !d.castProfiles)
+        const fetchCodeRaw = v.meta?.title || v.title || v.folderName || v.fileName || ''
+        const base = extractMovieQuery(fetchCodeRaw).query
+        // 同一检索词已在本批抓取过 → 直接复用，不重复请求
+        const queryHit = base ? queryCache.get(base) : undefined
+        if (queryHit) {
+          applyPatch(v, { meta: queryHit, ...backfillFromDetail(v, queryHit) })
           ok++
-          const src = seriesHit.source ?? 'javdb'
+          const src = queryHit.source ?? 'moviedb'
           bySource[src] = (bySource[src] ?? 0) + 1
         } else if (force || detailStale) {
           madeRequest = true
-          // 智能抓取：JavDB 连续失败自动切 JavBus；JavBus 也连续失败自动停止
-          // v2.2.10：onEvent 把每次源尝试推给 renderer（UI 实时显示"javdb 失败 → 降级 javbus"）
+          // 智能抓取：数据源 连续失败自动切 数据源；数据源 也连续失败自动停止
+          // v2.2.10：onEvent 把每次源尝试推给 renderer（UI 实时显示"数据源 失败 → 降级 数据源"）
           const mr = await fetchDetailSmart(fetchCodeRaw, settings, smartState, (e) => {
-            emitProgress({ libraryId, total: videos.length, done, current: v.title, fetchEvent: e })
+            emitProgress({ libraryId, total: videos.length, done, current: displayTitle, fetchEvent: { ...e, code: displayTitle || e.code } })
           })
           if (mr.detail) {
-            if (base) seriesCache.set(base, mr.detail)
-            applyPatch(v, { javdbDetail: mr.detail, ...backfillFromDetail(v, mr.detail) })
-            // **关键**：如果之前的封面是 ffmpeg 兜底（无 JavDB 海报时），但 detail.cover 有真实海报
-            // （JavBus 来源常见），用 detail.cover 下载本地海报覆盖错误的截帧，保证列表/详情一致；
-            // 同时删除旧的 ffmpeg 截帧预览图，预览图换成真实截图（本地）
+            if (base) queryCache.set(base, mr.detail)
+            applyPatch(v, { meta: mr.detail, ...backfillFromDetail(v, mr.detail) })
+            // **关键**：如果之前的封面是 ffmpeg 兜底（无数据源海报时），但 detail.cover 有真实海报，
+            // 用 detail.cover 下载本地海报覆盖错误的截帧，保证列表/详情一致
             if (
               mr.detail.cover &&
               (v.posterSource === 'ffmpeg' || v.posterSource === 'placeholder' || !v.posterPath)
             ) {
               const coverLocal = await resolveDetailCover(mr.detail, v.id, settings)
               if (coverLocal) {
-                // v2.2.14-fix：样本图没拿到时保留原有 ffmpeg 预览帧（原代码 samples 为空也会删预览帧文件）
-                const samples = localSamples(mr.detail)
-                const patch: Partial<Video> = { posterSource: mr.detail.source ?? 'javbus', posterPath: coverLocal }
-                if (samples.length) {
-                  patch.previewPaths = samples
-                  await removeFfmpegPreviewFiles(v.id)
-                }
-                await applyPatch(v, patch)
+                await applyPatch(v, {
+                  posterSource: mr.detail.source ?? 'moviedb',
+                  posterPath: coverLocal
+                })
                 for (const w of BrowserWindow.getAllWindows()) {
                   if (!w.isDestroyed()) {
-                    w.webContents.send(IPC.javdbFetched, {
+                    w.webContents.send(IPC.posterFetched, {
                       videoId: v.id,
                       posterPath: coverLocal,
-                      posterSource: mr.detail.source ?? 'javbus',
-                      previewPaths: samples.length ? samples : undefined
+                      posterSource: mr.detail.source ?? 'moviedb'
                     })
                   }
                 }
               }
             }
             ok++
-            const src = mr.detail.source ?? 'javdb'
+            const src = mr.detail.source ?? 'moviedb'
             bySource[src] = (bySource[src] ?? 0) + 1
           } else {
             failed++
-            failures.push({ id: v.id, title: v.title, reason: mr.error || '未知原因' })
+            failures.push({ id: v.id, title: v.meta?.title || v.title, reason: mr.error || '未知原因' })
           }
         }
         // 统一限速：本轮发过请求才延时一次（修复旧逻辑封面+详情都抓时延时两次、间隔翻倍）
         if (madeRequest) await new Promise((r) => setTimeout(r, interval))
         if (smartState.stop) break
         done++
-        emitProgress({ libraryId, total: videos.length, done, current: v.title })
+        emitProgress({ libraryId, total: videos.length, done, current: displayTitle })
         // 分段落盘（不阻塞 worker）：攒够一批就落盘，避免中途关闭丢掉全部进度
         if (pendingChanges.length >= CHECKPOINT_SIZE) void flushPending()
       }
@@ -1041,6 +1049,8 @@ export function registerIpc(): void {
         const noPosterAll = all.filter(
           (v) =>
             v.libraryId === libraryId &&
+            // v2.7.x：锁定影片的封面也不要在批量补齐里被覆盖
+            !v.locked &&
             (!v.posterPath || v.posterSource === 'placeholder') &&
             // v2.3.11：跳过刚截帧失败过的损坏文件（否则每轮都在同一个坏文件上卡超时）
             !frameFailedRecently(v)
@@ -1081,7 +1091,7 @@ export function registerIpc(): void {
                 }
                 for (const w of BrowserWindow.getAllWindows()) {
                   if (!w.isDestroyed()) {
-                    w.webContents.send(IPC.javdbFetched, { videoId: v.id, posterPath: set.coverPath, posterSource: 'ffmpeg' })
+                    w.webContents.send(IPC.posterFetched, { videoId: v.id, posterPath: set.coverPath, posterSource: 'ffmpeg' })
                   }
                 }
               }
@@ -1110,7 +1120,8 @@ export function registerIpc(): void {
       const after = await repo.listVideos({ libraryId })
       remainingNoPoster = after.filter(
         (v) =>
-          (!v.posterPath || v.posterSource === 'placeholder') && !frameFailedRecently(v)
+          // v2.7.x：锁定影片不参与批量补齐，也不计入「仍无封面」
+          !v.locked && (!v.posterPath || v.posterSource === 'placeholder') && !frameFailedRecently(v)
       ).length
     } catch {
       /* 统计失败不影响主流程 */
@@ -1123,7 +1134,9 @@ export function registerIpc(): void {
       failures,
       stopped: smartState.stop,
       remaining: smartState.stop ? Math.max(0, videos.length - idx) : 0,
-      remainingNoPoster
+      remainingNoPoster,
+      lockedSkipped,
+      missingSkipped
     }
   })
 
@@ -1223,7 +1236,7 @@ export function registerIpc(): void {
     }
   })
 
-  // ---------- 仅扫描媒体库番号清单（不弹保存对话框、不写文件，供向导打开时自动加载） ----------
+  // ---------- 仅扫描媒体库影片清单（不弹保存对话框、不写文件，供向导打开时自动加载） ----------
   ipcMain.handle(IPC.libraryGetCodes, async (_e, libraryId: string) => {
     const lib = (await repo.listLibraries()).find((l) => l.id === libraryId)
     if (!lib) return { count: 0, codes: [] }
@@ -1245,11 +1258,11 @@ export function registerIpc(): void {
     return { count: codes.length, codes }
   })
 
-  // ---------- 导出番号清单（txt 或 xlsx 模板）----------
+  // ---------- 导出影片清单（txt 或 xlsx 模板）----------
   ipcMain.handle(IPC.libraryExportCodes, async (_e, libraryId: string, format: 'txt' | 'xlsx') => {
     const lib = (await repo.listLibraries()).find((l) => l.id === libraryId)
     if (!lib) return { ok: false, error: 'library-not-found' }
-    // 复用上面的 walk + 提取番号逻辑
+    // 复用上面的 walk + 提取文件名逻辑
     const files: string[] = []
     for await (const f of walk(lib.folderPath)) files.push(f)
     const seen = new Set<string>()
@@ -1266,8 +1279,8 @@ export function registerIpc(): void {
     }
     codes.sort((a, b) => a.localeCompare(b, 'zh'))
     const { canceled, filePath } = await dialog.showSaveDialog({
-      title: format === 'xlsx' ? '导出番号清单 (Excel)' : '导出番号清单 (txt)',
-      defaultPath: `番号清单_${lib.name}.${format}`,
+      title: format === 'xlsx' ? '导出影片清单 (Excel)' : '导出影片清单 (txt)',
+      defaultPath: `影片清单_${lib.name}.${format}`,
       filters: format === 'xlsx'
         ? [{ name: 'Excel', extensions: ['xlsx'] }]
         : [{ name: 'Text', extensions: ['txt'] }]
@@ -1276,8 +1289,8 @@ export function registerIpc(): void {
     try {
       if (format === 'xlsx') {
         const wb = XLSX.utils.book_new()
-        const rows: string[][] = [['编号', '品番', '简介', '评分', '标签', '备注', '封面路径']]
-        codes.forEach((c, i) => rows.push([String(i + 1), c, '', '', '', '', '']))
+        const rows: string[][] = [['编号', '分类', '推荐评分', '简介']]
+        codes.forEach((c) => rows.push([c, '', '', '']))
         const ws = XLSX.utils.aoa_to_sheet(rows)
         XLSX.utils.book_append_sheet(wb, ws, '片单')
         XLSX.writeFile(wb, filePath)
@@ -1301,7 +1314,7 @@ export function registerIpc(): void {
     }
 
     const zhFile = '通用评分与简介规范.md'
-    const enFile = 'AV_Scoring_and_Synopsis_Guide_EN.md'
+    const enFile = 'Scoring_and_Synopsis_Guide.en.md'
 
     const candidates = lang === 'en-US'
       ? [enFile, zhFile]
@@ -1317,24 +1330,10 @@ export function registerIpc(): void {
     return { path: path.join(process.cwd(), 'src', 'main', 'assets', zhFile) }
   })
 
-  // ---------- 分享：扫描 .torrent → 磁链 → 复制 ----------
-  ipcMain.handle(IPC.videoShareTorrents, async (_e, id: string) => {
-    const v = await repo.getVideo(id)
-    if (!v) throw new Error('视频不存在')
-    const dir = path.dirname(v.path)
-    const items = await findAndParseTorrents(dir)
-    const itemsRsp = items.map((t) => ({ name: t.name, size: t.size, infoHash: t.infoHash, magnet: t.magnet }))
-    if (itemsRsp.length === 0) return { dir, copied: false, items: [] }
-    clipboard.writeText(itemsRsp[0].magnet)
-    return { dir, copied: true, items: itemsRsp }
-  })
-
-  // ---------- 从磁盘删除视频文件（按需连带删同目录的"种子文件夹"） ----------
-  // 判定：视频所在目录下除自身外没有其他视频文件、且至少有一个 .torrent 文件
-  // → 视为"下载器为这个视频创建的种子文件夹"，整个目录一起删；
+  // ---------- 从磁盘删除视频文件 ----------
+  // 判定：视频所在目录下除自身外没有任何其他文件 → 整个目录一起挪回收站；
   // 否则只删视频文件本身。
-  // 安全检查：若目录下除视频与 .torrent 外还有其他文件（文本/字幕/图片等），
-  // 保守地只删视频文件（避免误删用户其他资料）。
+  // 安全检查：若目录下还有其他文件（文本/字幕/图片等），保守地只删视频文件（避免误删用户其他资料）。
   // **实现方式：用 Electron `shell.trashItem` 把文件/目录挪到系统回收站**
   //（Windows 回收站 / macOS Trash / Linux trash-cli），不彻底删除。
   // 用户可从回收站恢复，比"直接删"安全得多。
@@ -1355,7 +1354,7 @@ export function registerIpc(): void {
       ])
 
       // 无论最终删到什么，都先清理关联缓存图片 + 删除 data.json 里的记录
-      //（记录含 javdbDetail 全部文本元数据：演员/时长/导演/片商/女演员/评分等，一并消失）
+      //（记录含 meta 全部文本元数据：演员/时长/导演/制片公司/主演/评分等，一并消失）
       const cleanAll = async () => {
         const c = await cleanVideoCacheFiles(v)
         try {
@@ -1377,19 +1376,17 @@ export function registerIpc(): void {
       }
 
       const otherVideoFiles: string[] = []
-      const torrentFiles: string[] = []
       const otherFiles: string[] = []
       for (const e of entries) {
         if (!e.isFile()) continue
         if (e.name === baseName) continue
         const ext = path.extname(e.name).toLowerCase()
         if (VIDEO_EXTS.has(ext)) otherVideoFiles.push(e.name)
-        else if (ext === '.torrent') torrentFiles.push(e.name)
         else otherFiles.push(e.name)
       }
 
-      // 整目录挪回收站的条件：同目录无其他视频 + 有 .torrent + 无其他非视频非种子文件
-      const canDeleteDir = otherVideoFiles.length === 0 && torrentFiles.length > 0 && otherFiles.length === 0
+      // 整目录挪回收站的条件：同目录除本视频外没有任何其他文件
+      const canDeleteDir = otherVideoFiles.length === 0 && otherFiles.length === 0
 
       const c = await cleanAll()
 
@@ -1407,7 +1404,7 @@ export function registerIpc(): void {
     }
   })
 
-  // ---------- 删除预检：列出 video 所在目录的视频数 / 种子数 / 其他文件数（不删任何文件） ----------
+  // ---------- 删除预检：列出 video 所在目录的其他文件数（不删任何文件） ----------
   ipcMain.handle(IPC.videoInspectForDelete, async (_e, id: string) => {
     try {
       const v = await repo.getVideo(id)
@@ -1430,23 +1427,21 @@ export function registerIpc(): void {
       }
 
       let otherVideoCount = 0
-      let torrentCount = 0
       let otherFileCount = 0
       for (const e of entries) {
         if (!e.isFile()) continue
         if (e.name === baseName) continue
         const ext = path.extname(e.name).toLowerCase()
         if (VIDEO_EXTS.has(ext)) otherVideoCount++
-        else if (ext === '.torrent') torrentCount++
         else otherFileCount++
       }
-      return { ok: true, filePath, dirPath: dir, otherVideoCount, torrentCount, otherFileCount }
+      return { ok: true, filePath, dirPath: dir, otherVideoCount, otherFileCount }
     } catch (e) {
       return { ok: false, error: (e as Error)?.message ?? '预检失败' }
     }
   })
 
-  // ---------- 封面来源切换：数据源图（javdb/javbus/javlibrary）↔ FFmpeg 截帧图 ----------
+  // ---------- 封面来源切换：数据源图（各数据源）↔ FFmpeg 截帧图 ----------
   // 两套图独立保存：posterPathFfmpeg 始终存 FFmpeg 截帧封面；
   // 切换到 'ffmpeg' → posterPath=截帧图；切换到 'data' → 优先用数据源缓存图，没有则抓取。
   ipcMain.handle(IPC.videoSwitchPoster, async (_e, id: string, source: 'data' | 'ffmpeg') => {
@@ -1478,21 +1473,21 @@ export function registerIpc(): void {
         return { ok: true, posterPath: set.coverPath, posterSource: 'ffmpeg' }
       }
 
-      // source === 'data'：优先复用数据源缓存图（javdb-cover-CODE / javbus-cover-CODE / javlibrary-cover-CODE）
-      const code = v.javdbDetail?.code
+      // source === 'data'：优先复用数据源缓存图（src-cover-CODE）
+      const code = v.meta?.externalId
       const cacheCandidates: string[] = []
       if (code) {
         cacheCandidates.push(
-          path.join(postersCacheDir(), `javdb-cover-${code}.jpg`),
-          path.join(postersCacheDir(), `javbus-cover-${code}.jpg`),
-          path.join(postersCacheDir(), `javlibrary-cover-${code}.jpg`)
+          path.join(postersCacheDir(), `src-cover-${code}.jpg`),
+          path.join(postersCacheDir(), `src-cover-${code}.jpg`),
+          path.join(postersCacheDir(), `src-cover-${code}.jpg`)
         )
       }
       for (const p of cacheCandidates) {
         try {
           await fs.access(p)
-          await repo.updateVideo(id, { posterPath: p, posterSource: 'javdb' })
-          return { ok: true, posterPath: p, posterSource: 'javdb' }
+          await repo.updateVideo(id, { posterPath: p, posterSource: 'moviedb' })
+          return { ok: true, posterPath: p, posterSource: 'moviedb' }
         } catch {
           /* 继续尝试下一个 */
         }
@@ -1500,8 +1495,8 @@ export function registerIpc(): void {
       // 无缓存 → 从数据源抓封面（v2.2.8：按 customSourceOrder 降级）
       const fetched = await fetchPosterSmart(v, settings)
       if (!fetched) return { ok: false, error: '数据源封面获取失败（无网络或数据源无此片）' }
-      await repo.updateVideo(id, { posterPath: fetched, posterSource: 'javdb' })
-      return { ok: true, posterPath: fetched, posterSource: 'javdb' }
+      await repo.updateVideo(id, { posterPath: fetched, posterSource: 'moviedb' })
+      return { ok: true, posterPath: fetched, posterSource: 'moviedb' }
     } catch (e) {
       return { ok: false, error: (e as Error)?.message ?? '切换失败' }
     }
@@ -1559,35 +1554,47 @@ export function registerIpc(): void {
 
   // ---------- 应用信息 ----------
   ipcMain.handle(IPC.appInfo, async () => {
-    // 读取 CHANGELOG.md 顶部（最近一版），按当前语言优先本地化版本
+    // 读取更新日志顶部（最近一版），按当前语言优先本地化版本
+    // 中文版文件名：更新日志.md；英文版：CHANGELOG.en.md
     let changelog = ''
     const settings = await repo.getSettings().catch(() => null)
     const lang = settings?.language || 'zh-CN'
+    const zhLog = '更新日志.md'
+    const enLog = 'CHANGELOG.en.md'
     const candidates = lang === 'en-US'
       ? [
-          path.join(process.resourcesPath, 'CHANGELOG.en.md'),
-          path.join(app.getAppPath(), 'CHANGELOG.en.md'),
-          path.join(app.getAppPath(), '..', 'CHANGELOG.en.md'),
-          path.join(process.resourcesPath, 'CHANGELOG.md'), // fallback
-          path.join(app.getAppPath(), 'CHANGELOG.md'),
-          path.join(app.getAppPath(), '..', 'CHANGELOG.md')
+          path.join(process.resourcesPath, enLog),
+          path.join(app.getAppPath(), enLog),
+          path.join(app.getAppPath(), '..', enLog),
+          path.join(process.resourcesPath, zhLog), // fallback
+          path.join(app.getAppPath(), zhLog),
+          path.join(app.getAppPath(), '..', zhLog)
         ]
       : [
-          path.join(process.resourcesPath, 'CHANGELOG.md'),
-          path.join(app.getAppPath(), 'CHANGELOG.md'),
-          path.join(app.getAppPath(), '..', 'CHANGELOG.md')
+          path.join(process.resourcesPath, zhLog),
+          path.join(app.getAppPath(), zhLog),
+          path.join(app.getAppPath(), '..', zhLog)
         ]
     for (const c of candidates) {
       try {
         const raw = readFileSync(c, 'utf-8')
-        // 保留第一个版本段落：截到「第二个一级标题」之前（仅有单个版本时全保留）
-        const first = raw.indexOf('\n## ')
-        if (first >= 0) {
-          const second = raw.indexOf('\n## ', first + 1)
-          changelog = raw.slice(0, second > 0 ? second : raw.length).trim()
-        } else {
-          changelog = raw.trim()
+        // 只取「最近一个正式版本」段落：
+        // - 跳过 `## [未发布]` / `## [Unreleased]` 等非版本标题；
+        // - 从第一个版本标题开始，截到下一个版本标题之前（只有一个版本时取到文末）。
+        const isVersionHeading = (line: string): boolean =>
+          /^##\s+\[?(?:v)?\d+\.\d+\.\d+/.test(line.trim())
+        const lines = raw.split('\n')
+        let start = -1
+        let end = lines.length
+        for (let i = 0; i < lines.length; i++) {
+          if (!isVersionHeading(lines[i])) continue
+          if (start < 0) start = i
+          else {
+            end = i
+            break
+          }
         }
+        changelog = start >= 0 ? lines.slice(start, end).join('\n').trim() : raw.trim()
         break
       } catch {
         // 尝试下一个候选路径
@@ -1732,7 +1739,7 @@ export function registerIpc(): void {
   ipcMain.handle(IPC.videoGeneratePreviews, async (_e, id: string) => {
     const v = await repo.getVideo(id)
     if (!v) throw new Error('视频不存在')
-    await frameLog(`[videoGeneratePreviews] start id=${id} domestic=${v.domestic ?? false} path=${v.path}`)
+    await frameLog(`[videoGeneratePreviews] start id=${id} path=${v.path}`)
     const settings = await repo.getSettings()
     const set = await generatePreviewSet(v, settings)
     if (!set || (!set.coverPath && set.previewPaths.length === 0)) {
@@ -1799,7 +1806,7 @@ export function registerIpc(): void {
     const updated = await repo.updateVideo(id, { posterSource: 'manual', posterPath: coverPath })
     for (const w of BrowserWindow.getAllWindows()) {
       if (!w.isDestroyed()) {
-        w.webContents.send(IPC.javdbFetched, { videoId: id, posterPath: coverPath, posterSource: 'manual' })
+        w.webContents.send(IPC.posterFetched, { videoId: id, posterPath: coverPath, posterSource: 'manual' })
       }
     }
     return updated

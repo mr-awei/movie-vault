@@ -2,8 +2,8 @@ import { app } from 'electron'
 import { promises as fs, mkdirSync, writeFileSync, existsSync, unlinkSync, renameSync } from 'node:fs'
 import path from 'node:path'
 import { DEFAULT_SETTINGS, type Library, type Settings, type Video } from '../../shared/types'
-import type { JavdbDetail } from '../../shared/types'
-import { cleanGenreName } from './javdb'
+import type { MovieMeta } from '../../shared/types'
+import { cleanGenreName } from './image-util'
 
 export interface DBShape {
   libraries: Library[]
@@ -19,8 +19,9 @@ const DEFAULT_DB: DBShape = {
   settings: { ...DEFAULT_SETTINGS }
 }
 
-/** v2.2.13 schemaVersion：标签分层（tagCategories / backupTags）已完成迁移 */
-export const SCHEMA_VERSION = 2026090204
+/** v2.2.13 schemaVersion：标签分层（tagCategories / backupTags）已完成迁移
+ *  v2.2.14 schemaVersion：清洗误写入 title 的完整文件路径 */
+export const SCHEMA_VERSION = 2026091401
 
 let cache: DBShape | null = null
 let dbPath = ''
@@ -111,7 +112,7 @@ async function ensureLoaded(): Promise<DBShape> {
 
 /** v2.2.13 标签分层迁移（一次性）：
  *  - 保证每个 Video 至少 tags=[], tagCategories 字段存在或为 undefined（正确类型）
- *  - 若视频有 javdbDetail.genres：**无条件**把全部 genres 写入 backupTags（去重合并已有值），
+ *  - 若视频有 meta.genres：**无条件**把全部 genres 写入 backupTags（去重合并已有值），
  *    不管 genres 是否与 Excel 文档标签重叠——backupTags 的语义是"数据源报告了这些类别"，
  *    用户需要看到它（蓝色）作为参考，即使它恰好与 Excel 片单（品牌色）相同。
  *  - 同时从 tags 中移除那些"原来被旧版合并进来、现在又已经有 backupTags 承载"的 genres 项，
@@ -121,6 +122,38 @@ async function ensureLoaded(): Promise<DBShape> {
 function migrateInPlace(db: DBShape): void {
   const from = db.schemaVersion ?? 0
   if (from >= SCHEMA_VERSION) return
+
+  // v20260913-2：字段重命名迁移（保证旧库 data.json 不丢已抓取元数据）
+  //   Video.sourceDetail → Video.meta（JSON 键改名，必须迁移旧键）
+  //   SourceDetail.sourceCode → externalId（嵌套 JSON 键改名，必须迁移旧键）
+  //   SourceDetail 类型本身改名不影响 JSON，无需迁移。
+  let fieldMigrated = 0
+  let idMigrated = 0
+  for (const v of db.videos) {
+    const anyV = v as unknown as Record<string, unknown>
+    if (anyV.sourceDetail !== undefined && anyV.meta === undefined) {
+      anyV.meta = anyV.sourceDetail
+      delete anyV.sourceDetail
+      fieldMigrated++
+    }
+    const d = anyV.meta as (Record<string, unknown> & {
+      code?: string
+      sourceCode?: string
+      externalId?: string
+    }) | undefined
+    if (d && typeof d.externalId !== 'string') {
+      if (typeof d.sourceCode === 'string') {
+        d.externalId = d.sourceCode
+        delete d.sourceCode
+        idMigrated++
+      } else if (typeof d.code === 'string') {
+        d.externalId = d.code
+        delete d.code
+        idMigrated++
+      }
+    }
+  }
+
   let touched = 0
   let stripped = 0
   let cleaned = 0
@@ -132,10 +165,10 @@ function migrateInPlace(db: DBShape): void {
     const doc = v as Video & {
       tagCategories?: Record<string, string[]>
       backupTags?: string[]
-      javdbDetail?: JavdbDetail
+      meta?: MovieMeta
       introCategory?: string
     }
-    const genres = doc.javdbDetail?.genres ?? []
+    const genres = doc.meta?.genres ?? []
 
     // 0) 清洗文档级脏标签（tagCategories 和 v.tags 里 AI/Excel 生成的垃圾值）
     let docDirty = false
@@ -180,7 +213,7 @@ function migrateInPlace(db: DBShape): void {
     // 1) 清洗已入库的脏数据源标签（【多人】5、纯分隔符 / 等）
     const cleanGenres = genres.map((g) => cleanGenreName(g)).filter((g): g is string => !!g)
     if (cleanGenres.length !== genres.length) {
-      doc.javdbDetail!.genres = cleanGenres
+      doc.meta!.genres = cleanGenres
       cleaned++
     }
     if (Array.isArray(doc.backupTags)) {
@@ -202,7 +235,7 @@ function migrateInPlace(db: DBShape): void {
     // 3) 如果有文档权威标签（Excel 片单），旧版 backfill 可能把 genres 合并进了 v.tags，
     //    现在 backupTags 已经承载了完整 genres 信息，把 v.tags 中那些"是 genres 但不在文档标签集合里"的
     //    旧合并残留项剥掉——让文档 tags 保持权威纯净；
-    //    但如果某个 genre 同时也是文档标签（比如 Excel 和 JavDB 都有"剧情"），保留在 v.tags 不动。
+    //    但如果某个 genre 同时也是文档标签（比如 Excel 和 数据源 都有"剧情"），保留在 v.tags 不动。
     const docTagSet = new Set<string>()
     if (doc.tagCategories) for (const list of Object.values(doc.tagCategories)) for (const t of list) docTagSet.add(t)
     for (const t of v.tags) docTagSet.add(t)
@@ -219,12 +252,40 @@ function migrateInPlace(db: DBShape): void {
       }
     }
   }
+
+  // v20260913：actresses → cast（统一字段命名，统一为"主演/cast"）
+  let castMigrated = 0
+  for (const v of db.videos) {
+    const jd = v.meta as (MovieMeta & { actresses?: string[] }) | undefined
+    if (jd && Array.isArray(jd.actresses) && !Array.isArray(jd.cast)) {
+      jd.cast = jd.actresses
+      delete (jd as unknown as Record<string, unknown>).actresses
+      castMigrated++
+    }
+  }
+
+  // 注：历史 code / sourceCode → externalId 的迁移已在上方「字段重命名迁移」统一处理。
+
+  // v20260914：清洗把完整路径（如 E:\\影视\\xxx\\xxx）误写入 title 的旧数据，统一为纯文件名（无扩展名）
+  let titlePathCleaned = 0
+  for (const v of db.videos) {
+    if (!v.title) continue
+    const isPathLike = /[\\/]/.test(v.title)
+    const isFileName = v.fileName && v.title === v.fileName
+    if (isPathLike || isFileName) {
+      const base = path.basename(v.title)
+      v.title = base.replace(/\.[^.]+$/, '') || base
+      titlePathCleaned++
+    }
+  }
+
   db.schemaVersion = SCHEMA_VERSION
   console.log(
     `[store] schema migrate v${from} -> v${SCHEMA_VERSION}：` +
-    `touched backupTags=${touched}，stripped merged genres=${stripped}，` +
-    `cleaned bad genres=${cleaned}，cleaned doc tags=${cleanedDoc}，` +
-    `peeled '分类' → introCategory=${peeledCategory}`
+      `touched backupTags=${touched}，stripped merged genres=${stripped}，` +
+      `cleaned bad genres=${cleaned}，cleaned doc tags=${cleanedDoc}，` +
+      `peeled '分类' → introCategory=${peeledCategory}，castMigrated=${castMigrated}，` +
+      `fieldMigrated=${fieldMigrated}，idMigrated=${idMigrated}，titlePathCleaned=${titlePathCleaned}`
   )
 }
 

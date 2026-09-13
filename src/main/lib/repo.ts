@@ -59,8 +59,14 @@ export async function getVideo(id: string): Promise<Video | null> {
 export async function upsertVideo(video: Video): Promise<Video> {
   return mutate((db) => {
     const idx = db.videos.findIndex((v) => v.id === video.id)
-    if (idx >= 0) db.videos[idx] = video
-    else db.videos.push(video)
+    if (idx >= 0) {
+      // v2.7.x：同 applyVideoChanges —— 写入方未显式携带 locked 时保留已有锁定状态
+      const prev = db.videos[idx]
+      db.videos[idx] =
+        video.locked === undefined && prev.locked !== undefined
+          ? { ...video, locked: prev.locked, lockedAt: prev.lockedAt }
+          : video
+    } else db.videos.push(video)
     return video
   })
 }
@@ -84,6 +90,33 @@ export async function removeVideo(id: string): Promise<void> {
 export async function findVideoByPath(p: string): Promise<Video | null> {
   const db = await getDB()
   return db.videos.find((v) => v.path === p) ?? null
+}
+
+/** 按内容指纹查重：用于识别「被重命名的文件」——路径变了但内容没变 */
+export async function findVideoByContentHash(
+  hash: string,
+  libraryId: string
+): Promise<Video | null> {
+  if (!hash) return null
+  const db = await getDB()
+  return (
+    db.videos.find((v) => v.libraryId === libraryId && v.contentHash === hash) ?? null
+  )
+}
+
+/** 兜底查重：老记录未存 contentHash 时，用「标题 + 文件大小」近似识别重命名 */
+export async function findVideoByTitleSize(
+  title: string,
+  size: number | undefined,
+  libraryId: string
+): Promise<Video | null> {
+  if (!title || size == null) return null
+  const db = await getDB()
+  return (
+    db.videos.find(
+      (v) => v.libraryId === libraryId && v.title === title && v.fileSize === size
+    ) ?? null
+  )
 }
 
 // ---------- 批量写盘（对账/扫描时避免逐条 saveDB 全量写 JSON） ----------
@@ -113,8 +146,17 @@ export async function applyVideoChanges(changes: VideoChange[]): Promise<void> {
   for (const c of changes) {
     if (c.type === 'remove') continue
     const idx = index.get(c.video.id)
-    if (idx !== undefined) db.videos[idx] = c.video
-    else {
+    if (idx !== undefined) {
+      const prev = db.videos[idx]
+      // v2.7.x：保护用户「锁定」标记 —— 扫描/对账等批量写入可能带着锁定前的旧副本，
+      // 若写入方没有显式携带 locked（undefined），沿用已有值，避免把锁定状态覆盖掉。
+      // 注意：显式 unlocked 会带 locked:false，不会被这里拦截。
+      const next =
+        c.video.locked === undefined && prev.locked !== undefined
+          ? { ...c.video, locked: prev.locked, lockedAt: prev.lockedAt }
+          : c.video
+      db.videos[idx] = next
+    } else {
       index.set(c.video.id, db.videos.length)
       db.videos.push(c.video)
     }

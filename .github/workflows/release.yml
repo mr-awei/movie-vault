@@ -14,15 +14,15 @@
 #   签名/打包/发版仍只在 v* tag 时做（不重复产安装包、不花 CI 额度）
 #
 # 使用方式（本地只推代码，不再手动打包/上传）：
-#   1. bump package.json 版本 + 更新 CHANGELOG
+#   1. bump package.json 版本 + 更新「更新日志.md」
 #   2. git commit && git tag vX.Y.Z
 #   3. git push 双端（GitHub + Gitee）
 #   → 本 workflow 自动完成：构建安装包 → 签名 → 上传 GitHub Release → 同步 Gitee Release
 #
 # 需要的 GitHub Actions Secrets（仓库 Settings → Secrets and variables → Actions）：
-#   CERT_PASSWORD : build/yingxia-sign.pfx 的证书密码（本地导入该证书时设置的密码）
+#   CERT_PASSWORD : build/yinghai-sign.pfx 的证书密码（本地导入该证书时设置的密码）
 #   GITEE_TOKEN   : Gitee 私人令牌（用于创建 Gitee Release）
-# 说明：签名证书 build/yingxia-sign.pfx 本身在仓库里（本地构建也在用）；
+# 说明：签名证书 build/yinghai-sign.pfx 本身在仓库里（本地构建也在用）；
 #       密码走 Secret，不落仓库。
 name: build-release
 
@@ -96,7 +96,7 @@ jobs:
         # certificateFile/certificatePassword 走 Secret，签名配置不进仓库
         # 证书显式传参（密码走 CSC_KEY_PASSWORD env，不落仓库）
         if: env.DO_RELEASE == 'true'
-        run: npx electron-builder --win --config.win.certificateFile=build/yingxia-sign.pfx --publish never
+        run: npx electron-builder --win --config.win.certificateFile=build/yinghai-sign.pfx --publish never
         env:
           CSC_KEY_PASSWORD: ${{ secrets.CERT_PASSWORD }}
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
@@ -109,8 +109,8 @@ jobs:
         with:
           files: release/*.exe
           generate_release_notes: false
-          # 从 CHANGELOG.md 顶部取最近一个版本段作为正文
-          body_path: CHANGELOG.md
+          # 从 更新日志.md 顶部取最近一个版本段作为正文
+          body_path: 更新日志.md
           fail_on_unmatched_files: false
           # 没有 tag 时也允许创建一个 draft（手动触发场景）
           draft: ${{ github.event_name == 'workflow_dispatch' }}
@@ -134,10 +134,10 @@ jobs:
             exit 0
           fi
           # 安装包文件名由 electron-builder 生成（当前规则为 Setup.<version>.exe），
-          # 曾因硬编码 YingXia-Setup-<ver>-x64.exe 导致同步出去的下载链接 404。
+          # 曾因硬编码 yinghai-Setup-<ver>-x64.exe 导致同步出去的下载链接 404。
           # 改为直接从刚发布的 GitHub Release 读取真实资产链接，避免文件名变化失效。
-          LINKS=$(curl -sS -H "User-Agent: yingxia" \
-            "https://api.github.com/repos/mr-awei/yingxia-video-manager/releases/tags/${TAG}" \
+          LINKS=$(curl -sS -H "User-Agent: yinghai" \
+            "https://api.github.com/repos/mr-awei/yinghai-movie-vault/releases/tags/${TAG}" \
             | python -c "
           import json, sys
           try:
@@ -150,7 +150,7 @@ jobs:
               print('- [%s](<%s>)%s' % (a.get('name', ''), a.get('browser_download_url', ''), mb))
           " 2>/dev/null || echo "")
           if [ -z "$LINKS" ]; then
-            LINKS="- [访问 GitHub 发布页下载](https://github.com/mr-awei/yingxia-video-manager/releases/tag/${TAG})"
+            LINKS="- [访问 GitHub 发布页下载](https://github.com/mr-awei/yinghai-movie-vault/releases/tag/${TAG})"
           fi
           BODY="自动构建（GitHub Actions）已生成安装包：${TAG}
 
@@ -158,7 +158,7 @@ jobs:
 
           ${LINKS}
 
-          或访问发布页：https://github.com/mr-awei/yingxia-video-manager/releases/tag/${TAG}"
+          或访问发布页：https://github.com/mr-awei/yinghai-movie-vault/releases/tag/${TAG}"
 
           BODY="$BODY" GITEE_TOKEN="$GITEE_TOKEN" TAG="$TAG" \
             python -c "
@@ -175,8 +175,8 @@ jobs:
           "
           OK=0
           # 创建；若 tag 已存在则 PATCH 更新正文
-          OUT=$(curl -sS -X POST -H "User-Agent: yingxia" -H "Content-Type: application/json;charset=UTF-8" \
-            -d @.gitee_rel.json "https://gitee.com/api/v5/repos/mr-awei/yingxia-video-manager/releases" || true)
+          OUT=$(curl -sS -X POST -H "User-Agent: yinghai" -H "Content-Type: application/json;charset=UTF-8" \
+            -d @.gitee_rel.json "https://gitee.com/api/v5/repos/mr-awei/yinghai-movie-vault/releases" || true)
           if echo "$OUT" | grep -q '"id"'; then
             echo "Gitee Release created for ${TAG}"
             OK=1
@@ -184,12 +184,12 @@ jobs:
             echo "$OUT" | head -c 300
             echo ""
             echo "::warning::Gitee Release 创建失败（可能已存在），尝试 PATCH 更新正文"
-            RID=$(curl -sS -H "User-Agent: yingxia" \
-              "https://gitee.com/api/v5/repos/mr-awei/yingxia-video-manager/releases/tags/${TAG}?access_token=${GITEE_TOKEN}" \
+            RID=$(curl -sS -H "User-Agent: yinghai" \
+              "https://gitee.com/api/v5/repos/mr-awei/yinghai-movie-vault/releases/tags/${TAG}?access_token=${GITEE_TOKEN}" \
               | python -c "import json,sys; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
             if [ -n "$RID" ]; then
-              PATCH_OUT=$(curl -sS -X PATCH -H "User-Agent: yingxia" -H "Content-Type: application/json;charset=UTF-8" \
-                -d @.gitee_rel.json "https://gitee.com/api/v5/repos/mr-awei/yingxia-video-manager/releases/${RID}" || true)
+              PATCH_OUT=$(curl -sS -X PATCH -H "User-Agent: yinghai" -H "Content-Type: application/json;charset=UTF-8" \
+                -d @.gitee_rel.json "https://gitee.com/api/v5/repos/mr-awei/yinghai-movie-vault/releases/${RID}" || true)
               if echo "$PATCH_OUT" | grep -q '"id"'; then
                 echo "Gitee Release ${TAG} updated"
                 OK=1

@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import Icon from './Icon'
 import { t } from '../../../shared/i18n'
 
@@ -13,8 +13,8 @@ interface Props {
   libraryName?: string
   /** 重新扫描当前影视库（文件对账） */
   onScan: () => void
-  /** 批量补齐当前库 JavDB 信息；force=true 时忽略缓存逐部重抓 */
-  onBatchJavdb: (force: boolean) => void
+  /** 批量补齐当前库 数据源 信息；force=true 时忽略缓存逐部重抓 */
+  onBatchFetch: (force: boolean) => void
   /** v2.3.7 批量补时长：对当前库所有缺时长的视频 ffprobe 读取时长写 techInfo */
   onBatchProbe: () => void
 }
@@ -22,7 +22,7 @@ interface Props {
 export default function Toolbar(props: Props) {
   const {
     search, onSearch, onHome, onAddLibrary, privacy, onTogglePrivacy,
-    libraryName, onScan, onBatchJavdb, onBatchProbe
+    libraryName, onScan, onBatchFetch, onBatchProbe
   } = props
   const [batchMenuOpen, setBatchMenuOpen] = useState(false)
 
@@ -93,7 +93,7 @@ export default function Toolbar(props: Props) {
               <div className="absolute right-0 mt-1.5 z-50 w-56 rounded-xl border border-white/10 bg-ink-800 shadow-xl shadow-black/40 py-1.5 text-sm">
                 <button
                   className="w-full text-left px-3 py-2 hover:bg-ink-700 text-white/90 flex items-start gap-2"
-                  onClick={() => { setBatchMenuOpen(false); onBatchJavdb(false) }}
+                  onClick={() => { setBatchMenuOpen(false); onBatchFetch(false) }}
                 >
                   <Icon name="wand" size={14} className="text-brand mt-0.5 shrink-0" />
                   <div>
@@ -103,7 +103,7 @@ export default function Toolbar(props: Props) {
                 </button>
                 <button
                   className="w-full text-left px-3 py-2 hover:bg-ink-700 text-white/90 flex items-start gap-2"
-                  onClick={() => { console.log('[batch] menu click force=true'); setBatchMenuOpen(false); onBatchJavdb(true) }}
+                  onClick={() => { console.log('[batch] menu click force=true'); setBatchMenuOpen(false); onBatchFetch(true) }}
                 >
                   <Icon name="refresh" size={14} className="text-amber-400 mt-0.5 shrink-0" />
                   <div>

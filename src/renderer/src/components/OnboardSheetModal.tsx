@@ -25,65 +25,75 @@ interface Props {
   onOpenLibrarySettings: () => void
   /** 复制文本到剪贴板 */
   onCopyText: (text: string) => void
-  /** 导出番号清单 */
+  /** 导出影片清单 */
   onExportCodes: (libraryId: string, format: 'txt' | 'xlsx') => Promise<{ ok: boolean; path?: string; error?: string }>
 }
 
 const GROK_URL = 'https://grok.com'
 
 /** 中文提示词 */
-const PROMPT_TEXT_ZH = `请根据我提供的番号，按照以下要求生成影海片单 Excel 内容：
+const PROMPT_TEXT_ZH = `请根据我提供的影片清单，按照以下要求生成影海片单 Excel 内容：
 
-1. 先查询该番号的准确信息（片商、剧情、时长、类型等）。
-2. 先确定「分类」（从下方分类体系选一个主分类）。
-3. 用中文撰写详细简介，风格参考下方「简介模版」。
-4. 简介要包含：核心设定、关键过程、高潮/特色内容，语言流畅有画面感。
-5. 简介结束后，参考下方「完整分类标签系统」进行打标签，按 9 个标签类别分栏填写（主题 / 角色 / 服装 / 体型 / 行为 / 玩法 / 场景 / 剧情 / 其他），每栏内多标签用顿号分隔。
-6. 最后给出推荐评分（满分10分，保留两位小数），并简要说明评分依据。
-7. 如果我一次提供多个番号，请逐一处理，保持格式统一。
+1. 先查询每部影片的准确信息（年份、类型、导演、主演、剧情梗概等）。
+2. 先确定「分类」：从下方分类体系选一个最匹配的主分类填入「分类」列。
+3. 用中文撰写简介，80-150 字，不剧透关键转折与结局：
+   结构 = 一句话钩子 + 主要情节脉络 + 看点亮点 + 一句气质定位；
+   全片单句式要有变化，不要每部都以同一句式开头。
+4. 推荐评分按十个维度加权计算（10 分制，两位小数），并简要说明评分依据：
+   剧作 16% / 导演与调度 14% / 表演 14% / 摄影与美术 12% / 剪辑与节奏 10% /
+   配乐与音效 10% / 主题与思想性 8% / 原创性 6% / 制作规格 5% / 系列定位与口碑 5%。
+5. 评分须符合分档锚点，避免全部集中在 8 分以上；冷门作品（样本少）请保守给分。
+6. 若我提供多部影片，请逐一处理，保持格式与语气统一。
 
-【Excel 表头】编号\t品番\t分类\t推荐评分\t简介\t主题\t角色\t服装\t体型\t行为\t玩法\t场景\t剧情\t其他
+【Excel 表头】编号\t标题\t年份\t分类\t推荐评分\t简介
 
 【分类体系】从下方选一个最匹配的主分类填入「分类」列：
-- 剧情 / 单体 / 恋爱 / 美少女 / 制服 / 角色扮演 / 校园 / 职场 / 家庭 / 特殊 / 其他
+- 剧情 / 动作 / 科幻 / 喜剧 / 爱情 / 悬疑 / 恐怖 / 动画 / 纪录片 / 其他
 
-【评分标准】10 分制：
-- 9.5-10.0 殿堂级必看，综合体验极佳
-- 9.0-9.5 强烈推荐，各方面表现优秀
-- 8.0-9.0 推荐观看，有明显亮点
-- 7.0-8.0 中规中矩，可看
-- 6.0-7.0 及格以上，有不足但不影响观看
-- 5.0-6.0 勉强可看，亮点稀少
-- 5.0 以下 可跳过 / 避雷
+【评分分档】10 分制（两位小数）：
+- 9.20-10.00 殿堂级：影史级，各维度无可指摘
+- 8.50-9.15 神作：至少一个维度年度/年代顶尖
+- 7.80-8.45 优秀：完成度高、亮点明确
+- 7.00-7.75 良好：类型内合格偏上
+- 6.30-6.95 及格：短板明显但可看
+- 5.50-6.25 平庸：问题显著、亮点零散
+- 4.50-5.45 较差：多维失败、局部可取
+- 4.45 以下 差：事故级，避雷
 
-【简介模版参考】请保持 80-150 字，突出核心设定、关键看点、类型标签。避免剧透关键转折。`
+【简介禁忌】不要剧透、不要复制百科、不要罗列演员表、不要写「必看/神作」等推销语。`
 
 /** English prompt */
-const PROMPT_TEXT_EN = `Generate a YingXia sheet Excel for the given codes. Follow these rules:
+const PROMPT_TEXT_EN = `Generate a Yinghai sheet for the given movie list. Follow these rules:
 
-1. Look up accurate metadata for each code (studio, plot, duration, genre, etc.).
-2. Pick one main category from the category system below and write it to the "Category" column.
-3. Write the synopsis in English, using the template style below.
-4. Synopsis should cover: core premise, key moments, highlights. Keep it vivid and engaging.
-5. After the synopsis, assign tags into each of the 9 tag-category columns (Theme / Role / Costume / BodyType / Behavior / Play / Scene / Plot / Other). Separate multiple tags inside one cell with commas.
-6. End with a recommended rating (10-point scale, 2 decimals) and a brief rationale.
-7. Process each code separately if multiple codes are provided. Keep format consistent across all rows.
+1. Look up accurate metadata for each title (year, genre, director, cast, plot).
+2. Pick one Category from the category system below and write it to the "Category" column.
+3. Write the synopsis in English, 80-150 words, without spoiling twists or endings:
+   hook + main plot arc + highlights + one line on tone.
+   Vary sentence openings across entries; do not start every one the same way.
+4. Give a rating computed from ten weighted dimensions (10-point scale, 2 decimals)
+   and briefly state the rationale:
+   Writing 16% / Direction 14% / Acting 14% / Cinematography 12% / Editing 10% /
+   Score & sound 10% / Theme 8% / Originality 6% / Craft 5% / Franchise 5%.
+5. Ratings must respect the anchors below; avoid clustering above 8, and be
+   conservative for obscure titles with few votes.
+6. Process each title separately if multiple titles are provided; keep format and tone consistent.
 
-【Excel columns】ID\tCode\tCategory\tRating\tSynopsis\tTheme\tRole\tCostume\tBodyType\tBehavior\tPlay\tScene\tPlot\tOther
+【Excel columns】ID\tTitle\tYear\tCategory\tRating\tSynopsis
 
 【Category system】Pick the single best-fit category:
-- Story / Solo / Romance / BeautifulGirl / Uniform / Cosplay / School / Workplace / Family / Special / Other
+- Drama / Action / Sci-Fi / Comedy / Romance / Mystery / Horror / Animation / Documentary / Other
 
-【Rating scale】10 points:
-- 9.5-10.0 Masterpiece, essential viewing
-- 9.0-9.5 Strongly recommended, excellent overall
-- 8.0-9.0 Recommended, notable highlights
-- 7.0-8.0 Decent, watchable
-- 6.0-7.0 Above average, some flaws
-- 5.0-6.0 Barely watchable, few highlights
-- Below 5.0 Skip / caution
+【Rating bands】10-point scale (two decimals):
+- 9.20-10.00 Landmark: film-history level, no weak dimension
+- 8.50-9.15 Outstanding: a peak dimension, unified whole
+- 7.80-8.45 Excellent: high craft, clear highlights
+- 7.00-7.75 Good: reliably above genre average
+- 6.30-6.95 Passable: obvious weaknesses but watchable
+- 5.50-6.25 Mediocre: serious problems, scattered merit
+- 4.50-5.45 Poor: multi-dimensional failure
+- Below 4.45 Bad: production incident, avoid
 
-【Synopsis template hint】Keep 80-150 words. Highlight core premise, key selling points, and genre tags. Avoid spoiling major twists.`
+【Synopsis don'ts】No spoilers, no Wikipedia copy, no cast list only, no sales pitch ("must-see", "masterpiece").`
 
 /** Pick the right prompt by current locale */
 function getPromptText(): string {
@@ -95,8 +105,8 @@ function buildFullPrompt(codes: string[]): string {
   const prompt = getPromptText()
   const codeList = codes.length > 0 ? codes.join('、') : '（无）'
   const header = getLocale() === 'en-US'
-    ? `\n\nBelow is the code list — process each one (${codes.length} total):\n`
-    : `\n\n下面是番号列表，请逐一处理（共 ${codes.length} 个）：\n`
+    ? `\n\nBelow is the movie list — process each one (${codes.length} total):\n`
+    : `\n\n下面是影片清单，请逐一处理（共 ${codes.length} 个）：\n`
   return prompt + header + codeList
 }
 
@@ -134,7 +144,7 @@ export default function OnboardSheetModal({
     if (copiedTimer.current) window.clearTimeout(copiedTimer.current)
   }, [])
 
-  // ============ 弹窗打开时自动加载番号 + 拉规范路径（Promise.all 和原始一致） ============
+  // ============ 弹窗打开时自动加载影片清单 + 拉规范路径（Promise.all 和原始一致） ============
   useEffect(() => {
     if (!open || !library) {
       setCodes(null)
@@ -234,7 +244,7 @@ export default function OnboardSheetModal({
         {/* ============ 正文（3 个 section 全展开，垂直排列） ============ */}
         <div className="px-6 py-3 overflow-y-auto thin-scroll flex-1 space-y-5">
 
-          {/* ============ Section ① 加载番号（自动） ============ */}
+          {/* ============ Section ① 加载影片清单（自动） ============ */}
           <section>
             <div className="flex items-center gap-2 mb-2">
               <span className="w-5 h-5 rounded-md bg-brand/20 text-brand text-[11px] font-bold flex items-center justify-center shrink-0">1</span>

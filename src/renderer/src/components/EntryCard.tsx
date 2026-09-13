@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { DisplayEntry, Video } from '../../../shared/types'
 import { hasDocTags, primaryTags } from '../../../shared/types'
-import { posterUrl, placeholderGradient, titleInitial, titleSecondary, formatDuration } from '../lib/util'
+import { posterUrl, placeholderGradient, titleInitial, titleSecondary, formatDuration, displayTitle } from '../lib/util'
 import { useFrameFallback } from '../lib/frameFallback'
 import { api } from '../lib/api'
 import HoverDetail from './HoverDetail'
@@ -14,14 +14,20 @@ interface Props {
   onOpen: (entry: DisplayEntry) => void
   onEdit: (v: Video) => void
   onOpenMissing: (entry: DisplayEntry) => void
-  /** 收藏切换（持久化到视频记录） */
-  onToggleFlag?: (id: string, key: 'favorite') => void
+  /** 收藏 / 锁定切换（持久化到视频记录） */
+  onToggleFlag?: (id: string, key: 'favorite' | 'locked') => void
   /** 点击标签 → 一键筛选该标签全部影片 */
   onPickTag?: (tag: string) => void
   /** 从磁盘删除视频文件（弹二次确认、可能连带删所在目录） */
   onDelete?: (v: Video) => void
   /** 卡片宽高比：portrait 竖屏(2:3) / landscape 横屏(16:9) */
   aspect?: 'portrait' | 'landscape'
+  /** v2.7.x：多选模式 —— 点击卡片切换选中而非打开详情 */
+  selectable?: boolean
+  /** 当前卡片是否被选中（多选模式） */
+  selected?: boolean
+  /** 切换选中状态（多选模式） */
+  onToggleSelect?: (id: string) => void
 }
 
 /** 把 DisplayEntry 组装成 Video 视图，供 HoverDetail / 预览面板复用。
@@ -31,8 +37,8 @@ function hoverVideo(entry: DisplayEntry): Video {
     id: entry.video?.id ?? entry.code,
     libraryId: '',
     path: entry.video?.path ?? '',
-    fileName: entry.code,
-    title: entry.title,
+    fileName: entry.video?.fileName ?? entry.code,
+    title: displayTitle(entry),
     description: entry.description,
     tags: entry.tags,
     tagCategories: entry.tagCategories,
@@ -49,7 +55,7 @@ function hoverVideo(entry: DisplayEntry): Video {
 /** Netflix 式悬浮预览面板：宽 360，高度动态；小图 96 宽 */
 const PANEL_W = 360
 
-function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, onPickTag, onDelete, aspect = 'portrait' }: Props) {
+function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, onPickTag, onDelete, aspect = 'portrait', selectable = false, selected = false, onToggleSelect }: Props) {
   const [imgError, setImgError] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [preview, setPreview] = useState<{ x: number; y: number } | null>(null)
@@ -58,10 +64,10 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
   const cardRef = useRef<HTMLDivElement>(null)
   const isMissing = entry.kind === 'missing'
   const v0 = entry.video
-  // 封面优先级：手动设的封面（预览帧{t('entry.setAsCover')}, manual）> javdbDetail.cover（本地真实海报）>
+  // 封面优先级：手动设的封面（预览帧{t('entry.setAsCover')}, manual）> meta.cover（本地真实海报）>
   // 非{t('entry.reframe')}来源的 posterPath > ffmpeg {t('entry.reframe')} posterPath > 新{t('entry.reframe')}兜底
   const manualPoster = v0?.posterSource === 'manual' && v0?.posterPath ? v0.posterPath : null
-  const detailCover = v0?.javdbDetail?.cover && !/^https?:\/\//.test(v0.javdbDetail.cover) ? v0.javdbDetail.cover : null
+  const detailCover = v0?.meta?.cover && !/^https?:\/\//.test(v0.meta.cover) ? v0.meta.cover : null
   const realPoster =
     v0?.posterPath &&
     v0.posterSource &&
@@ -84,7 +90,10 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
   const score = entry.score ?? entry.video?.rating
   const v = hoverVideo(entry)
   const isFavorite = !!entry.video?.favorite
+  const isLocked = !!entry.video?.locked
   const vid = entry.video?.id
+  /** 多选模式且该条目有真实视频记录时才可选中（缺失条目无 id，不可锁） */
+  const canSelect = selectable && !!vid
 
   // ---------- 悬浮预览（Netflix 式：1s dwell 延迟打开，移出 200ms 延迟关） ----------
   const clearOpenTimer = useCallback(() => {
@@ -103,10 +112,12 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
       const vw = window.innerWidth
       const vh = window.innerHeight
       // 优先右侧；放不下则左侧；再兜底贴边
+      // 边距留 32px，避免浮层贴到窗口边框触发 Electron 的拖拽/缩放边缘识别，导致窗口抽动
+      const MARGIN = 32
       let x = r.right + 10
       if (x + PANEL_W > vw) x = r.left - PANEL_W - 10
-      x = Math.max(8, Math.min(x, vw - PANEL_W - 8))
-      const y = Math.min(Math.max(r.top, 8), vh - 220 - 8)
+      x = Math.max(MARGIN, Math.min(x, vw - PANEL_W - MARGIN))
+      const y = Math.min(Math.max(r.top, MARGIN), vh - 220 - MARGIN)
       setPreview({ x, y })
     }, 1000)
   }, [clearOpenTimer])
@@ -170,12 +181,19 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
   return (
     <div
       ref={cardRef}
-      className={`entry-card entry-${aspect} group relative rounded-xl overflow-hidden cursor-pointer bg-ink-800 ring-1 ring-white/5 w-full min-w-0 ${
-        isMissing ? 'opacity-80' : ''
-      }`}
-      onClick={() => (isMissing ? onOpenMissing(entry) : onOpen(entry))}
-      onMouseEnter={scheduleOpen}
-      onMouseLeave={scheduleClose}
+      className={`entry-card entry-${aspect} group relative rounded-xl overflow-hidden cursor-pointer bg-ink-800 ring-1 w-full min-w-0 ${
+        selected ? 'ring-brand ring-2' : 'ring-white/5'
+      } ${isMissing ? 'opacity-80' : ''}`}
+      onClick={() => {
+        if (canSelect && vid) {
+          onToggleSelect?.(vid)
+          return
+        }
+        if (isMissing) onOpenMissing(entry)
+        else onOpen(entry)
+      }}
+      onMouseEnter={canSelect ? undefined : scheduleOpen}
+      onMouseLeave={canSelect ? undefined : scheduleClose}
       onContextMenu={(e) => {
         e.preventDefault()
         setMenu({
@@ -198,7 +216,7 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
             />
             <img
               src={src}
-              alt={entry.title}
+              alt={displayTitle(entry)}
               loading="lazy"
               decoding="async"
               onError={() => setImgError(true)}
@@ -209,7 +227,21 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
           <PlaceholderCard code={entry.code} />
         )}
 
+        {/* 多选模式：左上角勾选框 */}
+        {canSelect ? (
+          <div className="absolute top-2 left-2 z-20">
+            <span
+              className={`w-6 h-6 rounded-md flex items-center justify-center ring-1 transition-colors ${
+                selected ? 'bg-brand text-white ring-brand' : 'bg-black/50 text-white/70 ring-white/50'
+              }`}
+            >
+              <Icon name="check" size={14} className={selected ? '' : 'opacity-40'} />
+            </span>
+          </div>
+        ) : null}
+
         {/* 顶部徽标 */}
+        {!canSelect ? (
         <div className="absolute top-2 left-2 flex items-center gap-1">
           {isMissing ? (
             <span className="px-1.5 py-0.5 rounded-md bg-red-600/90 backdrop-blur-sm text-[10px] text-white font-medium flex items-center gap-1">
@@ -222,6 +254,15 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
               <Icon name="heart" size={10} className="fill-current" />
             </span>
           ) : null}
+          {isLocked ? (
+            <span
+              className="px-1.5 py-0.5 rounded-md bg-amber-500/90 backdrop-blur-sm text-[10px] text-black font-medium flex items-center gap-1"
+              title={t('lock.detailLockedHint')}
+            >
+              <Icon name="lock" size={10} />
+              {t('lock.badge')}
+            </span>
+          ) : null}
           {/* {t('entry.reframe')}封面标识：无真实封面，展示的是视频里截取的一帧画面 */}
           {isFrameFallback && !isMissing ? (
             <span
@@ -232,20 +273,23 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
               {t('entry.reframe')}
             </span>
           ) : null}
-          {/* 数据来源角标：Javapi / JavBus / Javinfo / JavLibrary 显示（无角标 = JavDB）—— v2.2.3 改为单源映射，避免合并冲突引入的重复 chip */}
+          {/* 数据来源角标：MovieDB / OMDb / OpenLibrary / JustWatch 显示（无角标 = 默认源）—— 单源映射，避免合并冲突引入的重复 chip */}
           {(() => {
-            const src = entry.video?.javdbDetail?.source
-            if (src === 'javapi') return (
-              <span className="px-1.5 py-0.5 rounded-md bg-sky-500/90 backdrop-blur-sm text-[10px] text-black font-bold">Javapi</span>
+            const src = entry.video?.meta?.source
+            if (src === 'moviedb') return (
+              <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/90 backdrop-blur-sm text-[10px] text-black font-bold">MovieDB</span>
             )
-            if (src === 'javbus') return (
-              <span className="px-1.5 py-0.5 rounded-md bg-amber-500/90 backdrop-blur-sm text-[10px] text-black font-bold">JavBus</span>
+            if (src === 'omdb') return (
+              <span className="px-1.5 py-0.5 rounded-md bg-sky-500/90 backdrop-blur-sm text-[10px] text-black font-bold">OMDb</span>
             )
-            if (src === 'javinfo') return (
-              <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/90 backdrop-blur-sm text-[10px] text-black font-bold">Javinfo</span>
+            if (src === 'openlibrary') return (
+              <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/90 backdrop-blur-sm text-[10px] text-white font-bold">OpenLibrary</span>
             )
-            if (src === 'javlibrary') return (
-              <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/90 backdrop-blur-sm text-[10px] text-white font-bold">JavLibrary</span>
+            if (src === 'justwatch') return (
+              <span className="px-1.5 py-0.5 rounded-md bg-amber-500/90 backdrop-blur-sm text-[10px] text-black font-bold">JustWatch</span>
+            )
+            if (src === 'wikipedia') return (
+              <span className="px-1.5 py-0.5 rounded-md bg-emerald-600/90 backdrop-blur-sm text-[10px] text-white font-bold">维基百科</span>
             )
             return null
           })()}
@@ -255,9 +299,10 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
             </span>
           ) : null}
         </div>
+        ) : null}
 
         {/* 悬停快捷操作（右上）—— 高对比白底，避免在暗色海报上灰掉看不见 */}
-        {!isMissing && entry.video ? (
+        {!isMissing && entry.video && !canSelect ? (
           <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
             <button
               className="w-7 h-7 rounded-lg bg-white/95 text-slate-900 hover:bg-brand hover:text-white flex items-center justify-center no-drag shadow-md shadow-black/25 ring-1 ring-black/10 transition-colors"
@@ -285,6 +330,20 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
                 >
                   <Icon name="heart" size={12} className={isFavorite ? 'fill-current' : ''} />
                 </button>
+                <button
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center no-drag shadow-md shadow-black/25 ring-1 ring-black/10 transition-colors ${
+                    isLocked
+                      ? 'bg-amber-500 text-black'
+                      : 'bg-white/95 text-slate-900 hover:bg-brand hover:text-white'
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onToggleFlag(vid, 'locked')
+                  }}
+                  title={isLocked ? t('lock.unlockTitle') : t('lock.lockTitle')}
+                >
+                  <Icon name={isLocked ? 'lock' : 'unlock'} size={12} />
+                </button>
               </>
             ) : null}
           </div>
@@ -297,11 +356,11 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
           </span>
         ) : null}
 
-        {/* 底部名字条 + 评分 */}
+        {/* 底部名字条 + 评分：优先显示数据源最新标题，再退回到文件名/条目标题/code */}
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-2 pb-1.5 pt-8">
           <div className="flex items-end justify-between gap-1.5 min-w-0">
             <div className="card-title text-[13px] font-medium text-white truncate leading-tight min-w-0 flex-1">
-              {entry.code}
+              {displayTitle(entry)}
             </div>
             {score != null ? (
               <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-sm ring-1 ring-white/10">
@@ -315,12 +374,14 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
         </div>
 
         {/* hover 快速信息蒙层（标题/评分/标签紧凑版） */}
+        {!canSelect ? (
         <div className="card-hover absolute inset-0 overflow-hidden bg-gradient-to-t from-black/95 via-black/65 to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-[250ms] p-3 flex flex-col justify-end">
           <HoverDetail video={v} />
         </div>
+        ) : null}
 
         {/* hover 快捷编辑 —— 与高对比操作按钮保持一致 */}
-        {!isMissing && entry.video ? (
+        {!isMissing && entry.video && !canSelect ? (
           <button
             className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity no-drag z-20 w-7 h-7 rounded-lg bg-white/95 text-slate-900 hover:bg-brand hover:text-white flex items-center justify-center shadow-md shadow-black/25 ring-1 ring-black/10 transition-colors"
             onClick={(e) => {
@@ -338,7 +399,7 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
       {preview && !isMissing
         ? createPortal(
             <div
-              className="fixed z-[70] w-[360px] rounded-xl bg-ink-800 ring-1 ring-white/10 shadow-2xl shadow-black/50 overflow-hidden animate-fadeIn-fast cursor-pointer"
+              className="fixed z-[70] w-[360px] rounded-xl bg-ink-800 ring-1 ring-white/10 shadow-2xl shadow-black/50 overflow-hidden animate-fadeIn-fast cursor-pointer no-drag"
               style={{ left: preview.x, top: preview.y }}
               onMouseEnter={cancelClose}
               onMouseLeave={scheduleClose}
@@ -433,7 +494,7 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
       {menu
         ? createPortal(
             <div
-              className="fixed z-[80] min-w-[180px] rounded-xl bg-ink-800 ring-1 ring-white/10 shadow-xl shadow-black/40 py-1.5 text-sm overflow-hidden animate-fadeIn-fast"
+              className="fixed z-[80] min-w-[180px] rounded-xl bg-ink-800 ring-1 ring-white/10 shadow-xl shadow-black/40 py-1.5 text-sm overflow-hidden animate-fadeIn-fast no-drag"
               style={{ left: menu.x, top: menu.y }}
               onMouseDown={(e) => e.stopPropagation()}
             >
@@ -455,6 +516,16 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
                       onEdit(entry.video!)
                     }}
                   />
+                  {onToggleFlag && vid ? (
+                    <MenuItem
+                      icon={isLocked ? 'lock' : 'unlock'}
+                      label={isLocked ? t('lock.unlockTitle') : t('lock.lockTitle')}
+                      onClick={() => {
+                        setMenu(null)
+                        onToggleFlag(vid, 'locked')
+                      }}
+                    />
+                  ) : null}
                   <MenuItem
                     icon="folderOpen"
                     label={t('entry.openLocationLabel')}
@@ -508,7 +579,7 @@ function MenuItem({
   onClick,
   danger
 }: {
-  icon: 'play' | 'pencil' | 'folderOpen' | 'copy' | 'trash'
+  icon: 'play' | 'pencil' | 'folderOpen' | 'copy' | 'trash' | 'lock' | 'unlock'
   label: string
   onClick: () => void
   /** 危险操作样式（红色） */
@@ -531,7 +602,7 @@ function MenuItem({
 
 export default memo(EntryCardInner)
 
-/** 大厂风格多层占位卡：左上大字 + 下方番号小字 + 斜线纹理 + 底部装订线 */
+/** 大厂风格多层占位卡：左上大字 + 下方标题小字 + 斜线纹理 + 底部装订线 */
 function PlaceholderCard({ code, compact = false }: { code: string; compact?: boolean }) {
   return (
     <div className="relative h-full w-full overflow-hidden" style={{ background: placeholderGradient(code) }}>
@@ -554,7 +625,7 @@ function PlaceholderCard({ code, compact = false }: { code: string; compact?: bo
         >
           {titleInitial(code)}
         </div>
-        <div className="text-[10px] font-semibold text-white tracking-[0.12em] uppercase truncate max-w-[88%] text-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
+        <div className="text-[10px] font-semibold text-white tracking-[0.04em] truncate max-w-[88%] text-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
           {titleSecondary(code)}
         </div>
       </div>

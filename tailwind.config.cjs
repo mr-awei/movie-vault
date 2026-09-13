@@ -16,14 +16,14 @@ module.exports = {
           500: 'rgb(var(--ink-500) / <alpha-value>)'
         },
         brand: {
-          DEFAULT: '#fb7299', // 爱奇艺粉
-          hover: '#ff8aab'
+          DEFAULT: '#14b8a6', // 影海青（teal-500），与图标统一的清新影视质感
+          hover: '#2dd4bf'
         },
         tencent: '#ff6022' // 腾讯视频橙，用于点缀
       },
       boxShadow: {
         card: '0 8px 24px rgba(0,0,0,0.45)',
-        glow: '0 0 0 2px rgba(251,114,153,0.55), 0 12px 30px rgba(251,114,153,0.25)'
+        glow: '0 0 0 2px rgba(20,184,166,0.55), 0 12px 30px rgba(20,184,166,0.25)'
       }
     }
   },

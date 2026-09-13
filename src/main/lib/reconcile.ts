@@ -6,21 +6,27 @@ import type {
   Library,
   ReconcileResult,
   Settings,
+  SourceId,
   UnlistedFile,
   Video
 } from '../../shared/types'
 import { parseIntroExcel } from './excel'
 import { applyVideoChanges, findVideoByPath, listVideos, type VideoChange } from './repo'
 import { resolvePoster } from './images'
-import { walk, VIDEO_EXTS, idForPath } from './scanner'
-import { extractBaseCode, isDomestic, normalizeCode } from '../../shared/code'
-import { fetchDetailSmart, createSmartFetchState } from './javdb-smart'
+import { walk, VIDEO_EXTS, idForPath, computeContentHash } from './scanner'
+import { extractTitleYear, titleMatches } from '../../shared/code'
+import { fetchDetailSmart, createSmartFetchState } from './fetch-meta'
 
 /**
  * 无片单兜底自动抓取：每个进程生命周期只自动触发一次（首次 reconcile）。
  * 避免切库/切页面/刷新反复触发 reconcile 时重复发起抓取风暴；之后一律走手动「批量补齐」。
  */
 let autoFetchFired = false
+
+/** 同一次 reconcile 内的文件内容指纹去重：contentHash → 已建 Video，避免副本重复建条目 */
+let contentSeen = new Map<string, Video>()
+/** 同一次 reconcile 内已生成卡片的 video id，避免内容相同的副本重复展示 */
+let enteredIds = new Set<string>()
 
 /** dead previewPaths 全量清理限频：每 6 小时最多一次（大库下数千次 existsSync 磁盘 IO 会拖慢打开/切库） */
 const PREVIEW_CLEANUP_INTERVAL = 6 * 60 * 60 * 1000
@@ -55,7 +61,7 @@ async function readIntroDoc(library: Library): Promise<IntroLookupResult> {
   }
   // v2.2.3 修复：library 没显式配 introExcelPath 时，**自动扫描库根目录找 .xlsx**——用户友好，
   // 避免「明明片单就在库里却因没配字段而全部归未收录」的体验。匹配规则：
-  // 1) 优先匹配根目录下含「品番」列的工作簿（顺序按文件名排序）
+  // 1) 优先匹配根目录下含「片名/标题」列的工作簿（顺序按文件名排序）
   // 2) 只在库根（不递归子目录）扫，避免误匹配到无关 xlsx
   const result = await autoFindIntroExcel(library.folderPath)
   if (result.doc) return { doc: result.doc }
@@ -104,7 +110,7 @@ async function autoFindIntroExcel(
       triedPaths: [folderPath]
     }
   }
-  // 依次尝试每个 xlsx，找到第一个「品番列可解析」的
+  // 依次尝试每个 xlsx，找到第一个「片名/标题列可解析」的
   const triedPaths: string[] = []
   for (const name of xlsxFiles) {
     const fullPath = path.join(folderPath, name)
@@ -131,7 +137,7 @@ async function autoFindIntroExcel(
 
 interface FileEntry {
   path: string
-  /** 文件名（去扩展名、小写），用于番号匹配 */
+  /** 文件名（去扩展名、小写），用于externalId匹配 */
   key: string
   /** 外文件夹名（小写），优先级更高的匹配源（比文件名更干净） */
   folderName: string
@@ -148,65 +154,30 @@ function collectFiles(files: string[]): FileEntry[] {
 }
 
 /**
- * normalizeCode 已抽到 src/shared/code.ts（v2.2.3），reconcile 直接 import 使用。
- * 行为：转大写、去空格/下划线/点（保留连字符，连字符是番号结构的一部分）。
- * SONE-566 / sone-566 / sone.566 / SONE_566 归一化后一致。
+ * 文件名/文件夹名 vs 片单标题的匹配已迁到 src/shared/code.ts 的 titleMatches
+ * （带词边界 + 年份约束，不再用externalId子串匹配）。
  */
 
 /**
- * 判断文件名 key 是否命中番号 code：
- * - 归一化后包含；
- * - 前缀边界：code 前不能紧跟字母数字（防 `1SONE-560` 之类）；
- * - 后缀边界：code 后若紧跟**数字**则不算（防 `SONE-56` 误命中 `SONE-560`）；
- * - **2026-08-30 v2.2.3 修复**：不再拒绝字母后缀——v2.2.2 加的 `/[A-Z0-9]/.test(after)` 会把
- *   `JUR-031.mp4` 归一后 `JUR-031MP4` 的 `M` 误判为「另一番号字母」拒绝，导致正常的
- *   `JUR-031.mp4` 文件都匹配不上 Excel 里的 `JUR-031`（用户实测全 miss）。
- *   系列分集合并（`SONE-566AB` 误并 `SONE-566`）改由 `extractBaseCode/hasSeriesSuffix` 在
- *   抓取源（javdb/javbus）显式处理，不要在文件名 keyMatches 上做强约束。
- */
-export function keyMatches(key: string, code: string): boolean {
-  // 先用 extractBaseCode 把 key 里的分集后缀剥掉（如 sone-560_1 → SONE-560），
-  // 避免 normalizeCode 去下划线后变成 SONE-5601 再被后缀边界杀。
-  const keyBase = extractBaseCode(key)
-  const codeBase = extractBaseCode(code)
-  const k = normalizeCode(keyBase)
-  const c = normalizeCode(codeBase)
-  const i = k.indexOf(c)
-  if (i < 0) return false
-  const before = i > 0 ? k[i - 1] : ''
-  if (before && /[A-Z0-9]/.test(before)) return false
-  const after = k[i + c.length]
-  // 后缀边界：数字后缀可能是分集（已在 extractBaseCode 剥掉），
-  // 也可能是正常序号的一部分（SSIS-419 的 9 不是 41 的分集）。
-  // 现在 keyBase 已经剥过分集后缀，after 不会是分集数字了，
-  // 保留 /[0-9]/ 检查只是兜底防 extractBaseCode 漏网。
-  if (after && /[0-9]/.test(after)) return false
-  return true
-}
-
-/**
- * 找出所有匹配该番号的文件（同一番号的多版本文件都算同片，全部标记 used，
+ * 找出所有匹配该片单标题的文件（同名/同片的多版本文件都算同片，全部标记 used，
  * 避免被误报为「未收录」）。返回按主次排序的文件路径列表。
- * 匹配优先级：外文件夹名 > 文件名（外文件夹名更干净，命中更权威）。
+ * 匹配优先级：外文件夹名命中 > 文件名命中（外文件夹名更干净，命中更权威）。
  */
-function findFilesForCode(code: string, files: FileEntry[], used: Set<string>): string[] {
+function findFilesForTitle(excelTitle: string, files: FileEntry[], used: Set<string>): string[] {
   const hits: FileEntry[] = []
   for (const f of files) {
     if (used.has(f.path)) continue
-    if (keyMatches(f.folderName, code) || keyMatches(f.key, code)) {
+    if (titleMatches(f.folderName, excelTitle) || titleMatches(f.key, excelTitle)) {
       used.add(f.path)
       hits.push(f)
     }
   }
-  const c = normalizeCode(code)
   hits.sort((a, b) => {
-    // 外文件夹名完全等于番号 > 文件名完全等于番号 > 其他
-    const aFolder = normalizeCode(a.folderName) === c ? 0 : 1
-    const bFolder = normalizeCode(b.folderName) === c ? 0 : 1
+    // 外文件夹名命中 > 文件名命中
+    const aFolder = titleMatches(a.folderName, excelTitle) ? 0 : 1
+    const bFolder = titleMatches(b.folderName, excelTitle) ? 0 : 1
     if (aFolder !== bFolder) return aFolder - bFolder
-    const aKey = normalizeCode(a.key) === c ? 0 : 1
-    const bKey = normalizeCode(b.key) === c ? 0 : 1
-    return aKey - bKey || a.key.localeCompare(b.key)
+    return a.key.localeCompare(b.key)
   })
   return hits.map((h) => h.path)
 }
@@ -227,8 +198,7 @@ async function ensureVideo(
   },
   changes: VideoChange[]
 ): Promise<Video> {
-  const folderName = path.basename(path.dirname(filePath))
-  const domestic = isDomestic(folderName, path.basename(filePath))
+  const { year } = extractTitleYear(filePath)
   const existing = await findVideoByPath(filePath)
   if (existing) {
     // Excel 为权威来源：简介/标签/评分/tagCategories 以 Excel 为准（仅在变化时记录一次 update，不逐条写盘）
@@ -239,7 +209,6 @@ async function ensureVideo(
       JSON.stringify(existing.tags) !== JSON.stringify(nextTags) ||
       JSON.stringify(existing.tagCategories ?? null) !== JSON.stringify(nextCats ?? null) ||
       existing.rating !== meta.score ||
-      !!existing.domestic !== domestic ||
       existing.introCategory !== meta.introCategory
     ) {
       const updated: Video = {
@@ -249,23 +218,29 @@ async function ensureVideo(
         tagCategories: nextCats,
         descriptionSource: 'manual',
         rating: meta.score ?? existing.rating,
-        domestic,
+        year,
         introCategory: meta.introCategory ?? existing.introCategory
       }
       changes.push({ type: 'update', video: updated })
       return updated
     }
+    if (existing.contentHash) contentSeen.set(existing.contentHash, existing)
     return existing
   }
   const stat = await fs.stat(filePath).catch(() => null)
+  const contentHash = stat ? await computeContentHash(filePath) : undefined
+  // 文件哈希去重：内容相同的副本直接复用已建记录，不重复建条目
+  if (contentHash && contentSeen.has(contentHash)) {
+    return contentSeen.get(contentHash)!
+  }
   const video: Video = {
-    id: idForPath(filePath),
+    id: idForPath(filePath, contentHash, library.id),
     libraryId: library.id,
     path: filePath,
     fileName: path.basename(filePath),
     folderName: path.basename(path.dirname(filePath)),
-    domestic,
     title: meta.code,
+    year,
     description: meta.description,
     descriptionSource: 'manual',
     tags: [...meta.tags],
@@ -273,6 +248,7 @@ async function ensureVideo(
     rating: meta.score,
     addedAt: Date.now(),
     fileSize: stat?.size,
+    contentHash,
     introCategory: meta.introCategory
   }
   if (!video.posterPath) {
@@ -280,6 +256,7 @@ async function ensureVideo(
     video.posterSource = r.source
     video.posterPath = r.posterPath
   }
+  if (contentHash) contentSeen.set(contentHash, video)
   changes.push({ type: 'upsert', video })
   return video
 }
@@ -299,7 +276,7 @@ export async function reconcileLibrary(
     done: number
     current?: string
     introError?: { kind: string; message: string; triedPaths: string[] }
-    fetchEvent?: { code: string; src: 'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary'; status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'; detail?: string }
+    fetchEvent?: { code: string; src: SourceId; status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'; detail?: string }
   }) => void
 ): Promise<ReconcileResult> {
   const introLookup = await readIntroDoc(library)
@@ -317,12 +294,14 @@ export async function reconcileLibrary(
     })
   }
 
-  // 与 scanLibrary 一致：按设置过滤小文件（短视频/广告样片）
+  // 与 scanLibrary 一致：按设置过滤小文件（短视频/预告片）
   const minSizeBytes = Math.max(0, Math.floor(settings.scanMinSizeMB ?? 0)) * 1024 * 1024
   const allFiles: string[] = []
   for await (const f of walk(library.folderPath, minSizeBytes)) allFiles.push(f)
   const fileEntries = collectFiles(allFiles)
   const used = new Set<string>()
+  contentSeen = new Map<string, Video>()
+  enteredIds = new Set<string>()
 
   const entries: DisplayEntry[] = []
   const changes: VideoChange[] = []
@@ -330,8 +309,8 @@ export async function reconcileLibrary(
   let matched = 0
   let missing = 0
 
-  // 已删除标记：用户主动删除过（文件挪回收站 + data.json 记录被删）的番号集合。
-  // Excel 里有条目但文件缺失时，若该番号在 data.json 中已无任何记录，说明用户主动删除过，
+  // 已删除标记：用户主动删除过（文件挪回收站 + data.json 记录被删）的externalId集合。
+  // Excel 里有条目但文件缺失时，若该externalId在 data.json 中已无任何记录，说明用户主动删除过，
   // 跳过该条目不标 missing（否则删除后对账又会把它标成"缺失"挂回来）。
   let activeCodeSet: Set<string> | null = null
   const getActiveCodeSet = async (): Promise<Set<string>> => {
@@ -340,8 +319,10 @@ export async function reconcileLibrary(
     try {
       const all = await listVideos({})
       for (const v of all) {
-        if (v.javdbDetail?.code) s.add(v.javdbDetail.code.toUpperCase())
-        else if (v.title) s.add(String(v.title).toUpperCase())
+        if (v.meta?.externalId) s.add(v.meta.externalId.toUpperCase())
+        // v2.7.x：数据源已更新的标题（meta.title）也要参与片单匹配，避免改了名字后对不上
+        if (v.meta?.title) s.add(String(v.meta.title).toUpperCase())
+        if (v.title) s.add(String(v.title).toUpperCase())
         else if (v.fileName) s.add(path.basename(v.fileName, path.extname(v.fileName)).toUpperCase())
       }
     } catch {
@@ -362,10 +343,8 @@ export async function reconcileLibrary(
           done: mdCount,
           current: item.code
         })
-        const files = findFilesForCode(item.code, fileEntries, used)
+        const files = findFilesForTitle(item.code, fileEntries, used)
         if (files.length > 0) {
-          // L352: 同 code 多文件（分集 / 多碟）时，主 entry 只绑定第一个文件作为 video（列表页不重复展示），
-          // 其余文件也 ensureVideo 后存入 siblingVideos，供详情页渲染分集列表（像爱奇艺那样）。
           const metaForVideo = {
             code: item.code,
             description: item.description,
@@ -374,31 +353,26 @@ export async function reconcileLibrary(
             score: item.score,
             introCategory: item.category
           }
-          const video = await ensureVideo(files[0], library, settings, metaForVideo, changes)
-          const siblingVideos: Video[] = []
-          for (let i = 1; i < files.length; i++) {
-            const sib = await ensureVideo(files[i], library, settings, metaForVideo, changes)
-            siblingVideos.push(sib)
+          // 同一片单标题可能匹配到多个文件（不同分辨率 / 多碟 / 同名片），
+          // 每个文件各自建一条 entry，不再做"分集合集"分组，避免把不同影片误合并。
+          for (const fp of files) {
+            const video = await ensureVideo(fp, library, settings, metaForVideo, changes)
+            entries.push({
+              kind: 'matched',
+              category: cat.name,
+              order: cat.order,
+              code: item.code,
+              title: item.code,
+              description: item.description,
+              tags: item.tags,
+              tagCategories: item.tagCategories,
+              score: item.score,
+              video
+            })
+            matched++
           }
-          entries.push({
-            kind: 'matched',
-            category: cat.name,
-            order: cat.order,
-            code: item.code,
-            title: item.code,
-            description: item.description,
-            tags: item.tags,
-            tagCategories: item.tagCategories,
-            score: item.score,
-            video,
-            siblingVideos
-          })
-          if (siblingVideos.length > 0) {
-            console.log(`[reconcile] code=${item.code} main=${video.fileName} siblings=${siblingVideos.map(s => s.fileName).join(',')}`)
-          }
-          matched++
         } else {
-          // 文件缺失：若该番号在 data.json 中已无任何记录（用户主动删除过视频 + 记录），
+          // 文件缺失：若该externalId在 data.json 中已无任何记录（用户主动删除过视频 + 记录），
           // 跳过该条目不标 missing，避免"删了又挂回来"。
           const activeCodes = await getActiveCodeSet()
           const upperCode = String(item.code).toUpperCase()
@@ -422,14 +396,14 @@ export async function reconcileLibrary(
     }
   } else {
     // 未配置 Excel 片单：全部文件直接展示
-    // 需求 B（自动归类）：有数据源元数据（javdbDetail.genres 非空）的视频按 genres 自动归类，
-    // 归入「【JavBus】高清·字幕」这类自动分类（order 9000，未分类 9999 之前）；
+    // 需求 B（自动归类）：有数据源元数据（meta.genres 非空）的视频按 genres 自动归类，
+    // 归入「【数据源】高清·字幕」这类自动分类（order 9000，未分类 9999 之前）；
     // 无元数据的仍归「未分类」（order 0）。
     // 2026-08-30 修复：原 path.basename(f) 含扩展名（SONE-280.mp4），传给 ensureVideo 后写入 video.title，
     // EntryCard 显示就是 `SONE-280.mp4`。先剥扩展名。
     // v2.2.4 兜底：用户明确担忧"万一哪天用户真没有excel怎么办"——
-    //   对所有没 javdbDetail 的视频，后台异步按 settings.customSourceOrder 抓一次，
-    //   7 天内抓过且失败的跳过（避免反复消耗 JavDB 配额），抓到的写回 video 让 UI 立刻变好看。
+    //   对所有没 meta 的视频，后台异步按 settings.customSourceOrder 抓一次，
+    //   7 天内抓过且失败的跳过（避免反复消耗 数据源 配额），抓到的写回 video 让 UI 立刻变好看。
     const needFetchAfter: Video[] = []
     for (const f of allFiles) {
       // v2.2.3 P0 修复：原 else 分支没用 used 记账，导致下方 L297「未收录」循环重复 push 同 filePath →
@@ -445,35 +419,43 @@ export async function reconcileLibrary(
         { code: titleNoExt, description: '', tags: [] },
         changes
       )
-      if (!video.domestic && !video.javdbDetail) {
+      if (!video.meta) {
         needFetchAfter.push(video)
-      } else if (!video.domestic && video.javdbDetail) {
-        // v2.2.14-fix：有 javdbDetail 但 samples 不完整也要进 needFetchAfter —
-        // 之前番号脏时可能半拉子抓到 cover 但 samples 空/极少，旧条件只看 !javdbDetail 漏掉了。
-        const d = video.javdbDetail
-        const localSamples = (d.samples ?? []).filter((s) => !/^https?:\/\//.test(s))
+      } else {
+        // 有 meta 但封面仍是远程 URL / 旧解析器数据 → 重新抓一次，升级为本地缓存
+        const d = video.meta
         const coverRemote = !!d.cover && /^https?:\/\//.test(d.cover)
-        if (coverRemote || localSamples.length < 2 || d.parseVer !== 2) {
+        if (coverRemote || d.parseVer !== 2) {
           needFetchAfter.push(video)
         }
       }
-      const d = video.javdbDetail
+      const d = video.meta
       const hasGenres = !!d && !!d.genres && d.genres.length > 0
       // v2.3.2：分类恢复原 v2.2.0 逻辑（一个视频一条 entry，category 用 genres 拼接长串），
       // 避免方案 A 把一个视频拆多条 entry 导致计数/推荐重复；genres 单标签改由独立的「类别」筛选提供。
-      const srcName = d?.source === 'javbus' ? 'JavBus' : d?.source === 'javlibrary' ? 'JavLibrary' : 'JavDB'
+      const srcNameMap: Record<string, string> = {
+        moviedb: 'MovieDB',
+        omdb: 'OMDb',
+        openlibrary: 'OpenLibrary',
+        justwatch: 'JustWatch',
+        wikipedia: '维基百科'
+      }
+      const srcName = (d?.source && srcNameMap[d.source]) || 'MovieDB'
       const catName = hasGenres ? `【${srcName}】${d!.genres.join('·')}` : '未分类'
-      entries.push({
-        kind: 'matched',
-        category: catName,
-        order: hasGenres ? 9000 : 0,
-        code: titleNoExt,
-        title: titleNoExt,
-        description: '',
-        tags: [],
-        video
-      })
-      matched++
+      if (!enteredIds.has(video.id)) {
+        enteredIds.add(video.id)
+        entries.push({
+          kind: 'matched',
+          category: catName,
+          order: hasGenres ? 9000 : 0,
+          code: titleNoExt,
+          title: titleNoExt,
+          description: '',
+          tags: [],
+          video
+        })
+        matched++
+      }
     }
 
     // 后台异步抓元数据（fire-and-forget，不阻塞 reconcile 返回）
@@ -485,12 +467,17 @@ export async function reconcileLibrary(
       const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000
       const now = Date.now()
       const toFetch = needFetchAfter.filter((v) => {
+        // v2.7.x：锁定影片不参与后台兜底抓取，避免覆盖手动修正过的信息
+        if (v.locked) return false
         const last = v.lastMetaFetchAt
         return !last || now - last > SEVEN_DAYS
       })
       const skipped = needFetchAfter.length - toFetch.length
+      const lockedCount = needFetchAfter.filter((v) => v.locked).length
       if (skipped > 0) {
-        console.log(`[reconcile] 无片单兜底抓取：跳过 ${skipped} 部（7 天内已抓过且失败）`)
+        console.log(
+          `[reconcile] 无片单兜底抓取：跳过 ${skipped} 部（7 天内已抓过且失败${lockedCount > 0 ? `，其中锁定 ${lockedCount} 部` : ''}）`
+        )
       }
       const AUTO_FETCH_LIMIT = 80
       const autoFetch = toFetch.slice(0, AUTO_FETCH_LIMIT)
@@ -510,17 +497,20 @@ export async function reconcileLibrary(
             while (idx < autoFetch.length) {
               const v = autoFetch[idx++]
               if (state.stop) return
+              // 防御：兜底抓取期间被临时锁定 → 跳过
+              if (v.locked) continue
               try {
-                const r = await fetchDetailSmart(v.title, settings, state, (fe) => {
+                const displayTitle = v.meta?.title || v.title
+                const r = await fetchDetailSmart(displayTitle, settings, state, (fe) => {
                   // v2.2.10：兜底抓取也把事件推给 renderer（走 onProgress 同管道）
-                  onProgress?.({ libraryId: library.id, total: autoFetch.length, done: idx, current: v.title, fetchEvent: fe })
+                  onProgress?.({ libraryId: library.id, total: autoFetch.length, done: idx, current: displayTitle, fetchEvent: { ...fe, code: displayTitle || fe.code } })
                 })
                 if (r.detail) {
                   changes.push({
                     type: 'update',
                     video: {
                       ...v,
-                      javdbDetail: { ...r.detail, code: v.title, source: r.source ?? r.detail.source },
+                      meta: { ...r.detail, externalId: v.title, source: r.source ?? r.detail.source },
                       lastMetaFetchAt: now
                     }
                   })
@@ -559,6 +549,7 @@ export async function reconcileLibrary(
   // 把未收录文件也展示出来（否则导入后列表/首页找不到），统一放到「未收录」分类
   const UNLISTED_ORDER = 9999
   for (const u of unlistedAll) {
+    const titleNoExt = path.basename(u.fileName, path.extname(u.fileName))
     const existing = await findVideoByPath(u.path)
     const video =
       existing ??
@@ -566,20 +557,22 @@ export async function reconcileLibrary(
         u.path,
         library,
         settings,
-        { code: u.fileName, description: '', tags: [] },
+        { code: titleNoExt, description: '', tags: [] },
         changes
       ))
-    const titleNoExt = path.basename(u.fileName, path.extname(u.fileName))
-    entries.push({
-      kind: 'matched',
-      category: '未收录',
-      order: UNLISTED_ORDER,
-      code: titleNoExt,
-      title: titleNoExt,
-      description: '',
-      tags: [],
-      video
-    })
+    if (!enteredIds.has(video.id)) {
+      enteredIds.add(video.id)
+      entries.push({
+        kind: 'matched',
+        category: '未收录',
+        order: UNLISTED_ORDER,
+        code: titleNoExt,
+        title: titleNoExt,
+        description: '',
+        tags: [],
+        video
+      })
+    }
   }
 
   entries.sort((a, b) => a.order - b.order || a.code.localeCompare(b.code, 'zh'))

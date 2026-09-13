@@ -45,7 +45,7 @@ export async function probeVideo(videoPath: string, settings: Settings): Promise
 
 /**
  * 用 ffprobe 读取图片分辨率。
- * 用于「真实封面替换前验证」：javapi/javdb 下载的封面可能是损坏/截断/空内容的坏图
+ * 用于「真实封面替换前验证」：数据源/数据源 下载的封面可能是损坏/截断/空内容的坏图
  * （文件存在但 ffprobe 读不出尺寸），必须验证通过才允许替换现有封面。
  * 失败（缺失/损坏/ffprobe 不可用）一律返回 null。
  */

@@ -1,6 +1,5 @@
 ﻿import { useState } from 'react'
 import type { ReconcileResult, RenamePreviewItem } from '../../../shared/types'
-import { extractCode } from '../../../shared/code'
 import { t } from '../../../shared/i18n'
 
 interface Props {
@@ -70,10 +69,14 @@ export default function ReconcileDialog({
     }
   }
 
-  /** 一键复制所有未收录视频的番号（中文逗号间隔） */
+  /** 一键复制所有未收录视频的文件名（中文逗号间隔） */
   async function handleCopyUnlistedCodes() {
     const codes = unlisted
-      .map((u) => extractCode(u.fileName))
+      .map((u) => {
+        const f = u.fileName
+        const dot = f.lastIndexOf('.')
+        return dot > 0 ? f.slice(0, dot) : f
+      })
       .filter((c): c is string => !!c)
     // 中文逗号间隔（用户习惯），自动去重
     const text = [...new Set(codes)].join('，')
@@ -188,7 +191,7 @@ export default function ReconcileDialog({
                   {t('reconcile.cleanAds')}
                 </button>
 
-                {/* 一键复制所有未收录番号（中文逗号间隔） */}
+                {/* 一键复制所有未收录文件名（中文逗号间隔） */}
                 <button
                   className="px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 text-white/90 text-xs font-medium ring-1 ring-white/10 transition-colors"
                   onClick={handleCopyUnlistedCodes}

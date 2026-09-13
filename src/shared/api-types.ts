@@ -1,5 +1,6 @@
 import type {
-  JavdbDetail,
+  MovieMeta,
+  SourceId,
   Library,
   Settings,
   Video,
@@ -10,9 +11,9 @@ import type {
   RenamePreviewItem
 } from './types'
 
-/** videoFetchJavdbDetail 返回：成功（含详情 + 来源）或失败（含原因） */
+/** videoFetchDetail 返回：成功（含详情 + 来源）或失败（含原因） */
 export type FetchDetailResult =
-  | { ok: true; detail: JavdbDetail; source: 'javapi' | 'javinfo' | 'javdb' | 'javbus' | 'javlibrary' }
+  | { ok: true; detail: MovieMeta; source: SourceId }
   | { ok: false; error: string }
 
 /** videoRenameFile 返回：成功（含改名后的 video + 新旧名）或失败（原因，不抛异常） */
@@ -20,14 +21,14 @@ export type RenameFileResult =
   | { ok: true; video: Video; oldName: string; newName: string }
   | { ok: false; error: string }
 
-/** 批量补齐（libraryFetchJavdbAll）结果统计 */
+/** 批量补齐（libraryFetchAll）结果统计 */
 export interface BatchFetchResult {
   /** 成功部数 */
   ok: number
   /** 失败部数 */
   failed: number
-  /** 成功来源分布（v2.2.7 加 javlibrary —— 自定义顺序里也可能命中） */
-  bySource: { javapi: number; javinfo: number; javdb: number; javbus: number; javlibrary: number }
+  /** 成功来源分布（按数据源统计） */
+  bySource: Record<SourceId, number>
   /** 失败明细（id + 标题 + 原因） */
   failures: Array<{ id: string; title: string; reason: string }>
   /** 是否因连续失败自动停止 */
@@ -39,6 +40,16 @@ export interface BatchFetchResult {
    * 兜底截帧每轮上限 200 部，用户需要知道"要不要再来一轮"。
    */
   remainingNoPoster?: number
+  /**
+   * v2.7.x：本次批量补齐/强制批量补齐中因「锁定」而自动跳过的影片明细。
+   * 结束后 UI 需要明确告知用户哪些文件被跳过。
+   */
+  lockedSkipped?: Array<{ id: string; title: string }>
+  /**
+   * v2.7.x：本次因「文件已不存在」被跳过的失效记录明细。
+   * 这些记录通常来自用户在资源管理器里改名/移动/删除文件，会在下次扫描时被自动清理。
+   */
+  missingSkipped?: Array<{ id: string; title: string }>
 }
 
 /** 应用信息（关于模块展示） */
@@ -53,7 +64,7 @@ export interface AppInfo {
   chrome: string
   /** 用户数据目录（data.json / posters 所在） */
   dataDir: string
-  /** 最近一版更新日志正文（CHANGELOG.md 顶部） */
+  /** 最近一版更新日志正文（中文：更新日志.md 顶部 / 英文：CHANGELOG.en.md 顶部） */
   changelog: string
 }
 
@@ -124,19 +135,23 @@ export interface AppApi {
   videoList(filter?: VideoFilter): Promise<Video[]>
   videoGet(id: string): Promise<Video | null>
   videoUpdate(id: string, patch: Partial<Video>): Promise<Video | null>
+  /** v2.7.x：批量设置锁定状态（一次落盘），返回实际更新条数 */
+  videoLockMany(ids: string[], locked: boolean): Promise<number>
   videoScan(libraryId: string): Promise<Video[]>
   videoOpen(id: string): Promise<OpenResult>
   videoRegeneratePoster(id: string): Promise<Video | null>
-  /** 从 javdb.com 按番号抓取封面并缓存到该视频 */
-  videoFetchJavdbPoster(id: string): Promise<Video | null>
-  /** 批量补齐信息（JavDB → JavBus）；force=true 忽略缓存逐部重抓，返回统计 */
-  libraryFetchJavdbAll(libraryId: string, force?: boolean): Promise<BatchFetchResult>
+  /** 从数据源按检索词抓取封面并缓存到该视频 */
+  videoFetchPoster(id: string): Promise<Video | null>
+  /** 批量补齐信息（多源数据源）；force=true 忽略缓存逐部重抓，返回统计 */
+  libraryFetchAll(libraryId: string, force?: boolean): Promise<BatchFetchResult>
   libraryFetchPause(): Promise<void>
   libraryFetchResume(): Promise<void>
   libraryFetchStop(): Promise<void>
-  /** 抓取详情页元数据（JavDB → JavBus 多源），返回是否成功及来源 / 失败原因。
-   *  v2.6.5：codeOverride = 手工输入的番号（文件名/标题识别不出番号时的兜底入口）。 */
-  videoFetchJavdbDetail(id: string, codeOverride?: string): Promise<FetchDetailResult>
+  /** 抓取详情页元数据（多源数据源），返回是否成功及来源 / 失败原因。
+   *  v2.6.5：idOverride = 手工输入的检索词/ID（文件名/标题识别不出时的兜底入口）。 */
+  videoFetchDetail(id: string, idOverride?: string): Promise<FetchDetailResult>
+  /** 详情页「按网址更新」：粘贴任一数据源网页 URL 直连抓取元数据，返回是否成功及来源 / 失败原因 */
+  videoFetchByUrl(id: string, url: string): Promise<FetchDetailResult>
   /** v2.6.5：编辑标题后同步修改磁盘文件名（保留扩展名），失败返回原因（不抛异常） */
   videoRenameFile(id: string, newTitle: string): Promise<RenameFileResult>
   /** 用 ffprobe 读取视频技术参数（分辨率/编码/码率/帧率/时长），并缓存到视频 */
@@ -150,7 +165,7 @@ export interface AppApi {
     libraryId: string,
     items: { path: string; newName: string }[]
   ): Promise<{ ok: number; failed: { path: string; reason: string }[] }>
-  /** 测试当前代理配置能否连通目标站点（默认 javdb.com），返回连通性结果 */
+  /** 测试当前代理配置能否连通数据源站点，返回连通性结果 */
   proxyTest(settings: Settings): Promise<{ ok: boolean; status?: number; error?: string }>
   /** 清空海报缓存目录（仅删除缓存文件，不动数据） */
   cacheClear(): Promise<{ ok: boolean; removed: number }>
@@ -166,7 +181,7 @@ export interface AppApi {
    *  keepUser=true 保留用户数据；false 则在卸载流程中删除用户数据（受保护脚本安全校验） */
   appUninstall(keepUser: boolean): Promise<{ ok: boolean; error?: string }>
   /** 监听：批量抓取时每抓到一张实时回调 {videoId, posterPath} */
-  onJavdbFetched(cb: (p: { videoId: string; posterPath: string }) => void): () => void
+  onPosterFetched(cb: (p: { videoId: string; posterPath: string }) => void): () => void
   /** 在系统文件管理器中显示并选中该文件（用于改名） */
   shellRevealInFolder(path: string): Promise<void>
   settingsGet(): Promise<Settings>
@@ -197,17 +212,9 @@ export interface AppApi {
   /** 把某张截帧预览帧设为封面：复制为 <id>.jpg 并更新记录（posterSource='ffmpeg'），成功返回更新后的视频 */
   videoSetPreviewAsCover(id: string, previewPath: string): Promise<Video | null>
   /**
-   * 分享：扫描视频所在文件夹的 .torrent 文件，转换为磁链，并把第一个磁链复制到剪贴板
-   */
-  videoShareTorrents(id: string): Promise<{
-    dir: string
-    copied: boolean
-    items: { name: string; size: number; infoHash: string; magnet: string }[]
-  }>
-  /**
    * 把视频文件（可能连带所在目录）**挪到系统回收站**。
-   * 智能判定：若视频所在目录除了它本身和 .torrent 文件外**没有其他文件**，
-   * 则整个目录一并挪到回收站（避免遗留种子/附属文件）；否则只挪视频文件本身。
+   * 智能判定：若视频所在目录除了它本身外**没有任何其他文件**，
+   * 则整个目录一并挪到回收站；否则只挪视频文件本身。
    * 用 Electron `shell.trashItem`（Windows 回收站 / macOS Trash / Linux trash），
    * **不彻底删除**——用户可从回收站恢复。
    * 不动 data.json，调用方负责触发扫描以更新库。
@@ -220,9 +227,9 @@ export interface AppApi {
     deletedDir?: boolean
     /** 删除的目录路径（仅 deletedDir=true 时有） */
     dirPath?: string
-    /** 一并清理的关联缓存文件数（封面/预览图/ffmpeg 截图/javdb-javbus 信息图） */
+    /** 一并清理的关联缓存文件数（封面/预览图/ffmpeg 截图/数据源信息图） */
     removedCache?: number
-    /** 是否已删除 data.json 中的视频记录（含 javdbDetail 全部文本元数据：演员/时长/导演/片商/女演员等） */
+    /** 是否已删除 data.json 中的视频记录（含全部文本元数据：演员/时长/导演等） */
     removedRecord?: boolean
     error?: string
   }>
@@ -233,14 +240,12 @@ export interface AppApi {
     dirPath?: string
     /** 同目录其他视频文件数（不含本视频） */
     otherVideoCount?: number
-    /** 同目录 .torrent 文件数 */
-    torrentCount?: number
-    /** 同目录除视频与 .torrent 外的其他文件数 */
+    /** 同目录其他文件数（非视频） */
     otherFileCount?: number
     error?: string
   }>
   /**
-   * 切换封面来源：'data' = 数据源图（javdb/javbus/javlibrary 缓存，没有则抓取）；
+   * 切换封面来源：'data' = 数据源图（各数据源缓存，没有则抓取）；
    * 'ffmpeg' = FFmpeg 随机截帧图（没有则生成）。两套图片独立保存，可自由来回切换。
    */
   videoSwitchPoster(
@@ -248,10 +253,10 @@ export interface AppApi {
     source: 'data' | 'ffmpeg'
   ): Promise<{ ok: boolean; posterPath?: string; posterSource?: string; error?: string }>
   onScanProgress(cb: (p: ScanProgress) => void): () => void
-  /** 仅扫描媒体库番号清单（不弹保存对话框、不写文件），供向导打开时自动加载 */
+  /** 仅扫描媒体库影片清单（不弹保存对话框、不写文件），供向导打开时自动加载 */
   libraryGetCodes(libraryId: string): Promise<{ count: number; codes: string[] }>
-  /** 导出番号清单为 txt 或 xlsx（模板：带表头留空供用户填简介/标签/评分等） */
+  /** 导出影片清单为 txt 或 xlsx（模板：带表头留空供用户填分类/评分/简介等） */
   libraryExportCodes(id: string, format: 'txt' | 'xlsx'): Promise<{ ok: boolean; path?: string; error?: string }>
-  /** 返回内置规范文件路径（通用评分与简介规范.md） */
+  /** 返回内置规范文件路径（中文：通用评分与简介规范.md / 英文：Scoring_and_Synopsis_Guide.en.md） */
   specGet(): Promise<{ path: string }>
 }

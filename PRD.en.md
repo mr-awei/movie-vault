@@ -1,403 +1,245 @@
-# YingXia (影海) Local Video Manager — Product Requirements Document (PRD)
+# Yinghai · Product Requirements Document (PRD)
 
-| Project | YingXia Local Video Manager & Poster Wall |
-|---|---|
-| Doc version | v2.7.0 |
-| Written | 2026-09-09 |
-| Current product version | v2.7.0 |
-| Doc status | Reviewed (single-author spec) |
-| Source | Personal collection management + historical feature iteration |
-| References | `HANDOFF.md` (project handoff), `CHANGELOG.md` (version history), `src/shared/ipc.ts` (capability list) |
+> A local-first desktop manager for your own movie collection. It does not host, distribute or share any content; all data stays on the user's machine.
 
-> This document follows an enterprise-grade PRD structure: **context → evolution → full feature spec → non-functional requirements → data model → risks & roadmap**.
-> All modules verified against the codebase (as of v2.7.0). Markers like 【Current】indicate features still present in v2.7.0.
+## Document info
+
+| Item | Value |
+| --- | --- |
+| Product | Yinghai (Movie Vault) |
+| Doc version | v2.8.0 |
+| Product version | v2.8.0 |
+| Status | Active |
+| Last updated | 2026-09-14 |
+| Related | [TDD.en.md](./TDD.en.md) · [CHANGELOG.en.md](./CHANGELOG.en.md) · [HANDOFF.en.md](./HANDOFF.en.md) |
 
 ---
 
-## 1. Project Overview
+## 1. Background & goals
 
 ### 1.1 Background
+People with large local video collections face three recurring problems:
 
-The user owns a large collection of local video files organized into folders named by video code, and faces several recurring pain points:
+1. **A folder is all they have** — only filenames, no category, synopsis or score; browsing is nothing like a streaming service.
+2. **High maintenance cost** — hand-maintained spreadsheets and naming conventions are hard to sustain; metadata is scattered.
+3. **Privacy concerns** — online library services require uploads and accounts; users do not want private collections indexed.
 
-1. **No structure**: Filenames are messy, missing covers / descriptions / ratings — hard to browse and locate a specific title quickly
-2. **Missing metadata**: Manually querying each title on third-party sites is tedious and inefficient
-3. **Disconnected sources**: The user maintains a manually curated Excel sheet (their collection log), but it's out of sync with files on disk
-4. **Privacy concerns**: Local collections contain sensitive material, so the user needs privacy safeguards (blurred previews, deletion lock)
+### 1.2 Goals
+| ID | Goal | Measurement |
+| --- | --- | --- |
+| G1 | Turn a video folder into a browseable, searchable poster library | A 25-title library renders its first screen within 3s |
+| G2 | Use one Excel catalog as the single authoritative category source | Re-reconciling applies every catalog change |
+| G3 | Automatic metadata enrichment with permanent local cache | After one fetch, detail pages work fully offline |
+| G4 | Zero upload, zero account, zero telemetry | Network requests only on explicit user action |
 
-### 1.2 Product Positioning
-
-**YingXia is a desktop tool for personal users to manage local video collections**: a poster-wall library that auto-identifies video codes, auto-fetches metadata, organizes by the user's sheet as the authoritative source, and plays seamlessly with local players. **All data is stored locally (data.json). Nothing is uploaded.**
-
-### 1.3 Target Users
-
-| User Type | Profile | Core Need |
-|---|---|---|
-| Collector (primary) | Large local video library, code-based naming habit, maintains a sheet | Fast browsing, auto metadata completion, sheet-driven categorization |
-| Casual user (secondary) | Fewer files, no sheet | Auto metadata fetch, poster wall, local playback |
-
-### 1.4 Core Value
-
-1. **Efficiency**: scan → identify code → auto 5-source metadata fetch with fallback → one-click batch completion, replacing manual lookups
-2. **Order**: the user's Excel sheet is the single source of truth for categories; one-click reconcile to spot "unlisted / uncategorized"
-3. **Experience**: seamless chain of poster wall → hover description → click detail → preview wall → local playback
-4. **Privacy**: local storage, privacy shield, deletion lock — no user data leaves the machine
+### 1.3 Non-goals
+- No online playback / download / distribution of video content;
+- No cloud sync, no account system, no social sharing;
+- No bundled content sources, no scraping of copyrighted content itself;
+- Not a replacement for multi-device media servers (Plex / Jellyfin class).
 
 ---
 
-## 2. Milestones & Evolution (Inception → Present)
+## 2. Users & scenarios
 
-| Phase | Versions | Description |
-|---|---|---|
-| Kickoff | Initial commit | Electron skeleton |
-| Early days | v1.7.0–1.7.5 | Intro-file wizard + multiple UI refinements |
-| Community | v1.7.6–1.7.7 | About dialog with GitHub Star prompt; library form-based add (no more chained system dialogs) |
-| Dual release | v1.8.0–1.8.5 | GitHub rename to mr-awei + Gitee mirror + dual auto-push; update-check fix (repo path, default source, auto fallback, 20s timeout); home skeleton screen; window resize ghost fix (CSS containment) |
-| Data safety | v1.9.0–1.9.3 | Delete to recycle bin (`shell.trashItem` + seed-folder detection + confirm dialog); delete cascades all associated caches and records |
-| Sheet-driven | v2.0.0–2.0.3 | **Excel sheet support** + JavLibrary source + size filter on scan + dual-cover switching + code extraction enhancements + ffmpeg frame fallback + thumbnail filter to avoid black frames + UserNoticeModal (legal compliance) |
-| Source expansion | v2.0.x merged branch | Javapi / Javinfo sources added; set-as-cover; renderer-side frame fallback; global random; GitHub Actions automated build & release |
-| Category & fallback | v2.1.0 | Auto-categorize videos with genres as `【Source】genre1·genre2`; frame-fetch 30s timeout; batch cap 200 |
-| Stability fixes | v2.2.0–2.2.3 | Drop markdown intro sheets (Excel-only); customSourceOrder field; code parsing enhancement; autoFindIntroExcel scans library root |
-| **Issue-driven fixes** | **v2.2.4–v2.2.10** | **User-feedback-driven fixes** (see 2.1) |
-| Experience & networking | v2.3.x | Bilingual UI (zh-CN/en-US), series episodes, batch fetch progress panel (pause/resume/stop), proxy covering both Node.js and Chromium network stacks |
-| Installer & browsing | v2.4.x | Installer UX improvements (detect running app, no forced kill), list view mode toggle (flat/grouped), random frame extraction with quality filtering |
-| Stability release | v2.5.0 | Fix self-killing upgrade detection; feature stabilization and PRD alignment |
-| Internationalization & compliance | v2.6.6–2.6.7 | NSIS installer language selection at first step and registry persistence; main process reads installer language on first launch; English user notice removes PRC legal references; uninstaller follows installer language. v2.6.7 further merges the in-app uninstall confirmation with the "keep / delete user data" choice into one flow, and fixes the deletion-phase error (UTF-8 BOM for the PowerShell guard script, parameter binding, lingering-process lock release, deletion retries 3→5). |
-| **License & compliance upgrade** | **v2.7.0** | Open source license switched from MIT to Ying Xia Dual License v1.0 (bilingual five-chapter structure: Non-Commercial Free Use, Malware Prohibition with three-layer protection, Commercial Use, Rights Reserved, Disclaimer); new in-app license modal (LicenseModal) accessible from About modal footer, with bilingual auto-switch and one-click email copy; PRD/README/CHANGELOG fully updated to v2.7.0. |
-### 2.1 Recent Fix Cluster (v2.2.4 – v2.2.10)
+### 2.1 Personas
+| Persona | Traits | Core need |
+| --- | --- | --- |
+| Collector | 100–10,000 local titles, already organized | Fast browsing, clear categories, good-looking covers |
+| Curator | Maintains an Excel catalog long term | Catalog edits are reconciled accurately |
+| Privacy-first | Refuses uploads / accounts | Fully local, usable offline, portable data |
+| Presenter | Home theater / large screen | Immersive wall, hover preview, statistics |
 
-| Version | User Feedback | Root Cause | Fix |
-|---|---|---|---|
-| v2.2.4 | "84 videos all show as unlisted" | `XLSX.readFile` fails silently on Chinese paths | Buffer-based read; sheet-exception dialog (don't hide problems); fallback auto metadata fetch when no sheet |
-| v2.2.5 | "Console flooded with errors" | Orphan previewPaths → `lm://` ENOENT spam | Silent ENOENT + reconcile cleans dead previewPaths |
-| v2.2.6 | "Javapi failed — should keep trying others" | Two separate fetch paths + misleading error messages | Unified fetchDetailSmart; full 5-source summary errors; drag-and-drop ordering UI |
-| v2.2.7 | "Copy should follow the order I dragged" | UI text hard-coded to default order | formatSourceOrder dynamic render |
-| v2.2.8 | "Is the real fetch order actually changing?" | Poster fetch hardcoded to JavDB | fetchPosterSmart falls back by customSourceOrder |
-| v2.2.9 | "How do I know which source is being used?" | Main process logs not written to disk | attachMainLog writes to file + [smart] summary log |
-| v2.2.10 | "I should see the fetch progress in the UI too" | Process only in logs | ScanProgress.fetchEvent + bottom-right fetch overlay |
-
-**Takeaway**: the v2.2.x philosophy is **"everything must be visible"** — every failure / fallback / exception must be surfaced in the UI, and every fix must be verified against real user data.
+### 2.2 Key scenarios
+1. **First-time setup** — pick a video root + Excel catalog → scan → reconcile → poster wall.
+2. **Catalog update** — edit the spreadsheet, click "Scan library", categories / scores / synopses refresh.
+3. **Batch enrichment** — enrich titles missing covers or details, retry failures separately.
+4. **Manual correction** — wrong metadata → type a query / ID and refetch.
+5. **Protect results** — lock finished titles so later batch runs never overwrite them.
+6. **Housekeeping** — find missing / untracked entries, clean advertisement text from filenames.
 
 ---
 
-## 3. User Personas & Core Scenarios
+## 3. Functional requirements
 
-### 3.1 Core Scenarios
+> Priority: P0 must ship; P1 important; P2 enhancement.
 
-1. **First-time setup**: add library → auto scan → sheet reconcile → batch completion → categorization done
-2. **Daily browsing**: poster wall scroll → hover description → click detail (rating / actors / tags / preview wall) → local play
-3. **Incremental management**: new videos arrive → scan auto-identifies → if no sheet, auto background metadata fetch
-4. **Handling failures**: JavDB blocked by Cloudflare → auto fallback to JavBus → UI shows fallback chain in real time
-5. **Privacy operations**: toggle privacy shield to blur previews → deletion lock protects sensitive content → restore from recycle bin
+### 3.1 Library management (FR-100)
 
----
+| ID | Requirement | Pri | Acceptance |
+| --- | --- | --- | --- |
+| FR-101 | Add a library: name, video root, Excel catalog | P0 | Clear errors for a missing folder or malformed catalog |
+| FR-102 | Multiple libraries with independent switching | P0 | Categories, stats and recommendations follow the active library |
+| FR-103 | Scan: walk the folder and create records (extension + minimum-size filters) | P0 | Progress is visible; repeated scans create no duplicates |
+| FR-104 | Detect renamed files and keep existing metadata | P1 | Renaming a file outside the app does not lose metadata or covers |
+| FR-105 | Purge stale records whose file no longer exists | P1 | After a scan, record count matches the files on disk |
+| FR-106 | Remove a library (guarded by the deletion lock) | P1 | Requires password verification |
 
-## 4. Feature Overview (All Modules Currently Present)
+### 3.2 Catalog & reconciliation (FR-200)
 
-> Priority legend: **P0** = core flow (product unusable without it) / **P1** = important enhancement (frequent use, critical UX) / **P2** = auxiliary.
+| ID | Requirement | Pri | Acceptance |
+| --- | --- | --- | --- |
+| FR-201 | Parse the catalog: `Title / Category / Score / Synopsis` | P0 | Tolerates legacy headers and column reordering |
+| FR-202 | Extra columns become generic tag groups (no fixed schema) | P0 | Detail page groups tags by column name |
+| FR-203 | Reconcile: report "missing from disk" and "untracked file" | P0 | Counts and per-item details are clickable |
+| FR-204 | Ignore / un-ignore untracked entries | P1 | Ignored items stay in the "untracked" filter |
+| FR-205 | One-click filename advertisement cleanup (preview → apply) | P1 | A failed rename keeps metadata and reports the reason |
+| FR-206 | With no catalog, show per-file entries and auto-categorize by source genres | P1 | No duplicate entries or duplicate React keys |
 
-| Module | Sub-module | Priority | Status |
-|---|---|---|---|
-| M1 Library Management | Multi-library add/edit/delete, form-guided setup, auto scan, reconcile | P0 | ✅ Current |
-| M2 Scan & Code Recognition | Directory traversal, code extraction, size filter, ffprobe tech detection | P0 | ✅ Current |
-| M3 Excel Sheet System | Parse, auto-find, category mapping, matching, exception prompts | P0 | ✅ Current |
-| M4 Source System | 5-source fetch, custom ordering, fallback, poster fetch | P0 | ✅ Current |
-| M5 Metadata Management | Batch / single completion, edit, series dedupe | P0 | ✅ Current |
-| M6 Covers & Previews | Source covers, ffmpeg frames, set-as-cover, cover switching | P0 | ✅ Current |
-| M7 Playback & File Ops | Local play, reveal in folder, delete, rename, torrent magnet | P0 | ✅ Current |
-| M8 Browse & Discover | Home / Browse, category tree, search/filter, favorite, random | P0 | ✅ Current |
-| M9 Privacy & Security | Privacy shield, deletion lock, UserNoticeModal, recycle bin | P1 | ✅ Current |
-| M10 Settings Center | 7 sections (General / Network / Appearance / Privacy / Storage / Updates / Dangerous Ops) | P1 | ✅ Current |
-| M11 System Integration | Update check, tray, auto-start, About, logs | P1 | ✅ Current |
-| M12 Visualization & UX | Fetch overlay, progress prompts, error toasts, skeleton screen | P1 | ✅ Current |
-| M13 Bilingual UI | zh-CN/en-US language switching, localized copy, date/number formatting | P1 | ✅ Current |
-| M14 Series Episodes | Group multiple CDs/episodes under same base code, episode selection, continuous browsing | P1 | ✅ Current |
-| M15 Batch Fetch Progress Panel | Dedicated progress window with pause/resume/stop, per-source status | P1 | ✅ Current |
-| M16 Proxy Coverage | Unified proxy for Node.js and Chromium network stacks, PAC/system proxy support | P1 | ✅ Current |
-| M17 Installer UX | Detect running instance, gentle prompt, no forced kill | P2 | ✅ Current |
-| M18 List View Mode | Flat vs. grouped view toggle, series/source-category grouping | P1 | ✅ Current |
+### 3.3 Browsing & search (FR-300)
 
----
+| ID | Requirement | Pri | Acceptance |
+| --- | --- | --- | --- |
+| FR-301 | Three view modes: portrait grid, landscape grid, filename list | P0 | Switching keeps active filters |
+| FR-302 | Three poster densities | P1 | Persisted across restarts |
+| FR-303 | Virtual scrolling | P0 | 5,000-title library stays smooth; DOM size is constant |
+| FR-304 | Hover preview panel (cover, title, score, tags, synopsis) | P1 | Opens after 1s, closes on mouse-out / scroll |
+| FR-305 | Search across title / filename / synopsis / tags / cast (case-insensitive) | P0 | Live filtering with an empty-state message |
+| FR-306 | Sort by added / title / year / score / last played / random | P0 | Ascending / descending toggle |
+| FR-307 | Smart filters: all / favorites / recent / unrated / no poster / untracked | P1 | Composable with facet filters |
+| FR-308 | Facets: tag / cast / studio / series / category / resolution / duration / score / year | P1 | Selected facets shown as removable chips, clear-all supported |
+| FR-309 | Home dashboard: hero, daily recommendation, cross-library random, stats | P2 | No repeats; manual refresh |
 
-## 5. Detailed Feature Spec (By Module)
+### 3.4 Metadata enrichment (FR-400)
 
-### M1 Library Management
+| ID | Requirement | Pri | Acceptance |
+| --- | --- | --- | --- |
+| FR-401 | Five sources with automatic fallback: MovieDB → OMDb → OpenLibrary → JustWatch → Wikipedia | P0 | Stops on first hit; every attempt is logged |
+| FR-402 | Drag-reorder and per-source enable / disable | P0 | Disabled sources make no requests |
+| FR-403 | Single-source debug mode | P2 | Force one specific source |
+| FR-404 | Batch enrichment with concurrency / interval, pause / resume / stop | P0 | Pause stops new requests; stop collapses the progress panel |
+| FR-405 | Failure report with per-item reason and retry-all | P0 | Retry touches failures only |
+| FR-406 | Manual query / ID refetch | P1 | Prompted automatically on failure; also a permanent toolbar entry |
+| FR-407 | "Update from URL" on the detail page | P1 | Invalid links produce a clear message |
+| FR-408 | Consecutive network failures circuit-break a source | P1 | It degrades to the next source and says so in the log |
 
-| Requirement | Description |
-|---|---|
-| Create library | Form-guided (path picker + name), supports multiple libraries in parallel |
-| Delete library | Confirm dialog; removes associated `data.json` records and caches (does NOT delete files on disk) |
-| Edit library | Change path / name / sheet path |
-| Auto scan | `scanOnStartup`: auto reconcile current library on launch; `autoRescan`: background reconcile for non-current libraries |
-| Reconcile | `libraryReconcile`: read sheet → match files → produce categorized entries → show reconcile result dialog (match / unlisted / uncategorized counts) |
-| Reconcile result display | ReconcileDialog: stats + ignore-unlisted-path + top large files |
-| Scan progress | Real-time progress bar (total / done / current) |
+### 3.5 Covers & frames (FR-500)
 
-**Edge cases**: error when library path unreachable; skip videos smaller than `scanMinSizeMB`.
+| ID | Requirement | Pri | Acceptance |
+| --- | --- | --- | --- |
+| FR-501 | Cover priority: manual → sidecar image → data source → ffmpeg → placeholder | P0 | List and detail page share the same chain |
+| FR-502 | ffmpeg fallback with random multi-point sampling and quality scoring | P1 | Rejects black / white / blurry / monotone frames |
+| FR-503 | Preview set: view, zoom, set as cover | P1 | Setting a cover refreshes the list immediately |
+| FR-504 | Re-frame (per item / detail page) | P1 | Sampling points differ each run and overwrite the result |
+| FR-505 | Cool-down marking for failed frames | P1 | Batch jobs skip the broken file during the cool-down |
 
-### M2 Scan & Code Recognition
+### 3.6 File lock (FR-600)
 
-| Requirement | Description |
-|---|---|
-| Video format detection | 12 extensions: mp4 / mkv / avi / mov / flv / wmv / webm / m4v / ts / m2ts / mpg / mpeg |
-| Code extraction | `extractCode`: handles `SONE-560`, `hdd800.com@JUR-031` (strips domain prefixes), `HUNTA468CD2` (no separator), Chinese brackets; `extractBaseCode` strips episode suffixes like `-CD/-PART/-A/-B/trailing digits` |
-| Folder-name priority | Uses the video's parent folder name as the cleaner search source (filenames often contain ad strings) |
-| Tech probe | `ffprobe` reads codec / resolution / bitrate / duration into `techInfo`, shown on detail page |
+| ID | Requirement | Pri | Acceptance |
+| --- | --- | --- | --- |
+| FR-601 | Lock / unlock a single item (card, context menu, detail page) | P0 | A lock badge appears |
+| FR-602 | Multi-select batch lock / unlock with select-all, invert, clear | P0 | The action bar shows the live selection count |
+| FR-603 | Normal and force batch enrichment skip locked items | P0 | The progress panel shows "N locked skipped" |
+| FR-604 | Post-run report of every skipped file | P0 | Listed in a modal; open details or unlock all |
+| FR-605 | Manual detail-page refetch is not blocked by the lock | P0 | Locked items can still be updated manually |
+| FR-606 | Lock state survives scan / reconcile batch writes | P0 | Locks are never wiped by a background job |
 
-**Edge cases**: unrecognized code → treat as "no result" (don't count as network failure, avoids batch auto-stop); domestic (Chinese-only) videos marked `domestic`, frame-only (no metadata fetch).
+### 3.7 Privacy & safety (FR-700)
 
-### M3 Excel Sheet System
+| ID | Requirement | Pri | Acceptance |
+| --- | --- | --- | --- |
+| FR-701 | Privacy shield: blur every preview image, optionally default-on | P0 | Persisted across restarts |
+| FR-702 | Deletion lock: salted SHA-256 password for delete / library removal | P1 | Wrong attempts are counted and reported |
+| FR-703 | Delete to the system recycle bin; optionally take an otherwise-empty folder | P0 | Pre-check result shown before double confirmation |
+| FR-704 | Proxy: HTTP / HTTPS / SOCKS4 / SOCKS5 / system | P1 | Connectivity test provided |
+| FR-705 | Uninstall keeps user data by default | P1 | The uninstaller prompts and honours the choice |
 
-| Requirement | Description |
-|---|---|
-| Sheet parsing | `parseIntroExcel`: Sheet "Sheet1" ("片单"), code in column B, name in column A, category columns (grouped by column), rating column, tag columns; **buffer-based read (Chinese-path safe)** |
-| Auto-find | `autoFindIntroExcel`: when no path configured, scans library root one level deep for `.xlsx/.xls` (picks first when multiple, sorted by name) |
-| Authoritative categorization | Sheet is the source of truth: categories (`tagCategories` grouped by column), recommended rating (overrides data sources), tags |
-| Matching algorithm | `keyMatches`: code-prefix boundary (previous char not alphanumeric) + tolerant of letter suffixes (only rejects digit suffixes) |
-| Exception prompts | Sheet load failure must fire a Toast (non-auto-dismiss): `not-configured` / `parse-failed` (with `triedPaths`) / `auto-find-failed` |
-| Reconcile accounting | When no sheet configured, produce exactly one entry per file (prevents duplicate keys) |
+### 3.8 Settings & updates (FR-800)
 
-**Edge cases**: empty / corrupted sheet → clearly show "which file is broken"; sheet row dedupe (keep first occurrence per code).
-
-### M4 Source System (Core)
-
-| Requirement | Description |
-|---|---|
-| Sources | Javapi (self-hosted, free, no anti-bot) / Javinfo (aggregator API) / JavDB (rich info but Cloudflare-blocked) / JavBus (medium info, age-gate bypass) / JavLibrary (lightweight, last resort) |
-| Fetch order | `dataSource: 'auto'` follows `customSourceOrder` (default Javapi → Javinfo → JavDB → JavBus → JavLibrary); manual single source for debugging |
-| Order adjustment | SettingsModal drag ⠿ / ↑↓ buttons / restore recommended (v2.2.6+) |
-| Fallback mechanism | Try each source in order, stop on first hit; any source that fails **3 consecutive network errors** (not "no results") is disabled for this batch; JavBus failing 3x stops the entire batch (avoids spinning) |
-| Metadata fetch | `fetchDetailSmart`: full 5-source result summary (`javapi=skipped; javdb=no-result; ...`) |
-| Poster fetch | `fetchPosterSmart`: falls back across all 5 sources by `customSourceOrder` |
-| Live process display | `onEvent` emits per-source attempt → bottom-right overlay in renderer (v2.2.10) |
-| Concurrency throttle | `fetchConcurrency` (1-8) + `fetchIntervalMs` (default 600ms), reduces anti-bot risk |
-
-**Edge cases**: JavDB 403 (Cloudflare) is the normal fallback path; "search no results / unrecognizable code" does NOT count toward failure or trigger a stop.
-
-### M5 Metadata Management
-
-| Requirement | Description |
-|---|---|
-| Batch completion | `libraryFetchJavdbAll`: concurrent fetch for all videos missing detail (cover + detail + preview frames), series dedupe (same base code fetches once) |
-| Single completion | `videoFetchJavdbDetail`: fetch one video's detail, update cover on success |
-| Edit metadata | EditMetaModal: manual edit of title / rating / description / tags / actors |
-| Detail content | JavdbDetail: full title, cover, date, duration, director, studio, series, rating, genres, actors, actresses, samples |
-| Metadata backfill | `backfillFromDetail`: actors / year / rating / tags written back to video fields |
-| Staleness | Detail `parseVer !== 2` means stale and should be re-fetched (new parser version) |
-
-### M6 Covers & Previews
-
-| Requirement | Description |
-|---|---|
-| Source covers | Detail cover → `cacheRemoteImage` downloads locally (with Referer header for anti-hotlink protection) |
-| ffmpeg frame fallback | No cover / bad image → `generatePreviewSet`: 1 cover + 15 preview frames (thumbnail filter avoids black frames, 30s timeout) |
-| Set-as-cover | Preview frame → cover (`videoSetPreviewAsCover`, posterSource=manual highest priority, persisted) |
-| Cover switching | `videoSwitchPoster`: toggle between source cover ↔ ffmpeg frame |
-| Bad-image protection | `isCoverUsable` (validates with ffprobe); don't replace with corrupt/truncated downloads |
-| Preview experience | HoverDetail description + detail-page preview wall + click-to-zoom |
-| Cache cleanup | `cacheClear` clears poster cache dir; deleting a video cascades cache cleanup |
-| Orphan cleanup | v2.2.5 `cleanupDeadPreviewPaths`: removes `data.json` entries pointing to missing files |
-
-### M7 Playback & File Operations
-
-| Requirement | Description |
-|---|---|
-| Local playback | `videoOpen`: default system player or custom `playerPath` |
-| Reveal in folder | `shellRevealInFolder`: opens Explorer at file location |
-| Delete video | `videoDeleteFile`: **recycle bin** (`shell.trashItem`, restorable); seed-folder detection (same folder has no other videos + has `.torrent` → delete the whole folder); delete cascades `data.json` record + all caches |
-| Delete pre-check | `videoInspectForDelete`: shows count of other videos in folder / whether folder contains torrents |
-| Batch rename | `libraryPreviewRenames` / `applyRenames`: strip ad text from filenames (preview → apply) |
-| Magnet share | `videoShareTorrents`: scans folder for `.torrent` files and converts to magnet links for copy |
-
-### M8 Browse & Discover
-
-| Requirement | Description |
-|---|---|
-| Home overview | Hero area + category stats + favorite count + global random |
-| Browse page | Grid (VirtualizedWall virtualized scroll) / List dual-view; poster density (large / standard / compact) |
-| Category tree | Sheet categories + auto-categories (`【Source】genre1·genre2`) + unlisted + uncategorized + series groups |
-| Search | Fuzzy match on title / filename / actors / tags |
-| Quick filter | All / unlisted / uncategorized / favorites / no cover |
-| Sort | Added time / rating (desc) / year / name (asc/desc) |
-| Favorites | ♥ persisted (`favorite`), favorite filter + home page stats |
-| Global random | Multi-library combined shuffle queue + reshuffle; favorites/detail don't rebuild queue for stable ordering |
-
-### M9 Privacy & Security
-
-| Requirement | Description |
-|---|---|
-| Privacy shield | `privacy-on`: one-click blur all preview images (prevents screenshot leakage), localStorage persisted, can default-on |
-| Deletion lock | Set / clear / verify password (`lockSet/lockVerify`), password required before delete actions; prevents accidental deletion and unauthorized users |
-| App lock | LockScreen: requires password to unlock the app; auto-quits after 5 consecutive failures |
-| User notice | Forced modal on first launch (legal text + checkbox + confirmation persisted) |
-| Recycle bin delete | All deletions go through the system recycle bin, restorable |
-
-### M10 Settings Center (7 Sections)
-
-| Section | Settings |
-|---|---|
-| General | External player path, ffmpeg path, auto-scan (on launch / on change), scan size filter, auto-start on boot, minimize to tray |
-| Network | Proxy mode / host / port / user / pass + connectivity test; source mode (auto / single); customSourceOrder drag; javapi URL / Key; javinfo Key; javdb Cookie |
-| Appearance | Theme (cinema / light / magazine / glass / system), poster density |
-| Privacy & Security | Privacy shield default-on, deletion lock toggle / password |
-| Data & Storage | Poster cache cleanup, ffmpeg status detection (system / bundled / missing) |
-| Updates | Update source (GitHub / Gitee), check frequency |
-| Dangerous Ops | Uninstall app (`appUninstall`) |
-
-### M11 System Integration
-
-| Requirement | Description |
-|---|---|
-| Update check | `updateCheck`: GitHub / Gitee dual-source auto-fallback, 20s timeout, launch + periodic check (30min) |
-| System tray | `minimizeToTray`: closing window doesn't quit |
-| About | App info + version + GitHub repo with Star prompt |
-| Logs | main.log (main process console written to disk since v2.2.9) + renderer-console.log (JSON lines) → `%APPDATA%\影海\logs\` |
-| Update prompt | pendingUpdate top banner + download CTA |
-
-### M12 Visualization & UX
-
-| Requirement | Description |
-|---|---|
-| Fetch overlay | Bottom-right FetchLogOverlay: live "→ Trying JavDB… / ✗ JavDB network failed / ✓ JavBus hit" (5 states, 5 colors, last 60 entries, auto-collapses 2.5s after batch ends) |
-| Progress prompts | Unified scan / completion progress Toast (done / total / current, stays visible 0.9s after completion) |
-| Error toasts | Sheet-load-failure and similar warn Toasts never auto-dismiss (v2.2.4 hard requirement: don't hide problems) |
-| First-frame experience | HomeSkeleton skeleton screen; CSS containment prevents window resize ghost images |
+| ID | Requirement | Pri | Acceptance |
+| --- | --- | --- | --- |
+| FR-801 | Appearance: theme, density, default sort, list display mode | P1 | Applied immediately and persisted |
+| FR-802 | General: external player, ffmpeg path, language, startup behaviour | P1 | Invalid paths are reported |
+| FR-803 | Data sources: API keys, order, enabled state | P0 | Keys stay local only |
+| FR-804 | Update check: GitHub / Gitee with configurable frequency | P2 | Shows version, notes and download entry |
+| FR-805 | About: version, stack, third-party credits, in-app license modal | P2 | License readable in-app; contact email copyable |
 
 ---
 
-## 6. Non-Functional Requirements
-
-### 6.1 Performance
-
-| Item | Requirement |
-|---|---|
-| Scan | Incremental scan of 1000+ files completes in seconds; ffprobe / frame-fetch concurrency `scanConcurrency` adjustable |
-| Large list | Grid virtualized scroll (VirtualizedWall), smooth at 500+ cards |
-| Fetch | Batch completion concurrency adjustable (`fetchConcurrency` 1-8) + rate-limited (`fetchIntervalMs`) to avoid anti-bot |
-| Startup | First-frame skeleton; async load of `data.json` |
-
-### 6.2 Security & Privacy
-
-| Item | Requirement |
-|---|---|
-| Data local | All data in `%APPDATA%\影海\data.json`, nothing uploaded |
-| Code / search | Network requests only to 5 sources + image CDNs |
-| Password | Deletion lock hash-stored (SHA-256 salt + password), no plaintext |
-| Credentials | javinfoKey / javapiKey / javdbCookie stored plaintext in `data.json` (acceptable for single-user local, **never synced**) |
-| Links | External links via `openExternal` → default browser; local files via `lm://` whitelist protocol + extension whitelist |
-
-### 6.3 Compatibility & Availability
-
-| Item | Requirement |
-|---|---|
-| Platform | Windows (primary); macOS / Linux theoretically compatible (not fully tested) |
-| Chinese paths | **Must support** (v2.2.4 lesson: xlsx read via buffer) |
-| Offline | No network: cached metadata works, ffmpeg frame fallback, local playback unaffected |
-| Upgrade | Data compatibility: `data.json` forward-compatible with new fields (v2.2.5 lesson: clean orphan references) |
-| Recoverable | Deletions go through recycle bin; uninstall prompts |
-
-### 6.4 Observability
-
-| Item | Requirement |
-|---|---|
-| Logs | main.log + renderer-console.log (main also writes to disk since v2.2.9) |
-| Fetch process | UI overlay + [smart] logs (order / HIT / FAILED three states) |
-| Visible errors | Every failure must surface in the UI (Toast / overlay / reconcile dialog), never silent |
-
----
-
-## 7. Data Model (Core)
+## 4. Information architecture
 
 ```
-data.json
-├── settings: Settings
-│   ├── dataSource / customSourceOrder / javapiUrl / javapiKey / javinfoKey / javdbCookie
-│   ├── proxyMode / proxyHost / proxyPort / proxyUser / proxyPass
-│   ├── fetchConcurrency / fetchIntervalMs / scanConcurrency / scanMinSizeMB
-│   ├── theme / posterDensity / privacyDefaultOn / lockEnabled / lockHash / lockSalt
-│   ├── autoRescan / scanOnStartup / launchAtLogin / minimizeToTray / defaultSort / updateSource
-│   └── ...
-├── libraries: Library[]        # { id, name, path, introExcelPath?, ignoredUnlistedPaths? }
-└── videos: Video[]             # see below
+Sidebar
+├── Home (hero / daily recommendation / cross-library random / stats)
+├── Browse (poster wall / filename list / facets)
+├── Smart filters (favorites / recent / unrated / no poster / untracked)
+├── Libraries (multi-library switch)
+└── Settings / Statistics / About
 ```
 
-```
-Video {
-  id, libraryId, path, fileName, folderName?
-  title, year?, description?, descriptionSource?
-  rating?, tags[], actors?, domestic?
-  posterPath?, posterSource?(javdb|javbus|javlibrary|javapi|javinfo|ffmpeg|manual|placeholder)
-  posterPathFfmpeg?, coverVersion?
-  durationSec?, fileSize?, techInfo?
-  addedAt, lastPlayedAt?, favorite?
-  javdbDetail?{ uid, code, title, cover?, date?, duration?, director?, studio?, series?, rating?, genres[], actors[], actresses?, samples?, source?, parseVer? }
-  previewPaths?, lastMetaFetchAt?
-}
-```
-
-**Sheet structure**: `IntroDoc { items: IntroItem[], tagCategories? }`; `IntroItem { code, name, tags[], categories?, score? }` (authoritative source, overrides data sources).
+Detail-page information priority: title → cover and previews → metadata (year / duration / score / category / studio / series / director) → synopsis → tags → cast → related titles.
 
 ---
 
-## 8. Risks & Dependencies
+## 5. Non-functional requirements
 
-| Risk | Severity | Mitigation |
-|---|---|---|
-| **JavDB Cloudflare blocking** (user's IP currently 403) | High | 5-source auto-fallback (currently fully falling back to JavBus); user can switch IP / configure Cookie |
-| Source site redesign breaks HTML parsing | Medium | Per-source modules + parseVer versioning + [smart] logs for quick diagnosis |
-| Large dataset performance | Low | Virtualized scroll + incremental scan |
-| Chinese path compatibility | Resolved | Buffer-based read + end-to-end testing (v2.2.4) |
-| Network instability (release / fetch) | Medium | Node direct-connect release script; fetch auto-fallback retry |
-| Upgrade data migration | Medium | New fields are forward-compatible; orphan cleanup (v2.2.5) |
-
----
-
-## 9. Metrics
-
-| Metric | Definition | Current baseline (measured) |
-|---|---|---|
-| Metadata coverage | videos with javdbDetail / total videos | 80 / 84 = **95.2%** |
-| Sheet match rate | keyMatches hits / total directory | **76 / 76 = 100%** |
-| Fetch source distribution | bySource counts | javbus: 80 (JavDB blocked → all falling back) |
-| Batch completion success | ok / (ok+failed) | Depends on network conditions |
-| Startup to interactive | skeleton → usable | < 2s (local data) |
+| Area | Requirement |
+| --- | --- |
+| Performance | 5,000-title first screen ≤ 3s; 60fps scrolling; batch enrichment never blocks the UI; large writes are checkpointed |
+| Reliability | Atomic replace + debounced writes; an unexpected shutdown loses at most one checkpoint batch; schema migrates on startup |
+| Compatibility | Windows 10+ / macOS 11+ / Linux; zh-CN and en-US; HiDPI aware |
+| Privacy | No account, no telemetry; network only on explicit user action; keys and passwords stay local |
+| Maintainability | Shared three-layer types; `npm run typecheck` green is the merge gate; docs evolve with code |
+| Observability | Console tracing for key flows; a dedicated frame-extraction log for troubleshooting |
 
 ---
 
-## 10. Roadmap
+## 6. Release acceptance criteria
 
-| Priority | Item | Description |
-|---|---|---|
-| 🔴 P0 | **Doc tag layering** | User requirement: doc tags are primary; data-source tags collapse to secondary display (Video gains `tagCategories` + `backupTags`, detail page can expand) |
-| 🟡 P1 | Cover / preview enhancement | ffmpeg re-frame button completion; auto frame for videos without previews |
-| 🟡 P1 | Source stability | JavDB anti-bot mitigation (Cookie guidance / retry strategy); source-change monitoring |
-| 🟢 P2 | Multi-end-device | Pack-and-release automation (timestamp signing, Gitee Release asset size handling) |
-| 🟢 P2 | Import / export | Excel sheet export (currently read-only) |
+1. New library → scan → reconcile → the poster wall renders with catalog-accurate category / score / synopsis.
+2. A 5,000-title library scrolls, filters and searches without stutter.
+3. Batch enrichment can pause / resume / stop; failures retry; the five-source fallback log is visible.
+4. Locked items are skipped by both normal and force batch enrichment, with a post-run report.
+5. Titles without a poster get a cover and preview set via ffmpeg.
+6. Privacy shield, deletion lock, recycle-bin delete and the uninstall retention guard all work.
+7. No missing strings when switching zh-CN ↔ en-US; `npm run typecheck` passes.
 
 ---
 
-## 11. Appendix
+## 7. Metrics
 
-### 11.1 Glossary
+| Metric | Target |
+| --- | --- |
+| First-time library setup success (incl. no-catalog users) | ≥ 98% |
+| Batch enrichment hit rate (at least one source) | ≥ 90% |
+| Failure entries per 1,000 titles | ≤ 50 |
+| Crash rate per session | 0 |
+| Network requests beyond explicit user action | 0 |
+
+---
+
+## 8. Roadmap
+
+| Phase | Scope | Status |
+| --- | --- | --- |
+| v2.0–v2.2 | Library setup, reconciliation, poster wall, basic enrichment | Shipped |
+| v2.3–v2.4 | Large-library performance, virtual scrolling, frame quality, controllable batch jobs | Shipped |
+| v2.5–v2.6 | Tag layering, catalog matching improvements, update check, uninstall flow | Shipped |
+| v2.7 | Dual license, in-app license modal, documentation overhaul | Shipped |
+| v2.8 (planned) | Richer file locking, self-healing stale data, search experience | In progress |
+
+---
+
+## 9. Risks & mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Source rate limiting / anti-scraping | Lower enrichment success | Concurrency + interval throttling, circuit breaker, multi-source fallback, local cache reuse |
+| Files renamed / moved outside the app | Stale records | Content-fingerprint rename detection; automatic purge of stale records |
+| Slow writes on huge libraries | UI stalls / data loss | Coalesced writes, checkpointed batches, atomic replace |
+| External / network drive offline | False "missing" detection | Purging requires this scan to have actually read files |
+| Non-standard catalog format | Reconciliation fails | Multi-header tolerance, column-order tolerance, guided wizard |
+
+---
+
+## 10. Appendix: glossary
 
 | Term | Meaning |
-|---|---|
-| Reconcile | Sheet / file vs. `data.json` record sync comparison |
-| FetchJavdb | Metadata / cover / preview fetch from sources |
-| Frame (FFmpeg) | Cover / preview generated by extracting frames from video with ffmpeg |
-| Intro Excel | User-maintained Excel sheet, authoritative categorization source |
-| Cloudflare blocking | Source site's 403 response for high-frequency IPs |
-
-### 11.2 Key Files Index
-
-- Smart fetch hub: `src/main/lib/javdb-smart.ts`
-- Reconcile core: `src/main/lib/reconcile.ts`
-- Sheet parsing: `src/main/lib/excel.ts`
-- Full IPC list: `src/shared/ipc.ts`
-- Type definitions: `src/shared/types.ts`
-- UI entry: `src/renderer/src/App.tsx`
-- Source modules: `javdb.ts / javbus.ts / javinfo.ts / javapi.ts / javlibrary.ts`
-
----
-
-:*End of document. This PRD covers all features present as of v2.7.0. New requirements should be appended to Section 10 Roadmap and reviewed.*
+| --- | --- |
+| Library | A video root folder plus one Excel catalog |
+| Catalog | The Excel file that authoritatively defines category / score / synopsis |
+| Reconcile | Compare catalog entries against files on disk and classify them |
+| Meta | Metadata fetched from a source: title, year, score, genres, cast, synopsis … |
+| externalId | A source-side identifier (TMDb ID / IMDb ID / work key) |
+| Frame fallback | Using ffmpeg to grab video frames as cover / previews when no poster exists |
+| Lock | Marks a title as excluded from batch enrichment, protecting manual fixes |

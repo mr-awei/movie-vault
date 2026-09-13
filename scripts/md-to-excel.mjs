@@ -213,7 +213,7 @@ async function main() {
   console.log('✓ 转换完成')
   console.log(`  解析分类: ${doc.categories.length} 个（${catNames}）`)
   console.log(`  有效条目: ${total} 条`)
-  if (dupCodes.length) console.log(`  跳过重复番号: ${dupCodes.length} 条（${dupCodes.slice(0, 5).join('、')}${dupCodes.length > 5 ? '…' : ''}）`)
+  if (dupCodes.length) console.log(`  跳过重复 sourceCode: ${dupCodes.length} 条（${dupCodes.slice(0, 5).join('、')}${dupCodes.length > 5 ? '…' : ''}）`)
   console.log(`  输出: ${out}`)
   console.log('  提示: 把该 xlsx 放到媒体库根目录，v2.2.3+ 会自动扫描作为片单')
 }

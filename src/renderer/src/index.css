@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ============================================================
-   皮肤系统：CSS 变量驱动（cinema / light / magazine / glass）
+   皮肤系统：CSS 变量驱动（dark / light）
    --ink-* 存 RGB 分量（数字），tailwind.config 用
    rgb(var(--ink-x) / <alpha-value>) 引用 → bg-ink-x/95 透明度修饰符依然有效。
    换肤只需切换 <html> 的 theme-* class，组件类名完全不动。
@@ -18,13 +18,13 @@
   --ink-700: 28 33 46;
   --ink-600: 40 47 64;
   --ink-500: 62 72 96;
-  --app-bg: radial-gradient(1200px 800px at 20% -10%, #1b2a45 0%, #0a0c12 60%);
+  --app-bg: radial-gradient(1200px 800px at 18% -12%, #16263f 0%, #0a0e16 62%);
   --poster-min: 150px;
   --font-display: inherit;
   --radius-card: 16px;
   --shadow-card: 0 10px 32px rgba(0, 0, 0, 0.45);
-  --accent: 251 114 153;
-  --accent-2: 255 180 190;
+  --accent: 20 184 166;
+  --accent-2: 45 212 191;
 
   /* ===== 动效令牌：统一时长 / 缓动，组件引用而非散落硬编码 ===== */
   --dur-fast: 150ms;
@@ -47,42 +47,8 @@
   --font-display: inherit;
   --radius-card: 14px;
   --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.08);
-  --accent: 236 72 127;
-  --accent-2: 255 130 170;
-}
-
-.theme-magazine {
-  color-scheme: dark;
-  --ink-900: 12 10 12;
-  --ink-850: 20 17 19;
-  --ink-800: 28 24 26;
-  --ink-700: 40 35 38;
-  --ink-600: 58 50 54;
-  --ink-500: 88 78 82;
-  --app-bg: radial-gradient(1100px 700px at 85% -12%, #4a1a2e 0%, #110c0e 55%);
-  --poster-min: 160px;
-  --font-display: 'Georgia', 'Songti SC', 'Noto Serif SC', 'Times New Roman', serif;
-  --radius-card: 4px;
-  --shadow-card: 0 12px 30px rgba(0, 0, 0, 0.35);
-  --accent: 251 114 153;
-  --accent-2: 255 160 180;
-}
-
-.theme-glass {
-  color-scheme: dark;
-  --ink-900: 10 11 18;
-  --ink-850: 20 22 34;
-  --ink-800: 26 28 44;
-  --ink-700: 36 38 58;
-  --ink-600: 50 52 78;
-  --ink-500: 74 76 108;
-  --app-bg: radial-gradient(1200px 900px at 25% -10%, #3d2e6e 0%, #1a1830 45%, #0b0c14 100%);
-  --poster-min: 150px;
-  --font-display: inherit;
-  --radius-card: 20px;
-  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --accent: 167 139 250;
-  --accent-2: 192 219 255;
+  --accent: 13 148 136;
+  --accent-2: 20 184 166;
 }
 
 /* 海报密度：大图沉浸 / 标准 / 高密度（控制 EntryGrid 的最小列宽） */
@@ -214,57 +180,10 @@ body {
     0 0 24px rgba(var(--accent) / 0.12);
 }
 
-/* ===== 玻璃拟态：面板半透明 + 强毛玻璃 + 霓虹强调 ===== */
-.theme-glass .bg-ink-850,
-.theme-glass .bg-ink-800,
-.theme-glass .bg-ink-700,
-.theme-glass .bg-ink-850\/90,
-.theme-glass .bg-ink-850\/80 {
-  background-color: rgba(255, 255, 255, 0.06) !important;
-  backdrop-filter: blur(28px) saturate(1.6);
-  -webkit-backdrop-filter: blur(28px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-.theme-glass .entry-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)) !important;
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-.theme-glass .entry-card:hover {
-  border-color: rgba(var(--accent-2) / 0.5);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(var(--accent) / 0.35),
-    0 0 40px rgba(var(--accent) / 0.15);
-}
-
-/* ===== 杂志艺术：衬线大字 + 竖条装饰 + 暖调强调 ===== */
+/* ===== 标题通用样式 ===== */
 .section-title {
   font-family: var(--font-display);
   letter-spacing: 0.02em;
-}
-.theme-magazine .section-title {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  position: relative;
-  padding-left: 16px;
-  margin-bottom: 2px;
-}
-.theme-magazine .section-title::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 5px;
-  bottom: 5px;
-  width: 5px;
-  border-radius: 2px;
-  background: linear-gradient(180deg, rgb(var(--accent)), rgb(var(--accent-2)));
-}
-.theme-magazine .entry-card {
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-.theme-magazine .entry-card:hover {
-  border-color: rgba(var(--accent) / 0.5);
 }
 
 /* ===== 深邃影院：更强的沉浸感，卡片边框更收敛 ===== */
@@ -353,12 +272,12 @@ body {
   transform: scale(0.97);
 }
 .btn-brand {
-  background: linear-gradient(135deg, #fb7299, #ff8aab);
+  background: linear-gradient(135deg, #14b8a6, #2dd4bf);
   color: #fff;
-  box-shadow: 0 4px 16px rgba(251, 114, 153, 0.35);
+  box-shadow: 0 4px 16px rgba(20, 184, 166, 0.35);
 }
 .btn-brand:hover {
-  box-shadow: 0 6px 22px rgba(251, 114, 153, 0.45);
+  box-shadow: 0 6px 22px rgba(20, 184, 166, 0.45);
   filter: brightness(1.06);
 }
 .btn-ghost {
@@ -465,7 +384,7 @@ body {
 
 /* ---------- 阴影 ---------- */
 .shadow-glow-sm {
-  box-shadow: 0 2px 12px rgba(251, 114, 153, 0.35);
+  box-shadow: 0 2px 12px rgba(20, 184, 166, 0.35);
 }
 
 /* ---------- 主题切换过渡 ---------- */
@@ -505,13 +424,6 @@ body {
 .theme-light .bg-white\/6 { background-color: rgba(0, 0, 0, 0.045) !important; }
 .theme-light .bg-white\/12 { background-color: rgba(0, 0, 0, 0.075) !important; }
 .theme-light .hover\:bg-white\/12:hover { background-color: rgba(0, 0, 0, 0.075) !important; }
-
-/* ---------- 玻璃皮肤：工具条 / 侧栏半透明 + 毛玻璃 ---------- */
-.theme-glass .bg-ink-850\/90,
-.theme-glass .bg-ink-850\/80 {
-  backdrop-filter: blur(22px) saturate(1.5);
-  -webkit-backdrop-filter: blur(22px) saturate(1.5);
-}
 
 /* ---------- 列表虚拟化：content-visibility（大库几千条一次性渲染卡顿） ---------- */
 /* Chromium 原生跳过视口外元素渲染，滚动时按需渲染；contain-intrinsic-size 提供占位高度 */

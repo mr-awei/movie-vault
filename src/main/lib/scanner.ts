@@ -1,33 +1,48 @@
 import { createHash } from 'node:crypto'
-import { promises as fs } from 'node:fs'
+import { promises as fs, existsSync } from 'node:fs'
 import path from 'node:path'
 import type { Library, ScanProgress, Settings, Video } from '../../shared/types'
-import { findVideoByPath, listLibraries, applyVideoChanges, type VideoChange } from './repo'
+import { findVideoByPath, findVideoByContentHash, findVideoByTitleSize, listLibraries, listVideos, applyVideoChanges, type VideoChange } from './repo'
 import { resolvePoster, postersCacheDir, generatePreviewSet } from './images'
-import { isDomestic } from '../../shared/code'
+import { extractTitleYear } from '../../shared/code'
 
 export const VIDEO_EXTS = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.webm', '.flv', '.m4v',
   '.mpg', '.mpeg', '.rm', '.rmvb', '.ts', '.m2ts', '.3gp', '.ogv'
 ])
 
-export function idForPath(p: string): string {
-  return createHash('sha1').update(p).digest('hex')
+export function idForPath(p: string, contentHash?: string, libraryId?: string): string {
+  // 主键策略：默认按路径（定位安全）；传入 contentHash 时改为按文件内容指纹，
+  // 使内容相同的文件（不同路径的副本）自然归并到同一条记录，实现"文件哈希去重"。
+  // libraryId 用于跨媒体库隔离，避免不同库里的同名副本互相覆盖。
+  const basis = contentHash ? `file:${libraryId ?? ''}:${contentHash}` : `path:${p}`
+  return createHash('sha1').update(basis).digest('hex')
 }
 
-function cleanTitle(name: string): string {
-  const noExt = name.replace(/\.[^./\\]+$/, '')
-  let s = noExt
-    // 2026-08-30 修复：原版只吃 ASCII `[]`/`()`/`{}`，中文方括号【】、中文圆括号（）残留，导致标题里带【中字】
-    // 整段被认定为"内容"污染搜索。改成吃 ASCII + 全角混用。
-    .replace(/\[[^\]]*\]/g, ' ')
-    .replace(/[\(（][^\)）]*[\)）]/g, ' ')
-    .replace(/[\{【][^\}】]*[\}】]/g, ' ')
-  s = s.replace(
-    /\b(720p|1080p|2160p|4k|8k|hr|hd|fhd|uhd|web-?dl|blu-?ray|bdrip|dvdrip|hdtv|webrip|x264|x265|hevc|h\.?264|h\.?265|avc|10bit|8bit|yuv420p|ac3|aac|dts|truehd|atmos|chinese|english|双语|中英|双字|内封|外挂|合集|完整版|国语|粤语|普通话)\b/gi,
-    ' '
-  )
-  return s.replace(/\s{2,}/g, ' ').trim()
+/**
+ * 计算文件内容指纹（用于"文件哈希去重"）：取文件大小 + 前 64KB 的 sha1。
+ * 不同影片极少共享"相同大小 + 相同头部 64KB"，足以在扫描/对账时识别副本。
+ * 读取失败返回 undefined（退化为按路径主键，不影响主流程）。
+ */
+export async function computeContentHash(filePath: string): Promise<string | undefined> {
+  try {
+    const stat = await fs.stat(filePath)
+    if (!stat.isFile()) return undefined
+    const size = stat.size
+    const sampleSize = Math.min(64 * 1024, size)
+    if (sampleSize <= 0) return `sz0:${size}`
+    const fh = await fs.open(filePath, 'r')
+    try {
+      const buf = Buffer.alloc(sampleSize)
+      await fh.read(buf, 0, sampleSize, 0)
+      const h = createHash('sha1').update(buf).digest('hex')
+      return `sz${size}:${h}`
+    } finally {
+      await fh.close()
+    }
+  } catch {
+    return undefined
+  }
 }
 
 export async function* walk(dir: string, minSizeBytes = 0): AsyncGenerator<string> {
@@ -44,7 +59,7 @@ export async function* walk(dir: string, minSizeBytes = 0): AsyncGenerator<strin
     } else if (entry.isFile()) {
       const ext = path.extname(full).toLowerCase()
       if (VIDEO_EXTS.has(ext)) {
-        // 大小过滤：跳过小于 minSizeBytes 的文件（过滤短视频/广告样片；0 = 不过滤）
+        // 大小过滤：跳过小于 minSizeBytes 的文件（过滤短视频/预告片；0 = 不过滤）
         if (minSizeBytes > 0) {
           // stat 失败时保守保留（不跳过，避免网络盘/权限异常时误过滤）
           const st = await fs.stat(full).catch(() => null)
@@ -80,26 +95,50 @@ export async function scanLibrary(
   const createdChanges: VideoChange[] = []
   for (const filePath of allFiles) {
     done++
-    onProgress?.({ libraryId: library.id, total, done, current: path.basename(filePath) })
     const existing = await findVideoByPath(filePath)
+    onProgress?.({
+      libraryId: library.id,
+      total,
+      done,
+      current: existing?.meta?.title || existing?.title || path.basename(filePath)
+    })
     if (existing) {
       created.push(existing)
       continue
     }
     const stat = await fs.stat(filePath).catch(() => null)
+    const contentHash = stat ? await computeContentHash(filePath) : undefined
     const folderName = path.basename(path.dirname(filePath))
-    const video: Video = {
-      id: idForPath(filePath),
-      libraryId: library.id,
-      path: filePath,
-      fileName: path.basename(filePath),
-      folderName,
-      domestic: isDomestic(folderName, path.basename(filePath)),
-      title: cleanTitle(path.basename(filePath)),
-      tags: [],
-      addedAt: Date.now(),
-      fileSize: stat?.size
-    }
+    const { title, year } = extractTitleYear(filePath)
+    // 识别「被重命名的文件」：路径变了但内容没变 → 更新已有记录的路径/文件名/标题，保留已抓取 meta、封面等。
+    const prev =
+      (contentHash ? await findVideoByContentHash(contentHash, library.id) : null) ??
+      (await findVideoByTitleSize(title, stat?.size, library.id))
+    const video: Video = prev
+      ? {
+          ...prev,
+          path: filePath,
+          fileName: path.basename(filePath),
+          folderName,
+          title,
+          year,
+          fileSize: stat?.size,
+          contentHash,
+          addedAt: prev.addedAt
+        }
+      : {
+          id: idForPath(filePath, contentHash, library.id),
+          libraryId: library.id,
+          path: filePath,
+          fileName: path.basename(filePath),
+          folderName,
+          title,
+          year,
+          tags: [],
+          addedAt: Date.now(),
+          fileSize: stat?.size,
+          contentHash
+        }
     // 快速解析：手动/同名图/占位（不触发网络与截帧）
     const quick = await resolvePoster(video, library, settings, { allowFfmpeg: false })
     video.posterSource = quick.source
@@ -111,6 +150,23 @@ export async function scanLibrary(
   }
   // fix7：创建阶段一次性落盘
   if (createdChanges.length > 0) await applyVideoChanges(createdChanges)
+
+  // v2.7.x：清理「文件已不存在」的失效记录。
+  // 用户可能在资源管理器里改名/移动/删除过文件，旧路径的记录会残留在 data.json：
+  // 对账不会删它们、批量补齐还会按标题去抓（造成「脏数据仍在参与」）。
+  // 放在创建阶段之后：刚被识别为「重命名」的记录此时路径已更新，不会被误删。
+  // 安全护栏：仅当本次确实扫到文件时才清理，避免外接盘/网络盘离线时误删整库。
+  if (allFiles.length > 0) {
+    const alive = new Set(allFiles.map((p) => path.resolve(p).toLowerCase()))
+    const existing = await listVideos({ libraryId: library.id })
+    const stale = existing.filter(
+      (v) => !alive.has(path.resolve(v.path).toLowerCase()) && !existsSync(v.path)
+    )
+    if (stale.length > 0) {
+      await applyVideoChanges(stale.map((v) => ({ type: 'remove' as const, id: v.id })))
+      console.log(`[scan] 清理失效记录 ${stale.length} 部（文件已不存在）`)
+    }
+  }
 
   // 富集阶段：ffmpeg 截帧兜底（并发 = settings.scanConcurrency，默认 4）
   const libraries = await listLibraries()
@@ -126,7 +182,7 @@ export async function scanLibrary(
     while (nextIdx < created.length) {
       const i = nextIdx++
       const v = created[i]
-      onProgress?.({ libraryId: library.id, total, done: total + doneCount, current: v.title })
+      onProgress?.({ libraryId: library.id, total, done: total + doneCount, current: v.meta?.title || v.title })
       try {
         // 无海报 → 尝试 resolvePoster（含 ffmpeg 生成）；仍无则直接 ffmpeg 截帧兜底
         if (!created[i].posterPath || created[i].posterSource === 'placeholder') {

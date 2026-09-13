@@ -1,3 +1,5 @@
+import type { DisplayEntry } from '../../../shared/types'
+
 /** lm:// URL 结果缓存（同一路径只编码一次，大库滚动时避免重复 base64） */
 const posterUrlCache = new Map<string, string>()
 
@@ -25,13 +27,37 @@ export function posterUrl(posterPath?: string, version?: number | string): strin
 }
 
 /**
+ * 根据字符串生成一个稳定、素雅的 HSL 色值（用于演员缺头像时的名字色块）。
+ * 饱和度 / 亮度固定在中等偏低区间，避免过于抢眼；同名字永远得到同一颜色。
+ */
+export function stringToMutedColor(str: string): string {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const hue = Math.abs(hash) % 360
+  return `hsl(${hue} 35% 58%)`
+}
+
+/** 获取条目在列表/搜索/排序中应使用的「最新标题」：数据源标题 > 视频标题 > 去扩展名文件名 > 条目标题 > code */
+export function displayTitle(entry: DisplayEntry): string {
+  return (
+    entry.video?.meta?.title ||
+    entry.video?.title ||
+    (entry.video?.fileName ? entry.video.fileName.replace(/\.[^./\\]+$/, '') : undefined) ||
+    entry.title ||
+    entry.code
+  )
+}
+
+/**
  * 解析一个条目的最佳封面路径（与 EntryCard 展示优先级一致）。
- * 优先级：手动设的封面(manual) > 非截帧 posterPath > ffmpeg posterPath > javdbDetail.cover。
- * v2.3.3 修复：javdbDetail.cover 常指向已失效的文件（javapi-cover-*.jpg 下载失败/被清理），
+ * 优先级：手动设的封面(manual) > 非截帧 posterPath > ffmpeg posterPath > meta.cover。
+ * v2.3.3 修复：meta.cover 常指向已失效的文件（数据源-cover-*.jpg 下载失败/被清理），
  * 若 cover 优先于存在的 posterPath，相关推荐会返回 404 路径导致占位图。posterPath（100% 有效）
  * 始终优先，cover 仅在 posterPath 缺失时补充。
  */
-export function resolveEntryPoster(v?: { posterPath?: string; posterSource?: string; javdbDetail?: { cover?: string } }): string | null {
+export function resolveEntryPoster(v?: { posterPath?: string; posterSource?: string; meta?: { cover?: string } }): string | null {
   if (!v) return null
   const manualPoster = v.posterSource === 'manual' && v.posterPath ? v.posterPath : null
   const realPoster =
@@ -41,7 +67,7 @@ export function resolveEntryPoster(v?: { posterPath?: string; posterSource?: str
     v.posterSource !== 'manual'
       ? v.posterPath
       : null
-  const detailCover = v.javdbDetail?.cover && !/^https?:\/\//.test(v.javdbDetail.cover) ? v.javdbDetail.cover : null
+  const detailCover = v.meta?.cover && !/^https?:\/\//.test(v.meta.cover) ? v.meta.cover : null
   return manualPoster ?? realPoster ?? detailCover ?? v.posterPath ?? null
 }
 
@@ -70,10 +96,26 @@ export function titleInitial(title: string): string {
   return (title ?? '').trim().charAt(0).toUpperCase() || '?'
 }
 
-/** 取番号次要文本（去连字符/下划线，前 10 字符）用于占位图小字 */
+/** 取占位图次要文本（标题/文件名，去前后空白，最多 12 字符）用于占位图小字 */
 export function titleSecondary(code: string): string {
-  const c = (code ?? '').trim().toUpperCase().replace(/[-_.\s]/g, '')
-  return c.slice(0, 10) || '?'
+  const c = (code ?? '').trim()
+  return c.slice(0, 12) || '?'
+}
+
+/** 取干净的展示标题：去除路径分隔符、扩展名，若为空则回退到文件名（无扩展名） */
+export function pureTitle(title?: string, fileName?: string): string {
+  let s = (title ?? '').trim()
+  // 含路径时取最后一段
+  if (/[\\/]/.test(s)) {
+    s = s.replace(/^[\\/]+/, '').split(/[\\/]/).pop() ?? s
+  }
+  // 去掉扩展名
+  s = s.replace(/\.[^.\\/]+$/, '')
+  if (!s && fileName) {
+    s = fileName.replace(/^[\\/]+/, '').split(/[\\/]/).pop() ?? fileName
+    s = s.replace(/\.[^.\\/]+$/, '')
+  }
+  return s || '???'
 }
 
 /**

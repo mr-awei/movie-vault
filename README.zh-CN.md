@@ -1,159 +1,174 @@
-# 影海 YingXia
+# 影海 Yinghai · Movie Vault
 
-<div align="center">
-  <a href="README.md">English</a>
-  <span> · </span>
-  <strong><a href="README.zh-CN.md">中文</a></strong>
-</div>
+[English](./README.md) · **简体中文**
 
-<div align="center">
-  <strong>v2.7.0</strong> ·
-  <span>2026-09-09</span> ·
-  <a href="CHANGELOG.md">更新日志</a>
-</div>
+> 本地优先的影视收藏管理工具。选择一个视频文件夹 + 一份 Excel 片单，即可生成可浏览、可检索的海报墙影库 —— **数据 100% 落在本地，不上传、不采集、不需要账号**。
 
-<br />
-
-## 本地视频海报墙管理工具 · Excel 片单驱动的私人影库
-
-**核心原则：纯本地、不采集、不传输。**
-
-影海是一款 Windows 桌面应用，能把本地视频文件夹变成精美的海报墙影库。搭配一份 Excel 片单（你的个人目录）后，应用会自动整理、分类并补全元数据——所有元数据始终保存在你自己的电脑上。
-
-> ⚠️ 本工具仅用于管理用户**本地自有**的视频收藏，不传播、不上传、不分享任何内容。
+![许可证](https://img.shields.io/badge/license-Yinghai%20Dual%20License%20v1.0-blue)
+![平台](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![Electron](https://img.shields.io/badge/Electron-31-47848F?logo=electron&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)
 
 ---
+
+## 项目简介
+
+影海把普通的「视频文件夹」变成一个有分类、有海报、有简介的私人影库：
+
+- **Excel 片单是唯一权威来源**：分类、推荐评分、简介、自定义标签都以片单为准；
+- **元数据 / 海报 / 演职员** 从公开影视数据库抓取后永久缓存在本地；
+- 数据库、海报、缓存全部存放在你自己的磁盘上。
+
+应用是标准的三层 Electron 架构（主进程 / preload / 渲染进程），TypeScript 全量类型化，无服务端、无埋点上报。
+
+> **免责声明** —— 影海是**本地文件整理工具**，不托管、不提供、不传播、不分发任何视频内容。所有元数据来自公开影视数据库。请确保你对自有收藏拥有合法的访问与使用权。
 
 ## 核心特性
 
-### 📊 Excel 片单驱动
-- Excel 片单是 `分类 / 推荐评分 / 简介 / 主题 / 角色 / 服装 / 体型 / 行为 / 玩法 / 场景 / 剧情 / 其他` 的唯一权威来源
-- 随时与文件夹对账，详情页按组完整展示片单里非空的标签分组
-- AI 生成的中文表头自动映射到英文 schema
+### 影库与浏览
+- 海报墙 **三档密度**（沉浸 / 标准 / 紧凑），支持竖屏卡片、横屏卡片、纯文件名列表三种视图。
+- **虚拟滚动**：DOM 数量恒定，与影库规模无关，数千部依旧顺滑。
+- Netflix 式悬停预览面板、悬停简介、六种排序（添加时间 / 标题 / 年份 / 评分 / 最近播放 / 随机）。
+- 智能筛选：收藏、最近播放、未评分、无封面、未收录，以及标签 / 演员 / 制片公司 / 系列 / 分类 / 分辨率 / 时长 / 评分 / 年份多维筛选。
+- 首页看板：Hero 洗牌推荐、每日推荐、跨媒体库随机行、统计面板。
 
-### 🖼️ 海报墙浏览
-- 三种密度（沉浸 / 标准 / 紧凑），悬停放大延迟 1 秒
-- 虚拟滚动支撑大库流畅浏览
-- 可在设置页选择「全库平铺」或「按分类分组」作为默认视图
+### 片单驱动
+- Excel 为权威数据源：`片名 | 分类 | 推荐评分 | 简介`，**任意额外列自动成为通用标签组**（无固定 schema）。
+- 片单向导可生成与实际表结构一致的 AI 提示词；片单可随时重新导入 / 重新对账。
+- 文件夹与片单自动对账：识别「片单缺失」「文件未收录」，并支持一键清理文件名广告。
 
-### 🔍 智能元数据补齐
-- 自动识别番号，从可配置数据源（JavDB、JavBus、JavLibrary、Javapi、Javinfo）抓取元数据，自动降级
-- 支持可拖拽重排序数据源、可暂停/继续/停止的批量抓取进度面板
-- 每个视频的抓取失败原因同时在右下角弹窗和详情页内联展示
-- 补齐失败后可手工输入番号重试
+### 元数据补齐
+- 五个数据源自动降级：**MovieDB（TMDb）· OMDb · OpenLibrary · JustWatch · 维基百科**。
+- 数据源支持拖拽排序、单独启用/禁用、单源调试；API Key 可选，仅保存在本地。
+- 批量补齐支持并发 / 间隔限速、**暂停 / 继续 / 停止**、失败单独重试，并实时展示「数据源失败 → 降级下一源」日志。
+- 失败明细精确到条目与原因；识别困难时可手工输入检索词 / ID 重试。
 
-### 🎬 系列分集与截帧
-- 同一番号多文件（如 `SONE-560_1.mp4`、`SONE-560_2.mp4`）在列表页合并为一张卡片
-- 缺封面时 ffmpeg 从 12–22 个候选帧里自动跳过黑屏、白屏、模糊、单调画面
-- 详情页自动截帧与手动「重新截帧」走同一套多帧管线
+### 封面与截帧
+- 封面优先级链：手动封面 → 同目录同名图 → 数据源海报 → ffmpeg 截帧 → 内置占位。
+- ffmpeg 兜底：随机多点采样 + 质量评分（自动剔除过黑 / 过白 / 模糊 / 画面单调帧），生成封面与预览集。
+- 支持一键重新截帧、把预览帧设为封面、数据源海报与 ffmpeg 封面自由切换。
 
-### 🛡️ 隐私与安全
-- 零上传：应用不向任何服务器上传任何用户数据
-- 一键模糊所有封面，删除锁需 SHA-256 校验
-- 卸载时可选择保留或删除用户数据，媒体库文件夹受保护脚本把关绝不被触碰
+### 文件锁定
+- 支持对任意数量影片加锁（单条卡片 / 详情页 / 多选批量），**普通与强制批量补齐都会自动跳过**，详情页手动更新不受限。
+- 每轮批量补齐结束后明确告知哪些文件被跳过，并提供「全部解锁」。
 
-### 🌐 双语与国际化
-- 安装器第一步选择语言（简体中文 / English），应用首次打开即为选定语言
-- 设置页可随时切换界面语言
-- 英文用户须知展示通用免责声明，不引用具体法律法规
+### 安全与隐私
+- **隐私护盾**：一键模糊所有预览图（防截图泄露），可设为默认开启。
+- **删除锁**：删除影片 / 移除媒体库需 SHA-256 密码校验（加盐存储，绝不保存明文）。
+- 删除文件走**系统回收站**（可恢复）；当目录内只有该文件时，可选连同整个目录一起回收。
+- 支持 HTTP / HTTPS / SOCKS4 / SOCKS5 代理，所有出网请求统一走代理层。
+- 卸载默认保留用户数据，并由 NSIS + PowerShell 保留守卫脚本保障。
 
-### ⚙️ 系统集成
-- Windows NSIS 安装包、开机自启、最小化到托盘
-- 自动检查更新（GitHub / Gitee 双端发布）
-- 可配置 HTTP / HTTPS / SOCKS5 代理，同时覆盖 Node.js 请求与 Chromium 网络栈
-- 统计与发现：按标签 / 系列 / 自定义字段筛选，查看总量、最大文件、随机推荐与收藏
-
----
-
-## Excel 片单结构
-
-应用期望片单表头为**英文**，顺序如下：
-
-| 列名 | 用途 |
-| --- | --- |
-| Code | 番号 / Video code（如 `SONE-560`）—— **必填** |
-| Rating | 用户评分（可选） |
-| Category | 分类，单值，详情页 MetaRow 独立一行展示 |
-| Theme | 主题标签 |
-| Role | 角色标签 |
-| Costume | 服装标签 |
-| BodyType | 体型标签 |
-| Behavior | 行为标签 |
-| Play | 玩法标签 |
-| Scene | 场景标签 |
-| Plot | 剧情标签 |
-| Other | 其他标签 |
-
-AI 生成的片单通常使用**中文表头**。向导页会把常见中文表头名自动映射到英文 schema，再写入文件。
-
----
+### 体验
+- 中英双语界面、深色 / 浅色 / 跟随系统主题、最小化到托盘、开机自启。
+- 应用内检查更新（GitHub / Gitee），支持每天 / 每周 / 每月频率与更新日志展示。
+- 存储非破坏式演进：启动自动迁移 schema、外部修改检测、分段检查点写盘防丢数据。
 
 ## 技术栈
 
-- **桌面端**：Electron 31 + electron-vite
-- **前端**：React 18 + TypeScript + Tailwind CSS
-- **构建打包**：electron-builder（Windows NSIS 安装包）
-- **数据**：本地 JSON + Excel（xlsx）解析
-- **媒体**：ffmpeg / ffprobe（系统已装或兜底）
+| 层次 | 选型 |
+| --- | --- |
+| 运行时 | Electron 31 |
+| 构建 | electron-vite 2 · Vite 5 · electron-builder 24 |
+| 界面 | React 18 · TypeScript 5.5 · Tailwind CSS 3 |
+| 数据 | 单文档 JSON 存储（`data.json`）+ schema 迁移 + 防抖原子写 |
+| 媒体 | ffmpeg / ffprobe（系统或捆绑） |
+| 网络 | undici · socks / socks-proxy-agent |
+| 片单 | xlsx（SheetJS） |
+| 国际化 | 自研轻量字典（zh-CN / en-US） |
 
----
+## 架构概览
 
-## 安装与卸载
+```
+┌──────────────────────────────────────────────────────────┐
+│ 渲染进程（React 18 + Tailwind）                            │
+│  App.tsx · HomeView / VirtualizedWall / ListView          │
+│  VideoDetail · SettingsModal · ReconcileDialog …          │
+└───────────────▲──────────────────────────┬───────────────┘
+                │ window.api（contextBridge）│  事件
+                │ 类型化 IPC invoke          │  scan:progress
+┌───────────────┴──────────────────────────▼───────────────┐
+│ 主进程                                                    │
+│  scanner → reconcile → fetch-meta（五源降级）              │
+│  images（ffmpeg）· repo/store（data.json）· proxy          │
+│  ipc.ts（全部 handler）                                    │
+└──────────────────────────────────────────────────────────┘
+        ▲ 契约由 shared/types.ts · shared/ipc.ts 统一约束
+```
 
-- **下载**：从 [GitHub Releases](https://github.com/mr-awei/yingxia-video-manager/releases) 页面获取最新安装包（已镜像到 Gitee）
-- **安装**：运行 `影海 Setup x.x.x.exe`，首屏选择界面语言，该语言会保存并在首次启动时应用
-- **卸载**：通过 Windows「应用和功能」或开始菜单入口卸载。过程中会询问**保留**还是**删除**应用数据（`%APPDATA%\local-video-manager`）。你的媒体库与媒体文件**绝不会被触碰**
+`src/shared` 存放两端共用的类型契约，任何 IPC 签名变更都会在 `npm run typecheck` 阶段直接报错。
 
----
+## 快速开始
 
-## 开发
+**环境要求** —— Node.js 18+、npm 9+。ffmpeg 会从 `PATH` 查找或使用捆绑版本；仅在截帧兜底时需要，基础浏览不依赖它。
 
 ```bash
 npm install
-npm run dev        # 启动开发版（自动打开 DevTools）
-npm run build      # 构建渲染进程 + 主进程 + preload
-npm run typecheck  # TypeScript 类型检查
-npm run pack       # 清理 + 构建 + electron-builder 打安装包
+npm run dev          # 开发模式（electron-vite dev）
+npm run typecheck    # 主进程 + 渲染进程全量 tsc 校验
+npm run build        # 产出 dist/ 构建产物
+npm run pack         # 构建 + electron-builder 生成安装包到 release/
 ```
 
----
+| 脚本 | 说明 |
+| --- | --- |
+| `dev` | 开发运行，渲染进程 HMR、主进程改动自动重启 |
+| `typecheck` | 对 `tsconfig.json` 与 `tsconfig.node.json` 执行 `tsc --noEmit` |
+| `build` | 编译主进程 / preload / 渲染进程产物 |
+| `pack` | 先 build，再执行 `scripts/pack.mjs` 生成 NSIS 安装器与压缩包 |
+| `preview` | 以生产方式运行已构建产物 |
 
-## 版本历史
+## 数据与隐私
 
-**v2.7.0**（2026-09-09）— 开源协议切换为双授权协议 + 应用内协议展示弹窗 + 文档全面重写
+- 数据目录：Windows `%APPDATA%/local-movie-vault`、macOS `~/Library/Application Support/local-movie-vault`、Linux `~/.config/local-movie-vault`。
+- `data.json` —— 媒体库、影片、元数据、设置（单文档，启动时原位迁移）。
+- `posters/` —— 封面与预览帧缓存，可安全删除，需要时会重新抓取。
+- 无账号、无云同步、无行为统计。只有在你主动触发补齐、抓海报、检查更新时才会出网，且全部遵循代理设置。
 
-- 开源协议从 MIT 切换为「影海 双授权协议 v1.0」（中英双语五章结构）
-- 新增应用内开源协议展示弹窗（`LicenseModal`），关于弹窗页脚「查看开源协议」入口
-- 协议弹窗支持中英双语切换与邮箱一键复制
-- PRD / README / CHANGELOG 全面更新至 v2.7.0
+## 目录结构
 
-更早版本见 [CHANGELOG.md](CHANGELOG.md)。
+```
+src/
+├── main/                 # Electron 主进程
+│   ├── lib/
+│   │   ├── ipc.ts        # 全部 IPC handler
+│   │   ├── scanner.ts    # 文件夹遍历 → 影片记录
+│   │   ├── reconcile.ts  # 片单与文件夹对账
+│   │   ├── fetch-meta.ts # 五源降级调度
+│   │   ├── movie-db.ts / omdb.ts / openlibrary.ts / justwatch.ts / wikipedia.ts
+│   │   ├── images.ts     # ffmpeg 截帧兜底与海报缓存
+│   │   ├── store.ts      # data.json 加载 / 迁移 / 防抖保存
+│   │   └── repo.ts       # 影片 / 媒体库 / 设置仓储
+│   └── assets/           # 随包指南文档
+├── preload/              # contextBridge → window.api
+├── renderer/src/         # React 界面（components、lib、App.tsx）
+└── shared/               # 类型、IPC 通道名、i18n、识别工具
+build/                    # NSIS 模板、卸载守卫
+scripts/                  # 打包 / 发布 / 证书脚本
+docs/                     # 专题文档
+```
 
----
+## 文档索引
 
-## 数据隐私声明
+| 文档 | 面向 | 内容 |
+| --- | --- | --- |
+| [产品需求文档.md](./产品需求文档.md) · [EN](./PRD.en.md) | 产品 / 测试 | 产品定位、用户画像、编号化需求、验收标准 |
+| [技术设计文档.md](./技术设计文档.md) · [EN](./TDD.en.md) | 研发 | 架构、模块、IPC 清单、存储设计、关键时序、安全设计 |
+| [交接文档.md](./交接文档.md) · [EN](./HANDOFF.en.md) | 维护者 | 上手路径、核心文件、验证清单、易踩坑点 |
+| [发布说明.md](./发布说明.md) · [EN](./PUBLISHING.en.md) | 发布负责人 | 版本号规范、签名、CI 发布、回滚 |
+| [更新日志.md](./更新日志.md) · [EN](./CHANGELOG.en.md) | 所有人 | 版本更新日志 |
+| [docs/](./docs) | 专题读者 | 截帧与自动分类、数据源接入 |
+| [通用评分与简介规范](./src/main/assets/通用评分与简介规范.md) | 片单维护者 | 分类 / 评分 / 简介的权威撰写标准（随应用打包，片单向导内亦可直接打开） |
 
-1. **零上传**：应用不向任何服务器上传任何用户数据——包括影片列表、标签、评分、路径、文件名。
-2. **本地存储**：所有数据存在 `%APPDATA%\local-video-manager\data.json`，可随时备份或删除。
-3. **匿名网络请求**：仅在用户主动配置封面/数据源后，应用才会向该服务请求数据；请求不携带任何用户标识（匿名 User-Agent，不发 Cookie）。
-4. **可离线使用**：完全切断网络后，除了可选的云端抓取功能外，所有核心功能（扫描、浏览、详情、播放、对账）均可正常使用。
+## 参与贡献
 
----
+1. 从 `main` 切分支，保持改动聚焦。
+2. 提 PR 前必须通过 `npm run typecheck`，CI 将其作为准入门槛。
+3. 面向用户的改动请同步更新 `更新日志.md` / `CHANGELOG.en.md` 与 `docs/` 下对应文档。
 
-## 开源协议
+问题反馈请附上应用版本（关于弹窗）、操作系统版本与复现步骤。
 
-本项目采用「影海 双授权协议 v1.0」
+## 许可证
 
-- ✅ 非商业使用免费（个人、非盈利组织、教育机构）
-- 💰 商业使用需授权（联系 new_mr_awei@163.com）
-- 🚫 严禁用于恶意程序（三层保护：防篡改注入、防植入恶意程序、防用于恶意程序）
-- ⚖️ 违反者保留起诉权利
-
-详见 [LICENSE](./LICENSE)
-
----
-
-## 联系方式
-
-- 商业授权：new_mr_awei@163.com
-- 项目仓库：[GitHub](https://github.com/mr-awei/yingxia-video-manager) · [Gitee](https://gitee.com/mr-awei/yingxia-video-manager)
+本项目以 **影海 双授权协议 v1.0** 发布 —— 非商业用途免费；商业用途需获得授权。完整中英双语条款见 [LICENSE](./LICENSE)。商业授权联系：`new_mr_awei@163.com`。
