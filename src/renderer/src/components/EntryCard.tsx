@@ -153,6 +153,12 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
     setImgError(false)
   }, [entry.video?.id])
 
+  // 封面源或缓存版本变化时也要重置错误状态：自动补齐元信息后 posterPath 可能从空变有，
+  // 若之前兜底/占位图触发过 onError，不重置会导致真实海报永远显示不出来。
+  useEffect(() => {
+    setImgError(false)
+  }, [poster, v0?.coverVersion])
+
   // 卸载清理 timer
   useEffect(() => {
     return () => {

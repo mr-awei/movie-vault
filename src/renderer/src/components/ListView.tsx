@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import type { DisplayEntry, Video } from '../../../shared/types'
 import { entryPrimaryTags, hasDocTags } from '../../../shared/types'
 import { posterUrl, placeholderGradient, titleInitial, formatDuration, formatSize, displayTitle } from '../lib/util'
@@ -380,6 +380,12 @@ function ListThumb({ video, code, isMissing }: { video?: Video | null; code: str
   const isFrameFallback = src
     ? src === fallbackPoster || (!manualPoster && !detailCover && !realPoster && video?.posterSource === 'ffmpeg')
     : false
+
+  // 自动补齐元信息后 posterPath/coverVersion 变化时重置错误状态，否则旧错误会挡住真实海报
+  useEffect(() => {
+    setImgError(false)
+  }, [poster, video?.coverVersion])
+
   return (
     <div className="w-11 h-16 shrink-0 rounded-md overflow-hidden bg-ink-900 ring-1 ring-white/10 relative">
       {src ? (
