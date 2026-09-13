@@ -7,8 +7,10 @@ out
 # 发布安装包（体积大，可自行构建或到 Releases 下载）
 release
 
-# 自签名证书私钥（绝不可提交到公开仓库）
+# 自签名证书私钥（除项目自带的代码签名证书外，一律不提交）
 *.pfx
+!build/yinghai-sign.pfx
+!build/yingxia-sign.pfx
 *.key
 
 # 打包用的 ffmpeg 二进制（体积大，按需自带）

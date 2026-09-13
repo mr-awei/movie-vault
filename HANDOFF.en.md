@@ -153,5 +153,5 @@ docs/                         # topic guides
 ## 9. Contacts & release
 
 - Commercial licensing: `new_mr_awei@163.com`
-- Repositories: GitHub `mr-awei/yinghai-movie-vault`, mirrored on Gitee
+- Repositories: GitHub `mr-awei/movie-vault`, mirrored on Gitee
 - Release process: [PUBLISHING.en.md](./PUBLISHING.en.md)

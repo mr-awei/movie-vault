@@ -379,7 +379,7 @@ export async function runUpdateCheck(): Promise<UpdateCheckResult> {
   const s = await repo.getSettings()
   const preferred = s.updateSource ?? 'gitee'
   const current = app.getVersion()
-  const repoPath = 'mr-awei/yinghai-movie-vault'
+  const repoPath = 'mr-awei/movie-vault'
 
   const baseResult: UpdateCheckResult = {
     source: preferred,

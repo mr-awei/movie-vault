@@ -19,7 +19,7 @@ if (!TOKEN) {
   console.error('用法：GITHUB_TOKEN=ghp_xxx node scripts/publish-release.mjs');
   process.exit(1);
 }
-const REPO = process.env.GITHUB_REPO || 'mr-awei/yinghai-movie-vault';
+const REPO = process.env.GITHUB_REPO || 'mr-awei/movie-vault';
 const TAG = process.env.TAG || 'v2.2.5';
 const TITLE = process.env.TITLE || `影海 ${TAG}`;
 const INSTALLER = process.env.INSTALLER_PATH;

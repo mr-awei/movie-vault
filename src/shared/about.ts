@@ -61,10 +61,10 @@ export const ABOUT_ZH: About = {
   year: 2026,
   /** 许可证 */
   license: '影海 双授权协议 v1.0',
-  licenseUrl: 'https://github.com/mr-awei/yinghai-movie-vault/blob/main/LICENSE',
+  licenseUrl: 'https://github.com/mr-awei/movie-vault/blob/main/LICENSE',
 
   /** 开源仓库地址（About 弹窗用于引导点亮 Star） */
-  github: 'https://github.com/mr-awei/yinghai-movie-vault',
+  github: 'https://github.com/mr-awei/movie-vault',
 
   /** 外部链接（留空不渲染） */
   links: [
@@ -72,13 +72,13 @@ export const ABOUT_ZH: About = {
       key: 'github',
       label: 'GitHub',
       icon: 'external',
-      url: 'https://github.com/mr-awei/yinghai-movie-vault'
+      url: 'https://github.com/mr-awei/movie-vault'
     },
     {
       key: 'gitee',
       label: 'Gitee',
       icon: 'external',
-      url: 'https://gitee.com/mr-awei/yinghai-movie-vault'
+      url: 'https://gitee.com/mr-awei/movie-vault'
     },
     {
       key: 'feedback',
@@ -119,20 +119,20 @@ export const ABOUT_EN: About = {
   author: 'Ying Xia',
   year: 2026,
   license: 'Ying Xia Dual License v1.0',
-  licenseUrl: 'https://github.com/mr-awei/yinghai-movie-vault/blob/main/LICENSE',
-  github: 'https://github.com/mr-awei/yinghai-movie-vault',
+  licenseUrl: 'https://github.com/mr-awei/movie-vault/blob/main/LICENSE',
+  github: 'https://github.com/mr-awei/movie-vault',
   links: [
     {
       key: 'github',
       label: 'GitHub',
       icon: 'external',
-      url: 'https://github.com/mr-awei/yinghai-movie-vault'
+      url: 'https://github.com/mr-awei/movie-vault'
     },
     {
       key: 'gitee',
       label: 'Gitee',
       icon: 'external',
-      url: 'https://gitee.com/mr-awei/yinghai-movie-vault'
+      url: 'https://gitee.com/mr-awei/movie-vault'
     },
     {
       key: 'feedback',

@@ -7,7 +7,8 @@ rem ============================================================
 setlocal
 
 rem ---- 配置（证书 Thumbprint，首次生成后固定）----
-set TP=2818B2F69CAD337604F42DEFC7B5A3C3696F02AC
+rem 2026-09-14：改为影海名下证书（CN=影海 yinghai），旧值 2818B2F6... 是影匣的证书指纹
+set TP=50BAB905D077C2FA950CE0317D32624630451F9B
 
 rem ---- 自动探测 signtool（优先 x64，arm64 在本机无法运行）----
 set SIGTOOL=

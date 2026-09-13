@@ -12,7 +12,10 @@ Change types: `Added` / `Changed` / `Fixed` / `Removed` / `Security`.
 
 ## [Unreleased]
 
-(Nothing yet)
+### Fixed
+- **Repository links** — the About dialog's GitHub / Gitee / license links and the update-check repository path were corrected from `yinghai-movie-vault` to the actual repository `mr-awei/movie-vault` (previously causing 404 links and failing update checks). The publish script and GitHub Actions workflow URLs were corrected as well.
+- **CI packaging failure (mismatched certificate and guard filenames)** — the signing step referenced `build/yinghai-sign.pfx` while the repository only contained the YingXia-era `build/yingxia-sign.pfx`, so electron-builder aborted immediately. For the same reason the uninstall guard `build/yinghai-uninstall-guard.ps1` referenced by `electron-builder.yml` / `installer.nsh` did not exist, so it was never bundled (uninstalling and ticking "delete user data" reported a missing protection script and kept the data). Now: Yinghai generates and uses **its own** certificate `build/yinghai-sign.pfx` (`CN=影海 yinghai`, thumbprint `50BAB905D077C2FA950CE0317D32624630451F9B`, password via the GitHub secret `CERT_PASSWORD`); YingXia's `yingxia-sign.pfx` is preserved untouched; the guard script has a same-named copy (identical content); `.gitignore` keeps exceptions for both certificates.
+- **`scripts/gen-cert.ps1` could not run at all** — it was saved as UTF-8 without BOM, so Windows PowerShell 5.1 decoded the Chinese text as GBK, breaking quoting and the whole script failed to parse. It is now saved as UTF-8 with BOM, and `scripts/sign.cmd` now points at Yinghai's certificate thumbprint.
 
 ---
 

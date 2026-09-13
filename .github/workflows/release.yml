@@ -137,7 +137,7 @@ jobs:
           # 曾因硬编码 yinghai-Setup-<ver>-x64.exe 导致同步出去的下载链接 404。
           # 改为直接从刚发布的 GitHub Release 读取真实资产链接，避免文件名变化失效。
           LINKS=$(curl -sS -H "User-Agent: yinghai" \
-            "https://api.github.com/repos/mr-awei/yinghai-movie-vault/releases/tags/${TAG}" \
+            "https://api.github.com/repos/mr-awei/movie-vault/releases/tags/${TAG}" \
             | python -c "
           import json, sys
           try:
@@ -150,7 +150,7 @@ jobs:
               print('- [%s](<%s>)%s' % (a.get('name', ''), a.get('browser_download_url', ''), mb))
           " 2>/dev/null || echo "")
           if [ -z "$LINKS" ]; then
-            LINKS="- [访问 GitHub 发布页下载](https://github.com/mr-awei/yinghai-movie-vault/releases/tag/${TAG})"
+            LINKS="- [访问 GitHub 发布页下载](https://github.com/mr-awei/movie-vault/releases/tag/${TAG})"
           fi
           BODY="自动构建（GitHub Actions）已生成安装包：${TAG}
 
@@ -158,7 +158,7 @@ jobs:
 
           ${LINKS}
 
-          或访问发布页：https://github.com/mr-awei/yinghai-movie-vault/releases/tag/${TAG}"
+          或访问发布页：https://github.com/mr-awei/movie-vault/releases/tag/${TAG}"
 
           BODY="$BODY" GITEE_TOKEN="$GITEE_TOKEN" TAG="$TAG" \
             python -c "
@@ -176,7 +176,7 @@ jobs:
           OK=0
           # 创建；若 tag 已存在则 PATCH 更新正文
           OUT=$(curl -sS -X POST -H "User-Agent: yinghai" -H "Content-Type: application/json;charset=UTF-8" \
-            -d @.gitee_rel.json "https://gitee.com/api/v5/repos/mr-awei/yinghai-movie-vault/releases" || true)
+            -d @.gitee_rel.json "https://gitee.com/api/v5/repos/mr-awei/movie-vault/releases" || true)
           if echo "$OUT" | grep -q '"id"'; then
             echo "Gitee Release created for ${TAG}"
             OK=1
@@ -185,11 +185,11 @@ jobs:
             echo ""
             echo "::warning::Gitee Release 创建失败（可能已存在），尝试 PATCH 更新正文"
             RID=$(curl -sS -H "User-Agent: yinghai" \
-              "https://gitee.com/api/v5/repos/mr-awei/yinghai-movie-vault/releases/tags/${TAG}?access_token=${GITEE_TOKEN}" \
+              "https://gitee.com/api/v5/repos/mr-awei/movie-vault/releases/tags/${TAG}?access_token=${GITEE_TOKEN}" \
               | python -c "import json,sys; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
             if [ -n "$RID" ]; then
               PATCH_OUT=$(curl -sS -X PATCH -H "User-Agent: yinghai" -H "Content-Type: application/json;charset=UTF-8" \
-                -d @.gitee_rel.json "https://gitee.com/api/v5/repos/mr-awei/yinghai-movie-vault/releases/${RID}" || true)
+                -d @.gitee_rel.json "https://gitee.com/api/v5/repos/mr-awei/movie-vault/releases/${RID}" || true)
               if echo "$PATCH_OUT" | grep -q '"id"'; then
                 echo "Gitee Release ${TAG} updated"
                 OK=1
