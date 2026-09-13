@@ -121,7 +121,7 @@ npm run pack         # 构建 + electron-builder 生成安装包到 release/
 
 ## 数据与隐私
 
-- 数据目录：Windows `%APPDATA%/local-movie-vault`、macOS `~/Library/Application Support/local-movie-vault`、Linux `~/.config/local-movie-vault`。
+- 数据目录：Windows `%APPDATA%/yinghai`、macOS `~/Library/Application Support/yinghai`、Linux `~/.config/yinghai`。
 - `data.json` —— 媒体库、影片、元数据、设置（单文档，启动时原位迁移）。
 - `posters/` —— 封面与预览帧缓存，可安全删除，需要时会重新抓取。
 - 无账号、无云同步、无行为统计。只有在你主动触发补齐、抓海报、检查更新时才会出网，且全部遵循代理设置。

@@ -1,13 +1,26 @@
 import { app, BrowserWindow, Menu, protocol, Tray, nativeImage, type NativeImage } from 'electron'
 import path from 'node:path'
-import { promises as fs, appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { promises as fs, appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { registerIpc, runUpdateCheck } from './lib/ipc'
 import { runtime, applyRuntimeSettings } from './lib/runtime'
 import { tMain, setLocale as setMainLocale, subscribeLocale, type Locale } from '../shared/i18n'
 
-// 数据目录设置：开发模式与正式版使用相同目录名，共用一份数据（movie-vault）
-app.setPath('userData', path.join(app.getPath('appData'), 'movie-vault'))
+// 数据目录设置：开发模式与正式版使用相同目录名，共用一份数据（yinghai）
+// v2.8.2：从旧目录 movie-vault 一次性迁移到 yinghai，避免与影匣数据冲突。
+const appData = app.getPath('appData')
+const userDataDir = path.join(appData, 'yinghai')
+const legacyUserDataDir = path.join(appData, 'movie-vault')
+let resolvedUserDataDir = userDataDir
+if (existsSync(legacyUserDataDir) && !existsSync(userDataDir)) {
+  try {
+    renameSync(legacyUserDataDir, userDataDir)
+  } catch (e) {
+    console.error('[main] 迁移旧数据目录失败，继续使用原目录：', e)
+    resolvedUserDataDir = legacyUserDataDir
+  }
+}
+app.setPath('userData', resolvedUserDataDir)
 
 /**
  * Windows 控制台默认代码页是 GBK(936)，而 Node/Electron 按 UTF-8 输出中文 → 终端显示成乱码。

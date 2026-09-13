@@ -636,7 +636,7 @@ export default {
 
   // ===== renderer crash =====
   'err.rendererCrash': 'Renderer crashed',
-  'err.rendererCrashDetail': 'Details written to %APPDATA%\\movie-vault\\renderer-console.log — send to AI for debugging.',
+  'err.rendererCrashDetail': 'Details written to %APPDATA%\\yinghai\\renderer-console.log — send to AI for debugging.',
 
   // ===== browse smart filter =====
   'browse.smartAll': 'All',

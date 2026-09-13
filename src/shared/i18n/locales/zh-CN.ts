@@ -632,7 +632,7 @@ export default {
 
   // ===== 渲染层崩溃 =====
   'err.rendererCrash': '⚠ 渲染层崩溃',
-  'err.rendererCrashDetail': '详细信息已写入 %APPDATA%\\movie-vault\\renderer-console.log，可发给 AI 排查。',
+  'err.rendererCrashDetail': '详细信息已写入 %APPDATA%\\yinghai\\renderer-console.log，可发给 AI 排查。',
 
   // ===== Browse 智能筛选 =====
   'browse.smartAll': '全部',

@@ -127,9 +127,9 @@ docs/                         # topic guides
 
 | OS | Path |
 | --- | --- |
-| Windows | `%APPDATA%/local-movie-vault` |
-| macOS | `~/Library/Application Support/local-movie-vault` |
-| Linux | `~/.config/local-movie-vault` |
+| Windows | `%APPDATA%/yinghai` |
+| macOS | `~/Library/Application Support/yinghai` |
+| Linux | `~/.config/yinghai` |
 
 - `data.json` — libraries, videos, settings.
 - `posters/` — cover and preview cache (safe to delete).

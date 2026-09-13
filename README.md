@@ -121,7 +121,7 @@ npm run pack         # build + electron-builder installer into release/
 
 ## Data & privacy
 
-- Data directory: `%APPDATA%/local-movie-vault` (Windows), `~/Library/Application Support/local-movie-vault` (macOS), `~/.config/local-movie-vault` (Linux).
+- Data directory: `%APPDATA%/yinghai` (Windows), `~/Library/Application Support/yinghai` (macOS), `~/.config/yinghai` (Linux).
 - `data.json` — libraries, videos, metadata, settings (single document, migrated in place).
 - `posters/` — cached covers and preview frames; safe to delete, will be re-fetched on demand.
 - No account, no cloud sync, no analytics. Outbound network requests happen only when you trigger enrichment, poster fetch or update check, and all of them respect the proxy settings.

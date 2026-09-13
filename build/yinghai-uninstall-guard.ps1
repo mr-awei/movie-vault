@@ -6,7 +6,7 @@
 # 影海卸载器用户数据保护脚本
 # 由卸载器（NSIS）在用户勾选「删除用户数据」后调用。
 # 职责：
-#   1. 解析 %APPDATA%\movie-vault\data.json 中的媒体库/视频路径
+#   1. 解析 %APPDATA%\yinghai\data.json 中的媒体库/视频路径
 #   2. 若任一路径位于用户数据目录内部 → 不删除任何内容，输出 LIBRARY_INSIDE_USERDATA，exit 9
 #   3. 无冲突 → 删除用户数据目录，exit 0
 #   4. 配置无法解析 → 保守不删除，输出 PARSE_FAILED，exit 8
@@ -15,7 +15,7 @@
 $ErrorActionPreference = 'Stop'
 
 # NSIS 传入 -DataDirOverride 以指定要清理的目录；未传入则使用默认位置。
-$dataDir = if ($DataDirOverride) { $DataDirOverride } else { Join-Path $env:APPDATA 'movie-vault' }
+$dataDir = if ($DataDirOverride) { $DataDirOverride } else { Join-Path $env:APPDATA 'yinghai' }
 $dataDir = $dataDir.TrimEnd('\')
 
 if (-not (Test-Path -LiteralPath $dataDir)) {
@@ -42,9 +42,9 @@ function Test-InsideUserData([string]$path) {
 # 强制结束可能仍在运行的影海进程，释放 Electron 缓存/Storage 文件锁。
 # 卸载器走到这里时应用文件已被删除，残留进程多为僵尸句柄，直接结束即可。
 function Stop-yinghaiProcesses {
-    $names = @('movie-vault', 'local-movie-vault', '影海')
+    $names = @('movie-vault', 'local-movie-vault', 'yinghai', '影海')
     $procs = Get-Process -ErrorAction SilentlyContinue | Where-Object {
-        $names -contains $_.ProcessName -or ($_.Path -and ($_.Path -like '*movie-vault*' -or $_.Path -like '*local-movie-vault*' -or $_.Path -like '*影海*'))
+        $names -contains $_.ProcessName -or ($_.Path -and ($_.Path -like '*movie-vault*' -or $_.Path -like '*local-movie-vault*' -or $_.Path -like '*yinghai*' -or $_.Path -like '*影海*'))
     }
     foreach ($proc in $procs) {
         try {

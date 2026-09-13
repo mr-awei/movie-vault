@@ -1,9 +1,16 @@
 ﻿!include "FileFunc.nsh"
 
 # 影海自定义 NSIS 逻辑
+
+# 强制安装目录为「影海」，避免与影匣（local-video-manager）共用目录导致程序文件覆盖。
+# preInit 在安装目录页之前执行，因此用户仍可在界面上浏览修改。
+!macro preInit
+  StrCpy $INSTDIR "$LOCALAPPDATA\Programs\yinghai"
+!macroend
+
 # 安装器侧：把安装语言写入注册表，供卸载器与应用首次启动读取。
 # 卸载器侧：卸载欢迎页之后新增「保留用户数据」复选框页面（默认勾选 = 保留）：
-#           取消勾选并二次确认后，卸载流程尝试删除 %APPDATA%\movie-vault。
+#           取消勾选并二次确认后，卸载流程尝试删除 %APPDATA%\yinghai。
 # 安全红线：删除前必须通过 yinghai-uninstall-guard.ps1 校验 —— 检测到媒体库路径
 #           与用户数据目录重叠时拒绝删除，绝不触碰用户设定的媒体库里的任何文件。
 
@@ -165,7 +172,7 @@ InitEnd:
 !macroend
 
 # 卸载 Section（un.install）内联执行：用户确认删除后，先由保护脚本校验
-# 媒体库路径与用户数据目录是否重叠，安全时才删除 %APPDATA%\movie-vault。
+# 媒体库路径与用户数据目录是否重叠，安全时才删除 %APPDATA%\yinghai。
 # 注意：此宏被 electron-builder 插入在 Section "un.install" 内部，不能声明新的 Section。
 !macro customUnInstall
   StrCmp $yxDelConfirmed "1" 0 yxDataDone
@@ -182,7 +189,7 @@ InitEnd:
   yxRunGuard:
   # 保护脚本：校验媒体库路径与用户数据目录是否重叠，安全时删除用户数据目录
   #   exit 0 → 已安全删除；exit 9 → 路径重叠（拒删）；exit 8 → 解析失败（保守不删）
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "$PLUGINSDIR\yinghai-uninstall-guard.ps1" -DataDirOverride "$APPDATA\movie-vault"'
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "$PLUGINSDIR\yinghai-uninstall-guard.ps1" -DataDirOverride "$APPDATA\yinghai"'
   Pop $0
 
   StrCmp $0 0 yxDataDone
