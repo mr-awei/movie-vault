@@ -10,7 +10,7 @@ import * as XLSX from 'xlsx'
 import { spawn } from 'node:child_process'
 import { reconcileLibrary } from './reconcile'
 import { openVideo } from './player'
-import { resolvePoster, frameLog } from './images'
+import { frameLog } from './images'
 import { generateQuickCover, generatePreviewV2, previewRoot } from './preview-v2'
 import { wakePreviewTaskQueue } from './preview-task-queue'
 import { flushSave } from './store'
@@ -25,7 +25,7 @@ import { detectFfmpeg } from './ffmpegEnv'
 import { applyRuntimeSettings } from './runtime'
 import { probeVideo, probeImage } from './ffprobe'
 import { previewRenames, applyRenames, safeFileBaseName } from './rename'
-import { DEFAULT_IMAGE_PRIORITY, type MovieMeta, type SourceId, type Library, type ScanProgress, type Settings, type Video, type ImageSource, type UpdateSource, type TechInfo } from '../../shared/types'
+import { type MovieMeta, type SourceId, type Library, type ScanProgress, type Settings, type Video, type ImageSource, type UpdateSource, type TechInfo } from '../../shared/types'
 import { type UpdateCheckResult, type UpdateAssetInfo } from '../../shared/api-types'
 // v2.2.4 抽到独立模块（让 reconcile.ts 也能调 fetchDetailSmart，无循环依赖）
 import { fetchDetailSmart, createSmartFetchState, fetchPosterSmart, type SmartFetchState } from './fetch-meta'
@@ -360,16 +360,6 @@ function emitProgress(p: ScanProgress): void {
   }
 }
 
-function defaultLibrary(): Library {
-  return {
-    id: '',
-    name: '',
-    folderPath: '',
-    imagePriority: [...DEFAULT_IMAGE_PRIORITY],
-    createdAt: 0
-  }
-}
-
 /**
  * 执行一次更新检查（GitHub / Gitee），基于多维度特征判定是否有可用新版本：
  * - 版本号 semver 比较（支持 -beta/-rc）
@@ -675,8 +665,8 @@ export function registerIpc(): void {
     if (!coverPath) return repo.updateVideo(id, v)
     await repo.enqueuePreviewTask(id, {
       priority: 0,
-      requestedCount: settings.previewFrameCount,
-      qualityMode: settings.previewQualityMode
+      requestedCount: settings.previewFrameCount ?? 20,
+      qualityMode: settings.previewQualityMode ?? 'STANDARD'
     }).catch(() => null)
     wakePreviewTaskQueue()
     return repo.updateVideo(id, {
@@ -1797,8 +1787,8 @@ export function registerIpc(): void {
       try {
         // 同步生成完整预览集
         const result = await generatePreviewV2(v, settings, {
-          requestedCount: settings.previewFrameCount,
-          qualityMode: settings.previewQualityMode,
+          requestedCount: settings.previewFrameCount ?? 20,
+          qualityMode: settings.previewQualityMode ?? 'STANDARD',
           token: { cancelled: false }
         })
         const coverPath = result.coverPath

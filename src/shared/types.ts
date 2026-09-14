@@ -76,6 +76,8 @@ export interface Video {
   actors?: string[]
   /** ffmpeg 批量截帧生成的预览图本地路径（横屏预览墙使用），最多 PREVIEW_COUNT 张 */
   previewPaths?: string[]
+  /** 预览图缓存失效版本号：重新截帧后自增，前端用它给预览图 URL 加 ?v=N 强制刷新 */
+  previewVersion?: number
   mediaStatus?: MediaStatus
   previewStatus?: PreviewStatus
   previewRequestedCount?: number
@@ -337,7 +339,7 @@ export interface ScanProgress {
   /** v2.2.10：实时抓取事件（每个源尝试一次推一条），渲染层可显示"数据源失败 → 降级下一源"这类过程提示 */
   fetchEvent?: {
     code: string
-    src: SourceId
+    src: SourceId | 'batch' | 'skip'
     status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'
     detail?: string
   }

@@ -307,19 +307,6 @@ function detectMotionBlur(samples: Array<{ timestamp: number; metrics: Metrics }
   return 0
 }
 
-/** Compute transition penalty based on distance to nearest scene cut. */
-function transitionPenalty(timestamp: number, scenePoints: { timestamp: number }[]): number {
-  if (!scenePoints.length) return 0
-  let minDist = Infinity
-  for (const sp of scenePoints) {
-    const dist = Math.abs(timestamp - sp.timestamp)
-    if (dist < minDist) minDist = dist
-  }
-  if (minDist < 0.2) return 30
-  if (minDist < 0.4) return 15
-  return 0
-}
-
 function phash(buf: Buffer): string {
   const w = 32
   const h = 32
