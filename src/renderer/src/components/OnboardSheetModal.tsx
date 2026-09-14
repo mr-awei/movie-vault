@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { t, getLocale, subscribeLocale } from '../../../shared/i18n'
 import type { Library } from '../../../shared/types'
 import Icon from './Icon'
@@ -31,70 +31,69 @@ interface Props {
 
 const GROK_URL = 'https://grok.com'
 
-/** 中文提示词 */
+/** 中文提示词（v3.0 规范） */
 const PROMPT_TEXT_ZH = `请根据我提供的影片清单，按照以下要求生成影海片单 Excel 内容：
 
-1. 先查询每部影片的准确信息（年份、类型、导演、主演、剧情梗概等）。
-2. 先确定「分类」：从下方分类体系选一个最匹配的主分类填入「分类」列。
-3. 用中文撰写简介，80-150 字，不剧透关键转折与结局：
-   结构 = 一句话钩子 + 主要情节脉络 + 看点亮点 + 一句气质定位；
-   全片单句式要有变化，不要每部都以同一句式开头。
-4. 推荐评分按十个维度加权计算（10 分制，两位小数），并简要说明评分依据：
-   剧作 16% / 导演与调度 14% / 表演 14% / 摄影与美术 12% / 剪辑与节奏 10% /
-   配乐与音效 10% / 主题与思想性 8% / 原创性 6% / 制作规格 5% / 系列定位与口碑 5%。
-5. 评分须符合分档锚点，避免全部集中在 8 分以上；冷门作品（样本少）请保守给分。
-6. 若我提供多部影片，请逐一处理，保持格式与语气统一。
+1. 先查询每部影片的准确信息（年份、类型、导演、主演、剧情梗概等）。允许参考百科、IMDb、豆瓣、TMDB 等公开资料梳理剧情主线，但必须改写，禁止大段原文复制。
+2. 从以下十五类中选一个最匹配的主分类填入「分类」：
+   剧情 / 动作 / 科幻 / 喜剧 / 爱情 / 悬疑 / 恐怖 / 动画 / 纪录片 / 情色 / 犯罪 / 奇幻 / 历史 / 武侠 / 其他
+   （明确以情欲与性爱驱动的作品优先选「情色」；猎奇暴力为主选「犯罪」「恐怖」或「其他」；动画长片优先选「动画」）
+3. 撰写简介（中文 80–180 字），结构 = 一句话钩子 + 主要情节脉络（可介绍主线过程） + 看点亮点 + 一句气质定位；
+   全片单句式要有变化，不要每部都以同一句式开头。关键结局与核心反转仍建议保留。
+4. 推荐评分按十个维度加权计算（10 分制，两位小数），并简述依据：
+   剧作 15% / 导演与调度 14% / 表演 13% / 摄影与美术 12% / 剪辑与节奏 10% /
+   配乐与音效 9% / 主题与思想性 8% / 原创性与差异化 7% / 制作规格与工业完成度 6% / 系列定位与口碑延续 6%。
+5. 评分须符合分档锚点，避免全部集中在 8 分以上。
+   低成本三级 / 情色 / 猎奇作品优先与同类横向对比，常见落点 5.5–6.8；冷门作品请保守给分。
+6. 额外标签（主题 / 地区 / 年代 / 系列 / 类型元素 / 氛围 / 看点）用「、」分隔，单格不超过 6 个值；无内容留空。
+7. 若一次提供多部影片，请逐一处理，保持格式与语气统一。
 
-【Excel 表头】编号\t标题\t年份\t分类\t推荐评分\t简介
-
-【分类体系】从下方选一个最匹配的主分类填入「分类」列：
-- 剧情 / 动作 / 科幻 / 喜剧 / 爱情 / 悬疑 / 恐怖 / 动画 / 纪录片 / 其他
+【Excel 表头】编号\t标题\t年份\t分类\t推荐评分\t简介\t主题\t地区\t系列
 
 【评分分档】10 分制（两位小数）：
-- 9.20-10.00 殿堂级：影史级，各维度无可指摘
-- 8.50-9.15 神作：至少一个维度年度/年代顶尖
-- 7.80-8.45 优秀：完成度高、亮点明确
-- 7.00-7.75 良好：类型内合格偏上
-- 6.30-6.95 及格：短板明显但可看
-- 5.50-6.25 平庸：问题显著、亮点零散
-- 4.50-5.45 较差：多维失败、局部可取
-- 4.45 以下 差：事故级，避雷
+- 9.20–10.00 殿堂级：影史级，各维度无可指摘
+- 8.50–9.15 神作：至少一个维度年度/年代顶尖
+- 7.80–8.45 优秀：完成度高、亮点明确
+- 7.00–7.75 良好：类型内合格偏上
+- 6.30–6.95 及格：短板明显但可看
+- 5.50–6.25 平庸：问题显著、亮点零散
+- 4.50–5.45 较差：多维失败、局部可取
+- 3.00–4.45 差：创作或制作严重失败
+- 0–2.95 极差：无法正常观看
 
-【简介禁忌】不要剧透、不要复制百科、不要罗列演员表、不要写「必看/神作」等推销语。`
-
-/** English prompt */
+【简介禁忌】不要剧透关键结局、不要复制百科原文、不要罗列演员表、不要写「必看/神作」等推销语、不要低俗堆砌露骨细节。`
+/** English prompt (v3.0 spec) */
 const PROMPT_TEXT_EN = `Generate a Yinghai sheet for the given movie list. Follow these rules:
 
-1. Look up accurate metadata for each title (year, genre, director, cast, plot).
-2. Pick one Category from the category system below and write it to the "Category" column.
-3. Write the synopsis in English, 80-150 words, without spoiling twists or endings:
-   hook + main plot arc + highlights + one line on tone.
+1. Look up accurate metadata for each title (year, genre, director, cast, plot). You may reference Wikipedia, IMDb, Douban, TMDB and other public sources for the plot arc, but must rewrite — no verbatim copying.
+2. Pick one Category from the 15 categories below:
+   Drama / Action / Sci-Fi / Comedy / Romance / Mystery / Horror / Animation / Documentary / Erotica / Crime / Fantasy / Historical / Wuxia / Other
+   (Works clearly driven by eroticism/sex prefer "Erotica"; extreme violence or exploitation prefer "Crime", "Horror" or "Other"; animated features prefer "Animation".)
+3. Write the synopsis in English, 80–180 words, without spoiling the ending or core twist:
+   hook + main plot arc (the journey is fine) + highlights + one line on tone.
    Vary sentence openings across entries; do not start every one the same way.
-4. Give a rating computed from ten weighted dimensions (10-point scale, 2 decimals)
-   and briefly state the rationale:
-   Writing 16% / Direction 14% / Acting 14% / Cinematography 12% / Editing 10% /
-   Score & sound 10% / Theme 8% / Originality 6% / Craft 5% / Franchise 5%.
-5. Ratings must respect the anchors below; avoid clustering above 8, and be
-   conservative for obscure titles with few votes.
-6. Process each title separately if multiple titles are provided; keep format and tone consistent.
+4. Give a rating computed from ten weighted dimensions (10-point scale, 2 decimals) and briefly state the rationale:
+   Writing 15% / Direction 14% / Acting 13% / Cinematography & Art 12% / Editing & Pacing 10% /
+   Score & Sound 9% / Theme & Ideas 8% / Originality 7% / Production Craft 6% / Franchise & Reputation 6%.
+5. Ratings must respect the anchors below; avoid clustering above 8.
+   For low-budget Category III / erotica / exploitation titles, compare horizontally with peers — typical range 5.5–6.8; be conservative for obscure titles.
+6. Extra tag columns (Theme / Region / Era / Series / Elements / Mood / Highlights) use ", " as separator, max 6 values per cell; leave blank if none.
+7. Process each title separately if multiple are provided; keep format and tone consistent.
 
-【Excel columns】ID\tTitle\tYear\tCategory\tRating\tSynopsis
-
-【Category system】Pick the single best-fit category:
-- Drama / Action / Sci-Fi / Comedy / Romance / Mystery / Horror / Animation / Documentary / Other
+【Excel columns】ID\tTitle\tYear\tCategory\tRating\tSynopsis\tTheme\tRegion\tSeries
 
 【Rating bands】10-point scale (two decimals):
-- 9.20-10.00 Landmark: film-history level, no weak dimension
-- 8.50-9.15 Outstanding: a peak dimension, unified whole
-- 7.80-8.45 Excellent: high craft, clear highlights
-- 7.00-7.75 Good: reliably above genre average
-- 6.30-6.95 Passable: obvious weaknesses but watchable
-- 5.50-6.25 Mediocre: serious problems, scattered merit
-- 4.50-5.45 Poor: multi-dimensional failure
-- Below 4.45 Bad: production incident, avoid
+- 9.20–10.00 Landmark: film-history level, no weak dimension
+- 8.50–9.15 Outstanding: at least one peak dimension, unified whole
+- 7.80–8.45 Excellent: high craft, clear highlights
+- 7.00–7.75 Good: reliably above genre average
+- 6.30–6.95 Passable: obvious weaknesses but watchable
+- 5.50–6.25 Mediocre: serious problems, scattered merit
+- 4.50–5.45 Poor: multi-dimensional failure
+- 3.00–4.45 Bad: serious creative or production failure
+- 0–2.95 Terrible: unwatchable
 
-【Synopsis don'ts】No spoilers, no Wikipedia copy, no cast list only, no sales pitch ("must-see", "masterpiece").`
-
+【Synopsis don'ts】No ending spoilers, no Wikipedia copy, no cast list only, no sales pitch ("must-see", "masterpiece"), no gratuitously explicit detail.`
 /** Pick the right prompt by current locale */
 function getPromptText(): string {
   return getLocale() === 'en-US' ? PROMPT_TEXT_EN : PROMPT_TEXT_ZH
