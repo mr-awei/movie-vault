@@ -106,3 +106,25 @@ export function extractMovieQuery(raw: string): MovieQuery {
   const ty = extractTitleYear(s)
   return { query: ty.title || s, year: ty.year, imdbId, tmdbId }
 }
+
+/**
+ * 视频的「本地真名」：以本地文件夹名为最高优先级，其次文件名、title、meta.title。
+ *
+ * 这是所有数据源搜索/抓取的唯一检索词来源，也是抓取过程 UI 浮层的显示名来源。
+ * 理由：用户在资源管理器里重命名文件夹后，重新扫描/对账会同步 folderName 字段，
+ * 因此搜索词始终跟随本地实际名字——不会出现"文件夹已改名但媒体库还拿旧标题去搜"的情况。
+ *
+ * 优先级说明：
+ * - folderName：用户手动整理的文件夹名，最干净、最权威
+ * - fileName：文件名（含扩展名，交给 extractMovieQuery 清洗）
+ * - title：扫描时从文件名提取的标题 / Excel 片单标题
+ * - meta.title：上次从数据源抓取到的标题（可能是外文/别名，不应优先于本地名）
+ */
+export function localCanonicalName(v: {
+  folderName?: string | null
+  fileName?: string | null
+  title?: string | null
+  meta?: { title?: string | null } | null
+}): string {
+  return v.folderName || v.fileName || v.title || v.meta?.title || ''
+}

@@ -1,4 +1,4 @@
-import type { MovieMeta, Settings } from '../../shared/types'
+﻿import type { MovieMeta, Settings } from '../../shared/types'
 import type { MovieQuery } from '../../shared/code'
 import { proxyFetch, UA } from './proxy'
 import { cacheRemoteImage, cleanGenreName } from './image-util'
@@ -83,7 +83,7 @@ async function getSummary(title: string, settings: Settings): Promise<WikiSummar
 /** 取条目 wikitext（信息框） */
 async function getWikitext(title: string, settings: Settings): Promise<string> {
   try {
-    const url = `${API}?action=parse&prop=wikitext&format=json&section=0&redirects=1&page=${encodeURIComponent(title)}`
+    const url = `${API}?action=parse&prop=wikitext&format=json&redirects=1&page=${encodeURIComponent(title)}`
     const data = await wikiGet<WikiParseResponse>(url, settings)
     return data.parse?.wikitext?.['*'] || ''
   } catch {
@@ -219,6 +219,33 @@ function extractStudio(wikitext: string): string | undefined {
   )[0]
 }
 
+/** v2.8.5：从全页 wikitext 中提取剧情章节内容（兼容多种章节命名，保留段落换行） */
+function extractPlotSection(wikitext: string): string | undefined {
+  const sectionNames = ['剧情', '剧情简介', '故事大纲', '故事大綱', '故事梗概', '情节', '內容簡介', '内容简介', '劇情', '劇情簡介']
+  for (const name of sectionNames) {
+    const re = new RegExp('==\\s*' + name + '\\s*==\\s*([\\s\\S]*?)(?=\\r?\\n==|$)')
+    const m = wikitext.match(re)
+    if (m) {
+      const raw = m[1]
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<ref[^>]*\/>/gi, '')
+        .replace(/<ref[\s\S]*?<\/ref>/gi, '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/\{\{[^{}]*\}\}/g, '')
+        .replace(/\[\[[^\]|]*\|([^\]]+)\]\]/g, '')
+        .replace(/\[\[([^\]]+)\]\]/g, '')
+        .replace(/'''?/g, '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/[ \t]+/g, ' ')
+        .trim()
+      if (raw && raw.length > 20) return raw
+    }
+  }
+  return undefined
+}
+
 function buildDetail(summary: WikiSummary, wikitext: string, fallbackTitle: string): MovieMeta {
   const title = (summary.title || fallbackTitle).replace(/\s*[（(](電影|电影)[)）]\s*$/, '')
   const year = extractYear(summary, wikitext)
@@ -240,7 +267,7 @@ function buildDetail(summary: WikiSummary, wikitext: string, fallbackTitle: stri
     genres: extractGenres(summary, wikitext),
     actors: cast,
     cast,
-    synopsis: summary.extract || undefined,
+    synopsis: extractPlotSection(wikitext) || summary.extract || undefined,
     parseVer: 2,
     source: 'wikipedia',
     fetchedAt: Date.now()

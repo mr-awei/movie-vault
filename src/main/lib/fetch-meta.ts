@@ -14,7 +14,7 @@ import { fetchOmdbDetail, hasOmdbKey } from './omdb'
 import { fetchOpenLibraryDetail, hasOpenLibraryKey } from './openlibrary'
 import { fetchJustWatchDetail, hasJustWatchKey } from './justwatch'
 import { fetchWikipediaDetail, hasWikipediaKey } from './wikipedia'
-import { extractMovieQuery } from '../../shared/code'
+import { extractMovieQuery, localCanonicalName } from '../../shared/code'
 import type { MovieMeta, SourceId, Settings, Video } from '../../shared/types'
 
 export interface MovieDetailResult {
@@ -109,7 +109,8 @@ export async function waitIfPaused(state: SmartFetchState): Promise<void> {
  * 命中第一个有 cover 的源即返回本地路径。
  */
 export async function fetchPosterSmart(video: Video, settings: Settings): Promise<string | null> {
-  const q = extractMovieQuery(video.meta?.title || video.title || video.folderName || video.fileName || '')
+  // v2.8.5：海报抓取搜索词统一用「本地真名」folderName 优先，与详情抓取保持一致
+  const q = extractMovieQuery(localCanonicalName(video))
   if (!q.query) return null
   const rawOrder =
     settings.customSourceOrder && settings.customSourceOrder.length >= 1
@@ -183,42 +184,93 @@ export async function fetchDetailSmart(
   const onError = (m: string) => errors.push(m)
   const ev = (e: Omit<SmartFetchEvent, 'code'>) => onEvent?.({ code, ...e })
   if (mode === 'moviedb') {
+    if (!hasMovieDbKey(settings)) {
+      const d = 'moviedb-not-configured'
+      ev({ src: 'moviedb', status: 'skipped', detail: d })
+      return { detail: null, error: 'MovieDB API Key 未配置' }
+    }
+    ev({ src: 'moviedb', status: 'trying' })
     try {
       const moviedb = await fetchMovieDbDetail(q, settings, onError, manual)
-      if (moviedb) return { detail: moviedb, source: 'moviedb' }
+      if (moviedb) {
+        ev({ src: 'moviedb', status: 'hit' })
+        return { detail: moviedb, source: 'moviedb' }
+      }
+      // v2.8.5：no-result 携带具体错误原因（如 "Too many results."），与失败明细保持一致
+      const detail = errors.join('；') || undefined
+      ev({ src: 'moviedb', status: 'no-result', detail })
     } catch (e) {
+      const d = formatFetchError(e)
+      ev({ src: 'moviedb', status: 'network-failed', detail: d })
       errors.push(`MovieDB 异常：${(e as Error)?.message || e}`)
     }
     return { detail: null, error: errors.length ? errors.join('；') : 'MovieDB 未返回结果' }
   } else if (mode === 'omdb') {
+    if (!hasOmdbKey(settings)) {
+      const d = 'omdb-not-configured'
+      ev({ src: 'omdb', status: 'skipped', detail: d })
+      return { detail: null, error: 'OMDb API Key 未配置' }
+    }
+    ev({ src: 'omdb', status: 'trying' })
     try {
       const omdb = await fetchOmdbDetail(q, settings, onError, manual)
-      if (omdb) return { detail: omdb, source: 'omdb' }
+      if (omdb) {
+        ev({ src: 'omdb', status: 'hit' })
+        return { detail: omdb, source: 'omdb' }
+      }
+      const detail = errors.join('；') || undefined
+      ev({ src: 'omdb', status: 'no-result', detail })
     } catch (e) {
+      const d = formatFetchError(e)
+      ev({ src: 'omdb', status: 'network-failed', detail: d })
       errors.push(`OMDb 异常：${(e as Error)?.message || e}`)
     }
     return { detail: null, error: errors.length ? errors.join('；') : 'OMDb 未返回结果' }
   } else if (mode === 'openlibrary') {
+    ev({ src: 'openlibrary', status: 'trying' })
     try {
       const openLibrary = await fetchOpenLibraryDetail(q, settings, onError, manual)
-      if (openLibrary) return { detail: openLibrary, source: 'openlibrary' }
+      if (openLibrary) {
+        ev({ src: 'openlibrary', status: 'hit' })
+        return { detail: openLibrary, source: 'openlibrary' }
+      }
+      const detail = errors.join('；') || undefined
+      ev({ src: 'openlibrary', status: 'no-result', detail })
     } catch (e) {
+      const d = formatFetchError(e)
+      ev({ src: 'openlibrary', status: 'network-failed', detail: d })
       errors.push(`OpenLibrary 异常：${(e as Error)?.message || e}`)
     }
     return { detail: null, error: errors.length ? errors.join('；') : 'OpenLibrary 未返回结果' }
   } else if (mode === 'justwatch') {
+    ev({ src: 'justwatch', status: 'trying' })
     try {
       const justWatch = await fetchJustWatchDetail(q, settings, onError, manual)
-      if (justWatch) return { detail: justWatch, source: 'justwatch' }
+      if (justWatch) {
+        ev({ src: 'justwatch', status: 'hit' })
+        return { detail: justWatch, source: 'justwatch' }
+      }
+      const detail = errors.join('；') || undefined
+      ev({ src: 'justwatch', status: 'no-result', detail })
     } catch (e) {
+      const d = formatFetchError(e)
+      ev({ src: 'justwatch', status: 'network-failed', detail: d })
       errors.push(`JustWatch 异常：${(e as Error)?.message || e}`)
     }
     return { detail: null, error: errors.length ? errors.join('；') : 'JustWatch 未返回结果' }
   } else if (mode === 'wikipedia') {
+    ev({ src: 'wikipedia', status: 'trying' })
     try {
       const wikipedia = await fetchWikipediaDetail(q, settings, onError, manual)
-      if (wikipedia) return { detail: wikipedia, source: 'wikipedia' }
+      if (wikipedia) {
+        ev({ src: 'wikipedia', status: 'hit' })
+        return { detail: wikipedia, source: 'wikipedia' }
+      }
+      const detail = errors.join('；') || undefined
+      ev({ src: 'wikipedia', status: 'no-result', detail })
     } catch (e) {
+      const d = formatFetchError(e)
+      ev({ src: 'wikipedia', status: 'network-failed', detail: d })
       errors.push(`维基百科异常：${(e as Error)?.message || e}`)
     }
     return { detail: null, error: errors.length ? errors.join('；') : '维基百科未返回结果' }
@@ -254,7 +306,9 @@ export async function fetchDetailSmart(
       } else {
         ev({ src, status: 'trying' })
         try {
-          const moviedb = await fetchMovieDbDetail(q, settings, undefined, manual)
+          // v2.8.5：每个源独立收集错误原因，no-result 时带上 detail（如 "Too many results."）
+          const srcErrors: string[] = []
+          const moviedb = await fetchMovieDbDetail(q, settings, (m) => srcErrors.push(m), manual)
           if (moviedb) {
             state.moviedbFails = 0
             srcResults.push({ src, status: 'hit' })
@@ -262,8 +316,9 @@ export async function fetchDetailSmart(
             console.log(`[smart] ${code} HIT ${src}`)
             return { detail: moviedb, source: 'moviedb' }
           }
-          srcResults.push({ src, status: 'no-result' })
-          ev({ src, status: 'no-result' })
+          const detail = srcErrors.join('；') || undefined
+          srcResults.push({ src, status: 'no-result', detail })
+          ev({ src, status: 'no-result', detail })
         } catch (e) {
           const d = formatFetchError(e)
           console.error(`[smart] ${code} ${src} network-failed:`, e)
@@ -288,7 +343,8 @@ export async function fetchDetailSmart(
       } else {
         ev({ src, status: 'trying' })
         try {
-          const omdb = await fetchOmdbDetail(q, settings, undefined, manual)
+          const srcErrors: string[] = []
+          const omdb = await fetchOmdbDetail(q, settings, (m) => srcErrors.push(m), manual)
           if (omdb) {
             state.omdbFails = 0
             srcResults.push({ src, status: 'hit' })
@@ -296,8 +352,9 @@ export async function fetchDetailSmart(
             console.log(`[smart] ${code} HIT ${src}`)
             return { detail: omdb, source: 'omdb' }
           }
-          srcResults.push({ src, status: 'no-result' })
-          ev({ src, status: 'no-result' })
+          const detail = srcErrors.join('；') || undefined
+          srcResults.push({ src, status: 'no-result', detail })
+          ev({ src, status: 'no-result', detail })
         } catch (e) {
           const d = formatFetchError(e)
           console.error(`[smart] ${code} ${src} network-failed:`, e)
@@ -318,7 +375,8 @@ export async function fetchDetailSmart(
       } else {
         ev({ src, status: 'trying' })
         try {
-          const openLibrary = await fetchOpenLibraryDetail(q, settings, undefined, manual)
+          const srcErrors: string[] = []
+          const openLibrary = await fetchOpenLibraryDetail(q, settings, (m) => srcErrors.push(m), manual)
           if (openLibrary) {
             state.openLibraryFails = 0
             srcResults.push({ src, status: 'hit' })
@@ -326,8 +384,9 @@ export async function fetchDetailSmart(
             console.log(`[smart] ${code} HIT ${src}`)
             return { detail: openLibrary, source: 'openlibrary' }
           }
-          srcResults.push({ src, status: 'no-result' })
-          ev({ src, status: 'no-result' })
+          const detail = srcErrors.join('；') || undefined
+          srcResults.push({ src, status: 'no-result', detail })
+          ev({ src, status: 'no-result', detail })
         } catch (e) {
           const d = formatFetchError(e)
           console.error(`[smart] ${code} ${src} network-failed:`, e)
@@ -348,7 +407,8 @@ export async function fetchDetailSmart(
       } else {
         ev({ src, status: 'trying' })
         try {
-          const justWatch = await fetchJustWatchDetail(q, settings, undefined, manual)
+          const srcErrors: string[] = []
+          const justWatch = await fetchJustWatchDetail(q, settings, (m) => srcErrors.push(m), manual)
           if (justWatch) {
             state.justWatchFails = 0
             srcResults.push({ src, status: 'hit' })
@@ -356,8 +416,9 @@ export async function fetchDetailSmart(
             console.log(`[smart] ${code} HIT ${src}`)
             return { detail: justWatch, source: 'justwatch' }
           }
-          srcResults.push({ src, status: 'no-result' })
-          ev({ src, status: 'no-result' })
+          const detail = srcErrors.join('；') || undefined
+          srcResults.push({ src, status: 'no-result', detail })
+          ev({ src, status: 'no-result', detail })
         } catch (e) {
           const d = formatFetchError(e)
           console.error(`[smart] ${code} ${src} network-failed:`, e)
@@ -378,7 +439,8 @@ export async function fetchDetailSmart(
       } else {
         ev({ src, status: 'trying' })
         try {
-          const wikipedia = await fetchWikipediaDetail(q, settings, undefined, manual)
+          const srcErrors: string[] = []
+          const wikipedia = await fetchWikipediaDetail(q, settings, (m) => srcErrors.push(m), manual)
           if (wikipedia) {
             state.wikipediaFails = 0
             srcResults.push({ src, status: 'hit' })
@@ -386,8 +448,9 @@ export async function fetchDetailSmart(
             console.log(`[smart] ${code} HIT ${src}`)
             return { detail: wikipedia, source: 'wikipedia' }
           }
-          srcResults.push({ src, status: 'no-result' })
-          ev({ src, status: 'no-result' })
+          const detail = srcErrors.join('；') || undefined
+          srcResults.push({ src, status: 'no-result', detail })
+          ev({ src, status: 'no-result', detail })
         } catch (e) {
           const d = formatFetchError(e)
           console.error(`[smart] ${code} ${src} network-failed:`, e)

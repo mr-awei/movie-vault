@@ -1,4 +1,4 @@
-import { promises as fs, existsSync } from 'node:fs'
+﻿import { promises as fs, existsSync } from 'node:fs'
 import path from 'node:path'
 import type {
   DisplayEntry,
@@ -14,7 +14,7 @@ import { parseIntroExcel } from './excel'
 import { applyVideoChanges, findVideoByPath, listVideos, type VideoChange } from './repo'
 import { resolvePoster } from './images'
 import { walk, VIDEO_EXTS, idForPath, computeContentHash } from './scanner'
-import { extractTitleYear, titleMatches } from '../../shared/code'
+import { extractTitleYear, titleMatches, localCanonicalName } from '../../shared/code'
 import { fetchDetailSmart, createSmartFetchState } from './fetch-meta'
 
 /**
@@ -195,31 +195,54 @@ async function ensureVideo(
     tagCategories?: Record<string, string[]>
     /** Excel 片单「分类」列的单值，独立于 tagCategories */
     introCategory?: string
+    /** v2.8.5：Excel 片单「年份」列，权威覆盖文件名提取 */
+    year?: number
+    /** v2.8.5：Excel 片单「地区」列 */
+    region?: string
+    /** v2.8.5：Excel 片单「系列」列 */
+    series?: string
   },
   changes: VideoChange[]
 ): Promise<Video> {
-  const { year } = extractTitleYear(filePath)
+  const { year: yearFromFile } = extractTitleYear(filePath)
+  // v2.8.5：片单年份为权威源，优先于文件名提取
+  const year = meta.year ?? yearFromFile
   const existing = await findVideoByPath(filePath)
   if (existing) {
     // Excel 为权威来源：简介/标签/评分/tagCategories 以 Excel 为准（仅在变化时记录一次 update，不逐条写盘）
     const nextTags = [...meta.tags]
     const nextCats = meta.tagCategories && Object.keys(meta.tagCategories).length ? { ...meta.tagCategories } : undefined
-    if (
+    const newFolderName = path.basename(path.dirname(filePath))
+    const newFileName = path.basename(filePath)
+    // 本地文件夹/文件名是用户唯一真名：改名后必须同步到媒体库
+    const localNameChanged =
+      existing.folderName !== newFolderName ||
+      existing.fileName !== newFileName ||
+      existing.title !== meta.code
+    const excelMetaChanged =
       existing.description !== meta.description ||
       JSON.stringify(existing.tags) !== JSON.stringify(nextTags) ||
       JSON.stringify(existing.tagCategories ?? null) !== JSON.stringify(nextCats ?? null) ||
       existing.rating !== meta.score ||
-      existing.introCategory !== meta.introCategory
-    ) {
+      existing.introCategory !== meta.introCategory ||
+      existing.region !== meta.region ||
+      existing.series !== meta.series ||
+      existing.year !== year
+    if (localNameChanged || excelMetaChanged) {
       const updated: Video = {
         ...existing,
+        folderName: newFolderName,
+        fileName: newFileName,
+        title: meta.code,
         description: meta.description,
         tags: nextTags,
         tagCategories: nextCats,
         descriptionSource: 'manual',
         rating: meta.score ?? existing.rating,
         year,
-        introCategory: meta.introCategory ?? existing.introCategory
+        introCategory: meta.introCategory ?? existing.introCategory,
+        region: meta.region ?? existing.region,
+        series: meta.series ?? existing.series
       }
       changes.push({ type: 'update', video: updated })
       return updated
@@ -249,7 +272,9 @@ async function ensureVideo(
     addedAt: Date.now(),
     fileSize: stat?.size,
     contentHash,
-    introCategory: meta.introCategory
+    introCategory: meta.introCategory,
+    region: meta.region,
+    series: meta.series
   }
   if (!video.posterPath) {
     const r = await resolvePoster(video, library, settings, { allowFfmpeg: false })
@@ -351,7 +376,10 @@ export async function reconcileLibrary(
             tags: item.tags,
             tagCategories: item.tagCategories,
             score: item.score,
-            introCategory: item.category
+            introCategory: item.category,
+            year: item.year,
+            region: item.region,
+            series: item.series
           }
           // 同一片单标题可能匹配到多个文件（不同分辨率 / 多碟 / 同名片），
           // 每个文件各自建一条 entry，不再做"分集合集"分组，避免把不同影片误合并。
@@ -500,7 +528,8 @@ export async function reconcileLibrary(
               // 防御：兜底抓取期间被临时锁定 → 跳过
               if (v.locked) continue
               try {
-                const displayTitle = v.meta?.title || v.title
+                // v2.8.5：兜底抓取搜索词和显示名统一用「本地真名」folderName 优先
+                const displayTitle = localCanonicalName(v)
                 const r = await fetchDetailSmart(displayTitle, settings, state, (fe) => {
                   // v2.2.10：兜底抓取也把事件推给 renderer（走 onProgress 同管道）
                   onProgress?.({ libraryId: library.id, total: autoFetch.length, done: idx, current: displayTitle, fetchEvent: { ...fe, code: displayTitle || fe.code } })

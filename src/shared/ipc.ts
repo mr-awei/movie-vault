@@ -40,6 +40,13 @@ export const IPC = {
   videoFrameFallback: 'video:frameFallback',
   // 截帧预览帧 → 设为封面：把某张预览帧复制为封面文件 <id>.jpg 并更新记录
   videoSetPreviewAsCover: 'video:setPreviewAsCover',
+  previewTaskStats: 'preview:stats',
+  previewTaskEnqueue: 'preview:enqueue',
+  previewTaskPause: 'preview:pause',
+  previewTaskResume: 'preview:resume',
+  previewTaskCancel: 'preview:cancel',
+  previewTaskRetry: 'preview:retry',
+  previewTaskEvent: 'preview:event',
   // ffprobe 读取视频技术参数
   videoProbe: 'video:probe',
   // v2.3.7 批量补齐视频时长：对当前库所有缺时长视频 ffprobe 读取时长写 techInfo

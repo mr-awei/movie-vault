@@ -1,4 +1,4 @@
-import type { IntroDoc, IntroItem } from '../../shared/types'
+﻿import type { IntroDoc, IntroItem } from '../../shared/types'
 // SheetJS：读取 xlsx。xlsx 解析是主进程侧依赖（electron-builder 打进 app.asar）。
 import * as XLSX from 'xlsx'
 import { promises as fs, readFileSync } from 'node:fs'
@@ -66,11 +66,15 @@ export async function parseIntroExcel(filePath: string): Promise<IntroDoc | null
     const rows = XLSX.utils.sheet_to_json<unknown[]>(candidate, { header: 1 })
     if (rows.length === 0) continue
     const header = (rows[0] ?? []) as unknown[]
-    // 优先整行扫「片名 / 标题 / 编号」
+    // v2.8.5 修复：优先匹配「片名/标题」列，「编号」只作兜底——
+    // 否则表头第一列是「编号」时会把 001/002 当成影片名去匹配文件，导致全部「未收录」
     let idx = header.findIndex((h) => {
       const t = String(h ?? '').trim()
-      return t === '片名' || t === '标题' || t === '编号'
+      return t === '片名' || t === '标题'
     })
+    if (idx < 0) {
+      idx = header.findIndex((h) => String(h ?? '').trim() === '编号')
+    }
     // 兼容部分老 sheet：B 列就是匹配键但表头没文字
     if (idx < 0) idx = String(header[1] ?? '').trim() === '' ? -1 : 1
     if (idx >= 0) {
@@ -98,10 +102,13 @@ export async function parseIntroExcel(filePath: string): Promise<IntroDoc | null
     code: codeColIdx,
     category: colIndex('分类'),
     score: colIndex('推荐评分'),
-    desc: colIndex('简介')
+    desc: colIndex('简介'),
+    year: colIndex('年份'),
+    region: colIndex('地区'),
+    series: colIndex('系列')
   }
   // 结构化标签列：编号之后的列，跳过已知的"非标签"列（标题/年份等辅助列）
-  const NON_TAG_COLS = new Set(['分类', '推荐评分', '简介', '标题', '片名', '年份'])
+  const NON_TAG_COLS = new Set(['分类', '推荐评分', '简介', '标题', '片名', '年份', '地区', '系列', '编号'])
   const tagCols: { name: string; idx: number }[] = []
   for (let i = Math.max(1, ci.code + 1); i < header.length; i++) {
     const name = String(header[i] ?? '').trim()
@@ -126,6 +133,11 @@ export async function parseIntroExcel(filePath: string): Promise<IntroDoc | null
     const category = String(row[ci.category] ?? '').trim() || '未分类'
     const score = toScore(row[ci.score])
     const description = String(row[ci.desc] ?? '').trim()
+    // v2.8.5：片单权威字段——年份/地区/系列
+    const yearRaw = ci.year >= 0 ? String(row[ci.year] ?? '').trim() : ''
+    const year = yearRaw ? (parseInt(yearRaw, 10) || undefined) : undefined
+    const region = ci.region >= 0 ? String(row[ci.region] ?? '').trim() || undefined : undefined
+    const series = ci.series >= 0 ? String(row[ci.series] ?? '').trim() || undefined : undefined
     const tagCategories: Record<string, string[]> = {}
     const allTags: string[] = []
     for (const tc of tagCols) {
@@ -149,6 +161,9 @@ export async function parseIntroExcel(filePath: string): Promise<IntroDoc | null
         tagCategories,
         score,
         category: category === '未分类' ? undefined : category,
+        year,
+        region,
+        series,
         raw
       }
     })

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   DisplayEntry,
   ImageSource,
@@ -352,7 +352,6 @@ export default function App() {
       clearTimer.current = window.setTimeout(() => {
         setProgress(null)
         setFetchPaused(false)
-        // v2.2.10：批量补齐结束 → 抓取过程浮层自动收起
         setFetchLogs([])
       }, 2500)
     }
@@ -2230,8 +2229,8 @@ export default function App() {
         onExportCodes={(libId, fmt) => window.api.libraryExportCodes(libId, fmt)}
       />
 
-      {/* v2.2.10：实时抓取日志浮层（右下角）。批量补齐期间滚动显示"数据源失败 → 降级下一源"，结束自动收起 */}
-      <FetchLogOverlay logs={fetchLogs} onDismiss={() => setFetchLogs([])} />
+      {/* v2.2.10：实时抓取日志浮层（左下角）。批量补齐期间滚动显示"数据源失败 → 降级下一源"，结束自动收起 */}
+      
 
       {/* v2.4.1：进度面板（可拖拽、暂停/继续/停止） */}
       <ProgressPanel
@@ -2239,6 +2238,8 @@ export default function App() {
         scanning={scanning}
         paused={fetchPaused}
         skippedLocked={lockedCount}
+        logs={fetchLogs}
+        onDismissLogs={() => setFetchLogs([])}
         onPause={() => { setFetchPaused(true); window.api.libraryFetchPause() }}
         onResume={() => { setFetchPaused(false); window.api.libraryFetchResume() }}
         onStop={() => { window.api.libraryFetchStop(); setFetchPaused(false) }}
@@ -2478,151 +2479,36 @@ export default function App() {
 }
 
 /** v2.2.10：实时抓取过程浮层（右下角）。批量补齐期间滚动显示"数据源失败 → 降级下一源"这类过程提示 */
+/** v2.4.1：右下角进度面板（可拖拽、暂停/继续/停止） */
 interface FetchLogItem {
   code: string
   src: string
   status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'
   detail?: string
 }
-function FetchLogOverlay({ logs, onDismiss }: { logs: FetchLogItem[]; onDismiss: () => void }) {
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
-  const width = 360
-  const height = 300
 
-  const clampPos = (x: number, y: number) => ({
-    x: Math.max(0, Math.min(window.innerWidth - width, x)),
-    y: Math.max(0, Math.min(window.innerHeight - height, y))
-  })
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!dragRef.current) return
-      const dx = e.clientX - dragRef.current.startX
-      const dy = e.clientY - dragRef.current.startY
-      setPos(clampPos(dragRef.current.origX + dx, dragRef.current.origY + dy))
-    }
-    const onUp = () => { dragRef.current = null }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
-  }, [])
-
-  useEffect(() => {
-    const onResize = () => {
-      setPos(prev => {
-        if (!prev) return null
-        return clampPos(prev.x, prev.y)
-      })
-    }
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-  if (logs.length === 0) return null
-  const SOURCE_LABEL: Record<string, string> = {
-    moviedb: 'MovieDB', omdb: 'OMDb', openlibrary: 'OpenLibrary', justwatch: 'JustWatch', wikipedia: '维基百科'
-  }
-  const line = (l: FetchLogItem) => {
-    const label = SOURCE_LABEL[l.src] ?? l.src
-    const localizedDetail = (() => {
-      if (!l.detail) return ''
-      if (l.detail.match(/^(.+)-not-configured$/)) {
-        return t('app.fetchSkippedNotConfigured', { source: label })
-      }
-      if (l.detail.match(/^(.+)-disabled$/)) {
-        return t('app.fetchSkippedDisabled', { source: label })
-      }
-      return l.detail
-    })()
-    switch (l.status) {
-      case 'trying':
-        return { text: `→ ${t('app.fetchTrying')} ${label}…`, cls: 'text-white/55' }
-      case 'hit':
-        return { text: `✓ ${label} ${t('app.fetchHit')}`, cls: 'text-emerald-400' }
-      case 'skipped':
-        return { text: `· ${label} ${t('app.fetchSkipped')}${localizedDetail ? ` (${localizedDetail})` : ''}`, cls: 'text-white/35' }
-      case 'no-result':
-        return { text: `· ${label} ${t('app.fetchNoResult')}`, cls: 'text-amber-400/80' }
-      case 'network-failed':
-        return { text: `✗ ${label} ${t('app.fetchNetworkFail')}${localizedDetail ? ` (${localizedDetail.slice(0, 60)})` : ''}`, cls: 'text-red-400/85' }
-    }
-  }
-
-  // 默认左下角：浏览器右下角扣掉浮层尺寸
-  const defaultStyle: React.CSSProperties = {
-    position: 'fixed',
-    bottom: 16,
-    left: 16
-  }
-  const customStyle: React.CSSProperties = pos
-    ? { position: 'fixed', left: pos.x, top: pos.y, bottom: 'auto', right: 'auto' }
-    : defaultStyle
-
-  const handleDragStart = (e: React.MouseEvent) => {
-    const el = (e.currentTarget as HTMLElement).parentElement
-    const rect = el?.getBoundingClientRect()
-    const defaultX = 16
-    const defaultY = window.innerHeight - 300 - 16
-    const origX = rect?.left ?? (pos?.x ?? defaultX)
-    const origY = rect?.top ?? (pos?.y ?? defaultY)
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origX, origY }
-    if (!pos) setPos({ x: origX, y: origY })
-    e.preventDefault()
-  }
-
-  return (
-    <div
-      style={customStyle}
-      className="z-[60] w-[360px] max-h-[300px] rounded-xl bg-ink-900/95 ring-1 ring-white/10 shadow-2xl shadow-black/50 flex flex-col overflow-hidden backdrop-blur-sm animate-fadeIn-fast"
-    >
-      <div
-        className="flex items-center justify-between px-3 py-2 border-b border-white/5 shrink-0 cursor-move select-none"
-        onMouseDown={handleDragStart}
-      >
-        <div className="text-xs font-medium text-white/80 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-          {t('app.fetchProgressDesc')}
-        </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="w-5 h-5 rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center text-xs"
-          title={t('common.close')}
-        >
-          ✕
-        </button>
-      </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-0.5 font-mono text-[10.5px] leading-relaxed">
-        {logs.map((l, i) => {
-          const { text, cls } = line(l)
-          return (
-            <div key={i} className={`truncate ${cls}`} title={l.detail}>
-              <span className="text-white/30 mr-1.5">[{l.code}]</span>
-              {text}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-/** v2.4.1：右下角进度面板（可拖拽、暂停/继续/停止） */
+/** v2.8.5：统一进度面板（扫描进度 + 抓取过程日志 + 暂停/停止），合并原 FetchLogOverlay 和 ProgressPanel */
 interface ProgressPanelProps {
   progress: { total: number; done: number; current?: string } | null
   scanning: boolean
   paused: boolean
   /** v2.7.x：当前库已锁定的影片数（运行时提示：这些会被自动跳过） */
   skippedLocked?: number
+  /** v2.8.5：抓取过程日志，显示在进度条下方 */
+  logs?: FetchLogItem[]
+  /** v2.8.5：清除日志（关闭按钮） */
+  onDismissLogs?: () => void
   onPause: () => void
   onResume: () => void
   onStop: () => void
 }
-function ProgressPanel({ progress, scanning, paused, skippedLocked = 0, onPause, onResume, onStop }: ProgressPanelProps) {
+function ProgressPanel({ progress, scanning, paused, skippedLocked = 0, logs = [], onDismissLogs, onPause, onResume, onStop }: ProgressPanelProps) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
   const width = 360
-  const height = 128
+  // 有日志时面板更高（日志区域约120px），无日志时保持原高度
+  const hasLogs = logs.length > 0
+  const height = hasLogs ? 300 : 140
 
   const clampPos = (x: number, y: number) => ({
     x: Math.max(0, Math.min(window.innerWidth - width, x)),
@@ -2670,6 +2556,27 @@ function ProgressPanel({ progress, scanning, paused, skippedLocked = 0, onPause,
   const title = scanning ? t('app.scanningLibrary') : t('app.scanningOrFetching')
   const statusColor = paused ? 'bg-amber-400' : percent >= 100 ? 'bg-emerald-400' : 'bg-brand'
 
+  // 日志行渲染（从原 FetchLogOverlay 迁移）
+  const SOURCE_LABEL: Record<string, string> = {
+    moviedb: 'MovieDB', omdb: 'OMDb', openlibrary: 'OpenLibrary', justwatch: 'JustWatch', wikipedia: '维基百科'
+  }
+  const logLine = (l: FetchLogItem) => {
+    const label = SOURCE_LABEL[l.src] ?? l.src
+    const localizedDetail = (() => {
+      if (!l.detail) return ''
+      if (l.detail.match(/^(.+)-not-configured$/)) return t('app.fetchSkippedNotConfigured', { source: label })
+      if (l.detail.match(/^(.+)-disabled$/)) return t('app.fetchSkippedDisabled', { source: label })
+      return l.detail
+    })()
+    switch (l.status) {
+      case 'trying': return { text: `→ ${t('app.fetchTrying')} ${label}…`, cls: 'text-white/55' }
+      case 'hit': return { text: `✓ ${label} ${t('app.fetchHit')}`, cls: 'text-emerald-400' }
+      case 'skipped': return { text: `· ${label} ${t('app.fetchSkipped')}${localizedDetail ? ` (${localizedDetail})` : ''}`, cls: 'text-white/35' }
+      case 'no-result': return { text: `· ${label} ${localizedDetail ? localizedDetail.slice(0, 80) : t('app.fetchNoResult')}`, cls: 'text-amber-400/80' }
+      case 'network-failed': return { text: `✗ ${label} ${t('app.fetchNetworkFail')}${localizedDetail ? ` (${localizedDetail.slice(0, 60)})` : ''}`, cls: 'text-red-400/85' }
+    }
+  }
+
   if (!progress || progress.total <= 0) return null
 
   return (
@@ -2685,7 +2592,19 @@ function ProgressPanel({ progress, scanning, paused, skippedLocked = 0, onPause,
           <span className={`w-1.5 h-1.5 rounded-full ${paused ? '' : 'animate-pulse'} ${statusColor}`} />
           {paused ? t('app.progressPaused') : title}
         </div>
-        <div className="text-[10px] font-mono text-white/40">{percent}%</div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-white/40">{percent}%</span>
+          {hasLogs && onDismissLogs && (
+            <button
+              type="button"
+              onClick={onDismissLogs}
+              className="w-5 h-5 rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center text-xs"
+              title={t('common.close')}
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
       <div className="px-3 py-2.5 space-y-2">
         <div className="flex items-center justify-between text-xs text-white/60">
@@ -2708,6 +2627,20 @@ function ProgressPanel({ progress, scanning, paused, skippedLocked = 0, onPause,
             {t('lock.progressSkipped', { count: skippedLocked })}
           </div>
         ) : null}
+        {/* v2.8.5：抓取过程日志区域（可滚动） */}
+        {hasLogs && (
+          <div className="border-t border-white/5 pt-2 max-h-[120px] overflow-y-auto space-y-0.5 font-mono text-[10.5px] leading-relaxed">
+            {logs.slice(-20).map((l, i) => {
+              const { text, cls } = logLine(l)
+              return (
+                <div key={i} className={`truncate ${cls}`} title={l.detail}>
+                  <span className="text-white/30 mr-1.5">[{l.code}]</span>
+                  {text}
+                </div>
+              )
+            })}
+          </div>
+        )}
         <div className="flex items-center gap-2 pt-0.5">
           {paused ? (
             <button
@@ -2738,8 +2671,6 @@ function ProgressPanel({ progress, scanning, paused, skippedLocked = 0, onPause,
     </div>
   )
 }
-
-/** 启动遮罩：加载基础设置期间显示，避免隐私锁闪烁泄露内容 */
 function SplashScreen() {
   return (
     <div className="h-full flex flex-col items-center justify-center bg-ink-900 text-white/70 animate-fadeIn">

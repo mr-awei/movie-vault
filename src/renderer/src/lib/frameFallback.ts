@@ -74,28 +74,22 @@ export function useFrameFallback(
   const [fallbackPoster, setFallbackPoster] = useState<string | null>(null)
 
   useEffect(() => {
-    let alive = true
     // 视频切换 → 先清掉上一个视频的兜底状态
     setFallbackPoster(null)
     const id = videoId
-    if (!id) return () => {
-      alive = false
-    }
+    if (!id) return
     const cached = frameFallbackCache.get(id)
     if (cached) {
       setFallbackPoster(cached)
-      return () => {
-        alive = false
-      }
+      return
     }
-    if (!hasValidSrc) {
-      requestFrameFallback(id, (p) => {
-        if (alive && p) setFallbackPoster(p)
-      })
-    }
-    return () => {
-      alive = false
-    }
+    // 已禁用：自动截帧兜底会和 preview-task-queue 抢 ffmpeg 资源导致 CPU 爆炸
+    // preview-task-queue 启动后会统一处理封面/预览生成
+    // if (!hasValidSrc) {
+    //   requestFrameFallback(id, (p) => {
+    //     if (p) setFallbackPoster(p)
+    //   })
+    // }
   }, [videoId, hasValidSrc])
 
   return {

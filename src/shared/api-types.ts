@@ -8,7 +8,9 @@ import type {
   ScanProgress,
   OpenResult,
   ReconcileResult,
-  RenamePreviewItem
+  RenamePreviewItem,
+  PreviewTask,
+  PreviewTaskStats
 } from './types'
 
 /** videoFetchDetail 返回：成功（含详情 + 来源）或失败（含原因） */
@@ -207,6 +209,13 @@ export interface AppApi {
   updateCheck(): Promise<UpdateCheckResult>
   /** 用 ffmpeg 随机截帧生成封面 + 预览图（1 封面 + 15 预览），回填视频记录 */
   videoGeneratePreviews(id: string): Promise<Video | null>
+  previewTaskStats(): Promise<PreviewTaskStats>
+  previewTaskEnqueue(id: string, requestedCount?: number): Promise<PreviewTask>
+  previewTaskPause(): Promise<void>
+  previewTaskResume(): Promise<void>
+  previewTaskCancel(taskId: string): Promise<void>
+  previewTaskRetry(taskId: string): Promise<PreviewTask | null>
+  onPreviewTaskEvent(cb: (p: { type: string; stats?: PreviewTaskStats; task?: PreviewTask; mediaId?: string; posterPath?: string; previewPaths?: string[] }) => void): () => void
   /** 无封面时截 1 帧视频画面作为封面（懒加载兜底），成功返回本地路径并回填视频记录，失败/无 ffmpeg 返回 null */
   videoFrameFallback(id: string): Promise<string | null>
   /** 把某张截帧预览帧设为封面：复制为 <id>.jpg 并更新记录（posterSource='ffmpeg'），成功返回更新后的视频 */

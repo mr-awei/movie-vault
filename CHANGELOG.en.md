@@ -10,6 +10,31 @@ Change types: `Added` / `Changed` / `Fixed` / `Removed` / `Security`.
 
 ---
 
+## [2.8.6] - 2026-09-15
+
+**Excel sheet as single source of truth + preview frame algorithm rewrite + multiple UX fixes**
+
+### Added
+- **Excel sheet as single source of truth**: the sheet's "Year", "Region" and "Series" columns are now formally ingested. Fields present in the sheet take precedence; only missing fields are fetched from online data sources. The detail page now shows Region, and Series prefers the sheet value.
+- **Local folder name as canonical title**: all data-source searches, poster fetches, fallback fetches and progress displays now prefer the local folder name (folderName). Renaming a folder automatically syncs the library.
+
+### Changed
+- **OMDb search reworked**: prefers the `t` parameter for exact-title search (never returns "Too many results"), falling back to `s` + year. Short Chinese queries are skipped early with a clear message.
+- **Merged overlays**: the bottom-left "fetch progress" and bottom-right "scanning library" panels are merged into one unified progress panel with a collapsible log area.
+- **Drag-to-reorder restored**: data-source drag reordering is now available in all modes (previously only shown in auto mode).
+- **Wikipedia plot extraction**: now extracts the "Plot" section body instead of the page lead summary, compatible with 10 section-name variants (Plot / Synopsis / Story / 劇情 etc.).
+- **Preview frame 2.0 randomization**: sample timestamps get ±70% random jitter, and each time segment randomly picks from its top 3 candidates, ensuring every re-capture produces different frames.
+
+### Fixed
+- **Excel title column misdetected**: when the first column was "No." (编号), it was mistaken for the title column, so "001"/"002" were used as movie names to match files — everything showed as "unlisted". Now prefers "Title"/"片名" columns, with "No." only as fallback.
+- **Synopsis not refreshed after URL update**: detail page rendered synopsis from props instead of local state, and backfillFromDetail didn't copy description. Both fixed.
+- **Re-capture produces identical frames**: frontend version-bump condition too strict + fully deterministic frame selection + ffmpeg output-seeking timeouts causing corrupt frames. All three layers fixed.
+- **Corrupt preview frames**: output seeking was too slow, causing later frames to time out under 8-way concurrency. Reverted to input seeking, lowered concurrency to 4, raised timeout to 60s, and no longer deletes old frames upfront.
+- **Wheel event error**: the lightbox wheel-nav used React onWheel (passive by default), calling preventDefault threw errors. Switched to addEventListener({ passive: false }).
+- **"Set as cover" reports invalid**: path validation only allowed the posters/ directory, but preview frames live under preview-frames/, so every attempt was rejected. Both cache directories are now allowed.
+
+---
+
 ## [Unreleased]
 
 ### Fixed

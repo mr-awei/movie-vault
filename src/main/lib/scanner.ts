@@ -2,8 +2,10 @@ import { createHash } from 'node:crypto'
 import { promises as fs, existsSync } from 'node:fs'
 import path from 'node:path'
 import type { Library, ScanProgress, Settings, Video } from '../../shared/types'
-import { findVideoByPath, findVideoByContentHash, findVideoByTitleSize, listLibraries, listVideos, applyVideoChanges, type VideoChange } from './repo'
-import { resolvePoster, postersCacheDir, generatePreviewSet } from './images'
+import { findVideoByPath, findVideoByContentHash, findVideoByTitleSize, listVideos, applyVideoChanges, enqueuePreviewTask, type VideoChange } from './repo'
+import { resolvePoster, postersCacheDir } from './images'
+import { probeVideo } from './ffprobe'
+import { wakePreviewTaskQueue } from './preview-task-queue'
 import { extractTitleYear } from '../../shared/code'
 
 export const VIDEO_EXTS = new Set([
@@ -104,6 +106,9 @@ export async function scanLibrary(
     })
     if (existing) {
       created.push(existing)
+      if (!existing.previewPaths?.length && existing.previewStatus !== 'COMPLETED') {
+        await enqueuePreviewTask(existing.id, { priority: 3 }).catch(() => null)
+      }
       continue
     }
     const stat = await fs.stat(filePath).catch(() => null)
@@ -124,7 +129,9 @@ export async function scanLibrary(
           year,
           fileSize: stat?.size,
           contentHash,
-          addedAt: prev.addedAt
+          addedAt: prev.addedAt,
+          mediaStatus: stat ? 'AVAILABLE' : 'MISSING',
+          previewStatus: prev.previewPaths?.length ? 'COMPLETED' : 'PENDING'
         }
       : {
           id: idForPath(filePath, contentHash, library.id),
@@ -137,8 +144,17 @@ export async function scanLibrary(
           tags: [],
           addedAt: Date.now(),
           fileSize: stat?.size,
-          contentHash
+          contentHash,
+          mediaStatus: stat ? 'AVAILABLE' : 'MISSING',
+          previewStatus: 'PENDING',
+          previewRequestedCount: settings.previewFrameCount ?? 20,
+          previewGeneratedCount: 0
         }
+    const info = stat ? await probeVideo(filePath, settings).catch(() => null) : null
+    if (info) {
+      video.techInfo = info
+      video.durationSec = info.durationSec ?? video.durationSec
+    }
     // 快速解析：手动/同名图/占位（不触发网络与截帧）
     const quick = await resolvePoster(video, library, settings, { allowFfmpeg: false })
     video.posterSource = quick.source
@@ -150,6 +166,16 @@ export async function scanLibrary(
   }
   // fix7：创建阶段一次性落盘
   if (createdChanges.length > 0) await applyVideoChanges(createdChanges)
+  await Promise.all(
+    created.map((v) =>
+      enqueuePreviewTask(v.id, {
+        priority: Date.now() - v.addedAt < 60_000 ? 1 : 3,
+        requestedCount: settings.previewFrameCount ?? 20,
+        qualityMode: settings.previewQualityMode ?? 'STANDARD'
+      }).catch(() => null)
+    )
+  )
+  wakePreviewTaskQueue()
 
   // v2.7.x：清理「文件已不存在」的失效记录。
   // 用户可能在资源管理器里改名/移动/删除过文件，旧路径的记录会残留在 data.json：
@@ -168,59 +194,7 @@ export async function scanLibrary(
     }
   }
 
-  // 富集阶段：ffmpeg 截帧兜底（并发 = settings.scanConcurrency，默认 4）
-  const libraries = await listLibraries()
-  const lib = libraries.find((l) => l.id === library.id) ?? library
-  // 兜底策略：无论 imagePriority 是否包含 ffmpeg，只要视频最终没有封面（数据源抓不到）就截帧显示
-  const concurrency = Math.max(1, Math.min(8, Math.floor(settings.scanConcurrency) || 4))
-
-  let doneCount = 0
-  let nextIdx = 0
-  // fix7：富集结果也批量落盘（原来逐条 updateVideo）
-  const enrichChanges: VideoChange[] = []
-  async function enrichWorker(): Promise<void> {
-    while (nextIdx < created.length) {
-      const i = nextIdx++
-      const v = created[i]
-      onProgress?.({ libraryId: library.id, total, done: total + doneCount, current: v.meta?.title || v.title })
-      try {
-        // 无海报 → 尝试 resolvePoster（含 ffmpeg 生成）；仍无则直接 ffmpeg 截帧兜底
-        if (!created[i].posterPath || created[i].posterSource === 'placeholder') {
-          const r = await resolvePoster(created[i], lib, settings, { allowFfmpeg: true })
-          if (r.source !== 'placeholder') {
-            created[i] = {
-              ...created[i],
-              posterSource: r.source,
-              posterPath: r.posterPath,
-              posterPathFfmpeg: r.source === 'ffmpeg' ? r.posterPath : created[i].posterPathFfmpeg
-            }
-            enrichChanges.push({ type: 'update', video: created[i] })
-          } else {
-            // 优先级链最终仍是占位 → 强制 ffmpeg 截帧兜底（保证有真实画面）
-            const set = await generatePreviewSet(created[i], settings)
-            if (set?.coverPath) {
-              created[i] = {
-                ...created[i],
-                posterSource: 'ffmpeg',
-                posterPath: set.coverPath,
-                posterPathFfmpeg: set.coverPath,
-                previewPaths: set.previewPaths
-              }
-              enrichChanges.push({ type: 'update', video: created[i] })
-            }
-          }
-        }
-      } catch {
-        // 富集失败不影响主流程
-      }
-      doneCount++
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(concurrency, created.length) }, () => enrichWorker()))
-  // fix7：富集结果一次性落盘
-  if (enrichChanges.length > 0) await applyVideoChanges(enrichChanges)
-
   await postersCacheDir() // 确保缓存目录存在（无副作用）
-  onProgress?.({ libraryId: library.id, total, done: total + created.length })
+  onProgress?.({ libraryId: library.id, total, done: total })
   return created
 }

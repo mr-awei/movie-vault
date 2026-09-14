@@ -1,4 +1,4 @@
-// 跨主进程/渲染进程的共享类型定义（纯接口，无 Node/DOM 依赖）
+﻿// 跨主进程/渲染进程的共享类型定义（纯接口，无 Node/DOM 依赖）
 
 /** 数据源标识（新增数据源时只需在这里加一个值） */
 export type SourceId = 'moviedb' | 'omdb' | 'openlibrary' | 'justwatch' | 'wikipedia'
@@ -8,6 +8,11 @@ export type SortKey = 'title' | 'year' | 'added' | 'lastPlayed' | 'random' | 'sc
 export type ViewMode = 'grid-portrait' | 'grid-landscape' | 'list-filename'
 /** 更新检查源 */
 export type UpdateSource = 'github' | 'gitee'
+export type MediaStatus = 'AVAILABLE' | 'MISSING' | 'INVALID' | 'ERROR'
+export type PreviewStatus = 'NONE' | 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+export type PreviewTaskType = 'GENERATE_PREVIEW'
+export type PreviewQualityMode = 'FAST' | 'STANDARD' | 'HIGH'
+export type BackgroundLoad = 'low' | 'standard' | 'high'
 
 /** 媒体库：对应一个被扫描的本地文件夹 + 一个 Excel 片单文件 */
 export interface Library {
@@ -71,6 +76,13 @@ export interface Video {
   actors?: string[]
   /** ffmpeg 批量截帧生成的预览图本地路径（横屏预览墙使用），最多 PREVIEW_COUNT 张 */
   previewPaths?: string[]
+  mediaStatus?: MediaStatus
+  previewStatus?: PreviewStatus
+  previewRequestedCount?: number
+  previewGeneratedCount?: number
+  previewAlgorithmVersion?: string
+  previewUpdatedAt?: number
+  previewLastError?: string
   /** v2.2.4：reconcile else 分支自动抓 数据源 元数据时的最后尝试时间戳；
    *  7 天内抓过且失败的跳过，避免反复浪费 数据源 配额。缺失字段 = 从未抓过 */
   lastMetaFetchAt?: number
@@ -84,6 +96,65 @@ export interface Video {
   /** Excel 片单「分类」列的单值（如"剧情"、"科幻"），独立字段不进 tagCategories；
    *  详情页 MetaRow 单独展示。无片单或未匹配时为 undefined。v2.6.5 起引入。 */
   introCategory?: string
+  /** v2.8.5：地区（Excel 片单权威源，如 中国香港、日本） */
+  region?: string
+  /** v2.8.5：系列（Excel 片单权威源，如 改编、系列作品、原创） */
+  series?: string
+}
+
+export interface PreviewFrameMeta {
+  index: number
+  timestamp: number
+  filePath: string
+  width?: number
+  height?: number
+  qualityScore: number
+  sharpness: number
+  pHash: string
+  algorithmVersion: string
+  createdAt: number
+}
+
+export interface PreviewManifest {
+  mediaId: string
+  algorithmVersion: string
+  requestedCount: number
+  generatedCount: number
+  generatedAt: number
+  sourceFingerprint?: string
+  width?: number
+  height?: number
+  frames: PreviewFrameMeta[]
+}
+
+export interface PreviewTask {
+  id: string
+  mediaId: string
+  taskType: PreviewTaskType
+  priority: number
+  status: PreviewStatus
+  progress: number
+  requestedCount: number
+  generatedCount: number
+  retryCount: number
+  algorithmVersion: string
+  qualityMode: PreviewQualityMode
+  lastError?: string
+  errorCode?: string
+  createdAt: number
+  startedAt?: number
+  finishedAt?: number
+}
+
+export interface PreviewTaskStats {
+  active?: PreviewTask
+  queued: number
+  processing: number
+  completed: number
+  failed: number
+  cancelled: number
+  paused: boolean
+  workerLimit: number
 }
 
 /** 演员头像与角色信息 */
@@ -204,6 +275,12 @@ export interface Settings {
   lockEnabled: boolean
   /** 扫描富集并发数（1-8：ffprobe 探测 / 截帧等） */
   scanConcurrency: number
+  /** 后台预览生成负载：控制有限 worker 数量 */
+  previewBackgroundLoad?: BackgroundLoad
+  /** 默认预览帧数量，支持 10/15/20/30 或自定义 */
+  previewFrameCount?: number
+  /** Preview Generator V2 质量模式 */
+  previewQualityMode?: PreviewQualityMode
   /** 扫描最小文件大小（MB）；0 = 不限。小于该值的视频不进入媒体库（过滤短视频/预告片） */
   /** 隐私锁密码哈希（SHA-256 salt+password）；为空表示未上锁 */
   lockHash?: string
@@ -301,6 +378,9 @@ export const DEFAULT_SETTINGS: Settings = {
   privacyDefaultOn: false,
   lockEnabled: false,
   scanConcurrency: 4,
+  previewBackgroundLoad: 'low',
+  previewFrameCount: 20,
+  previewQualityMode: 'STANDARD',
   updateSource: 'gitee',
   autoUpdateFrequency: 'off',
   pendingUpdate: null,
@@ -340,6 +420,12 @@ export interface IntroItem {
   score?: number
   /** Excel 片单「分类」列的单值，如 "剧情"、"科幻"，独立于 tagCategories */
   category?: string
+  /** v2.8.5：Excel 片单「年份」列，权威覆盖文件名提取 */
+  year?: number
+  /** v2.8.5：Excel 片单「地区」列，如 中国香港、日本 */
+  region?: string
+  /** v2.8.5：Excel 片单「系列」列，如 改编、系列作品、原创 */
+  series?: string
   /** 原始行文本 */
   raw: string
 }

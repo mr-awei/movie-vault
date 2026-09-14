@@ -1,13 +1,15 @@
 import { app } from 'electron'
 import { promises as fs, mkdirSync, writeFileSync, existsSync, unlinkSync, renameSync } from 'node:fs'
 import path from 'node:path'
-import { DEFAULT_SETTINGS, type Library, type Settings, type Video } from '../../shared/types'
+import { DEFAULT_SETTINGS, type Library, type PreviewManifest, type PreviewTask, type Settings, type Video } from '../../shared/types'
 import type { MovieMeta } from '../../shared/types'
 import { cleanGenreName } from './image-util'
 
 export interface DBShape {
   libraries: Library[]
   videos: Video[]
+  previewTasks: PreviewTask[]
+  previewManifests: Record<string, PreviewManifest>
   settings: Settings
   /** 数据结构迁移的最后版本号，用于启动时只跑新增迁移；缺失视为 v0（v2.2.12 及以前）*/
   schemaVersion?: number
@@ -16,12 +18,14 @@ export interface DBShape {
 const DEFAULT_DB: DBShape = {
   libraries: [],
   videos: [],
+  previewTasks: [],
+  previewManifests: {},
   settings: { ...DEFAULT_SETTINGS }
 }
 
 /** v2.2.13 schemaVersion：标签分层（tagCategories / backupTags）已完成迁移
  *  v2.2.14 schemaVersion：清洗误写入 title 的完整文件路径 */
-export const SCHEMA_VERSION = 2026091401
+export const SCHEMA_VERSION = 2026091402
 
 let cache: DBShape | null = null
 let dbPath = ''
@@ -93,6 +97,8 @@ async function ensureLoaded(): Promise<DBShape> {
       schemaVersion: parsed.schemaVersion,
       libraries: parsed.libraries ?? [],
       videos: parsed.videos ?? [],
+      previewTasks: parsed.previewTasks ?? [],
+      previewManifests: parsed.previewManifests ?? {},
       settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) }
     }
     migrateInPlace(current)
@@ -122,6 +128,24 @@ async function ensureLoaded(): Promise<DBShape> {
 function migrateInPlace(db: DBShape): void {
   const from = db.schemaVersion ?? 0
   if (from >= SCHEMA_VERSION) return
+
+  if (!Array.isArray(db.previewTasks)) db.previewTasks = []
+  if (!db.previewManifests || typeof db.previewManifests !== 'object') db.previewManifests = {}
+  for (const task of db.previewTasks) {
+    if (task.status === 'PROCESSING') {
+      task.status = 'PENDING'
+      task.progress = 0
+      task.startedAt = undefined
+    }
+  }
+  for (const v of db.videos) {
+    if (!v.mediaStatus) v.mediaStatus = existsSync(v.path) ? 'AVAILABLE' : 'MISSING'
+    if (!v.previewStatus) {
+      v.previewStatus = v.previewPaths?.length ? 'COMPLETED' : 'NONE'
+      v.previewRequestedCount = v.previewRequestedCount ?? (v.previewPaths?.length || DEFAULT_SETTINGS.previewFrameCount)
+      v.previewGeneratedCount = v.previewGeneratedCount ?? (v.previewPaths?.length || 0)
+    }
+  }
 
   // v20260913-2：字段重命名迁移（保证旧库 data.json 不丢已抓取元数据）
   //   Video.sourceDetail → Video.meta（JSON 键改名，必须迁移旧键）

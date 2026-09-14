@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import type { Settings, ProxyMode, SortKey, SourceId } from '../../../shared/types'
+﻿import { useEffect, useState, type ReactNode } from 'react'
+import type { Settings, ProxyMode, SortKey, SourceId, PreviewQualityMode, BackgroundLoad } from '../../../shared/types'
 import type { UpdateCheckResult } from '../../../shared/api-types'
 import { api } from '../lib/api'
 import Icon from './Icon'
@@ -16,6 +16,7 @@ interface Props {
 }
 type Category =
   | 'general'
+  | 'preview'
   | 'network'
   | 'appearance'
   | 'privacy'
@@ -24,6 +25,7 @@ type Category =
   | 'danger'
 const CATEGORIES: { id: Category; label: string; icon: IconName }[] = [
   { id: 'general', get label() { return t('settings.cat.general') }, icon: 'sliders' },
+  { id: 'preview', get label() { return t('settings.cat.preview') }, icon: 'image' },
   { id: 'network', get label() { return t('settings.cat.network') }, icon: 'globe' },
   { id: 'appearance', get label() { return t('settings.cat.appearance') }, icon: 'palette' },
   { id: 'privacy', get label() { return t('settings.cat.privacy') }, icon: 'shield' },
@@ -713,6 +715,58 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
               </section>
             )}
             {/* ===== 网络 ===== */}
+            {activeCategory === 'preview' && (
+              <section className="animate-fadeIn">
+                <SectionHeader icon="image" title={t('settings.section.preview')} description={t('settings.section.previewDesc')} />
+                <Card>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon name="film" size={16} className="text-white/70" />
+                    <div className="text-white/90 text-sm font-medium">{t('settings.previewQualityMode')}</div>
+                  </div>
+                  <div className="text-white/40 text-xs mb-3">{t('settings.previewQualityModeDesc')}</div>
+                  <SegmentedControl
+                    value={draft.previewQualityMode ?? 'STANDARD'}
+                    options={[
+                      { value: 'FAST', label: t('settings.previewQualityModeFast') },
+                      { value: 'STANDARD', label: t('settings.previewQualityModeStandard') },
+                      { value: 'HIGH', label: t('settings.previewQualityModeHigh') }
+                    ]}
+                    onChange={(v) => setDraft({ ...draft, previewQualityMode: v as PreviewQualityMode })}
+                  />
+                </Card>
+                <Card>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon name="grid" size={16} className="text-white/70" />
+                    <div className="text-white/90 text-sm font-medium">{t('settings.previewFrameCount')}</div>
+                  </div>
+                  <div className="text-white/40 text-xs mb-3">{t('settings.previewFrameCountDesc')}</div>
+                  <input
+                    className={inputCls}
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={draft.previewFrameCount ?? 20}
+                    onChange={(e) => setDraft({ ...draft, previewFrameCount: Math.max(1, Math.min(60, Number(e.target.value) || 20)) })}
+                  />
+                </Card>
+                <Card>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon name="zap" size={16} className="text-white/70" />
+                    <div className="text-white/90 text-sm font-medium">{t('settings.previewBackgroundLoad')}</div>
+                  </div>
+                  <div className="text-white/40 text-xs mb-3">{t('settings.previewBackgroundLoadDesc')}</div>
+                  <SegmentedControl
+                    value={draft.previewBackgroundLoad ?? 'standard'}
+                    options={[
+                      { value: 'low', label: t('settings.previewBackgroundLoadLow') },
+                      { value: 'standard', label: t('settings.previewBackgroundLoadStandard') },
+                      { value: 'high', label: t('settings.previewBackgroundLoadHigh') }
+                    ]}
+                    onChange={(v) => setDraft({ ...draft, previewBackgroundLoad: v as BackgroundLoad })}
+                  />
+                </Card>
+              </section>
+            )}
             {activeCategory === 'network' && (
               <section className="animate-fadeIn">
                 <SectionHeader icon="globe" title={t("settings.networkSection")} description={t("settings.networkSectionDesc")} />
@@ -820,8 +874,7 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
                     onChange={(v) => setDraft({ ...draft, dataSource: v as 'auto' | SourceId })}
                   />
                   {/* 数据源明细：每个源可单独启用/禁用，并展示用途介绍；需要 API Key 的来源给出注册步骤 */}
-                  {draft.dataSource === 'auto' ? (
-                    <div className="mt-3 flex items-center justify-between">
+                  <div className="mt-3 flex items-center justify-between">
                       <div className="text-white/85 text-xs font-medium">{t('settings.sourceOrderDragHint')}</div>
                       <button
                         type="button"
@@ -832,7 +885,6 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
                         {t('settings.restoreRecommended')}
                       </button>
                     </div>
-                  ) : null}
                   <div className="mt-2 space-y-2">
                     {(draft.customSourceOrder ?? ['moviedb', 'omdb', 'openlibrary', 'justwatch', 'wikipedia']).map((src, idx, arr) => {
                       const meta = getSourceMeta(src)
@@ -842,7 +894,7 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
                       return (
                         <div
                           key={src}
-                          draggable={draft.dataSource === 'auto'}
+                          draggable
                           onDragStart={(e) => {
                             e.dataTransfer.effectAllowed = 'move'
                             e.dataTransfer.setData('text/plain', String(idx))
@@ -879,8 +931,7 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
                               <span className="text-[10px] text-amber-400/90 border border-amber-400/30 rounded px-1.5 py-0.5">{t('settings.source.requiresApi')}</span>
                             ) : null}
                             <span className="text-[10px] text-white/40">{enabled ? t('settings.general.enabled') : t('settings.general.disabled')}</span>
-                            {draft.dataSource === 'auto' ? (
-                              <div className="ml-auto flex items-center gap-0.5 no-drag">
+                            <div className="ml-auto flex items-center gap-0.5 no-drag">
                                 <span className="text-white/30 cursor-grab text-sm leading-none select-none">⠿</span>
                                 <button
                                   type="button"
@@ -909,7 +960,6 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
                                   ↓
                                 </button>
                               </div>
-                            ) : null}
                           </div>
                           <div className="mt-1.5 text-white/55 text-[11.5px] leading-relaxed">{meta.desc}</div>
                           {apiRequired ? (

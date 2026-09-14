@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, clipboard } from 'electron'
+﻿import { app, BrowserWindow, ipcMain, dialog, shell, clipboard } from 'electron'
 import { createHash, randomBytes } from 'node:crypto'
 import { IPC } from '../../shared/ipc'
 import type { ReconcileResult } from '../../shared/types'
@@ -10,10 +10,16 @@ import * as XLSX from 'xlsx'
 import { spawn } from 'node:child_process'
 import { reconcileLibrary } from './reconcile'
 import { openVideo } from './player'
-import { resolvePoster, generatePreviewSet, frameLog } from './images'
+import { resolvePoster, frameLog } from './images'
+import { generateQuickCover, generatePreviewV2, previewRoot } from './preview-v2'
+import { wakePreviewTaskQueue } from './preview-task-queue'
+import { flushSave } from './store'
+
+// 去重锁：同一视频同时只跑一次 generatePreviews，避免并发写入互相覆盖
+const inFlightPreviews = new Map<string, Promise<unknown>>()
 import { postersCacheDir } from './images'
 import { cacheRemoteImage } from './image-util'
-import { extractMovieQuery } from '../../shared/code'
+import { extractMovieQuery, localCanonicalName } from '../../shared/code'
 import { testProxyConnectivity } from './proxy'
 import { detectFfmpeg } from './ffmpegEnv'
 import { applyRuntimeSettings } from './runtime'
@@ -171,6 +177,10 @@ function backfillFromDetail(v: Video, detail: MovieMeta): Partial<Video> {
   const nameWithoutExt = v.fileName ? v.fileName.replace(/\.[^.]+$/, '') : ''
   if (!v.descriptionSource && v.title && nameWithoutExt && v.title === nameWithoutExt) {
     patch.title = detail.title
+  }
+  // v2.8.5：网址更新/批量抓取时同步更新简介（仅非手动编辑的情况，避免覆盖用户手改内容）
+  if (detail.synopsis && v.descriptionSource !== 'manual') {
+    patch.description = detail.synopsis
   }
   return patch
 }
@@ -660,13 +670,23 @@ export function registerIpc(): void {
   ipcMain.handle(IPC.videoRegeneratePoster, async (_e, id: string) => {
     const v = await repo.getVideo(id)
     if (!v) throw new Error('视频不存在')
-    const lib = (await repo.listLibraries()).find((l) => l.id === v.libraryId) ?? defaultLibrary()
     const settings = await repo.getSettings()
-    const r = await resolvePoster(v, lib, settings, { allowFfmpeg: true })
-    return repo.updateVideo(id, { posterSource: r.source, posterPath: r.posterPath })
+    const coverPath = await generateQuickCover(v, settings, { cancelled: false }).catch(() => null)
+    if (!coverPath) return repo.updateVideo(id, v)
+    await repo.enqueuePreviewTask(id, {
+      priority: 0,
+      requestedCount: settings.previewFrameCount,
+      qualityMode: settings.previewQualityMode
+    }).catch(() => null)
+    wakePreviewTaskQueue()
+    return repo.updateVideo(id, {
+      posterSource: 'ffmpeg',
+      posterPath: coverPath,
+      posterPathFfmpeg: coverPath
+    })
   })
 
-  // ---------- 数据源 封面抓取 ----------
+  // ---------- 数据源 封面抓取  // ---------- 数据源 封面抓取 ----------
   ipcMain.handle(IPC.videoFetchPoster, async (_e, id: string) => {
     const v = await repo.getVideo(id)
     if (!v) throw new Error('视频不存在')
@@ -691,7 +711,7 @@ export function registerIpc(): void {
     // idOverride = 用户手工输入的检索词/ID（文件名/标题识别不出时的人工兜底入口）。
     const manual = typeof idOverride === 'string' ? idOverride.trim() : ''
     // v2.7.x：优先用数据源已更新的标题（meta.title）作为检索词，避免继续拿旧文件名搜索
-    const rawCode = (manual || v.meta?.title || v.title || v.folderName || v.fileName || '').trim()
+    const rawCode = (manual || localCanonicalName(v)).trim()
     if (!rawCode) return null
     if (manual) {
       console.log(`[ipc] videoFetchDetail 手工输入：${v.fileName} -> ${manual}`)
@@ -703,12 +723,12 @@ export function registerIpc(): void {
       code,
       settings,
       (e) => {
-        emitProgress({ libraryId: v.libraryId, total: 1, done: 0, current: v.meta?.title || v.title, fetchEvent: { ...e, code: v.meta?.title || v.title || e.code } })
+        emitProgress({ libraryId: v.libraryId, total: 1, done: 0, current: localCanonicalName(v), fetchEvent: { ...e, code: localCanonicalName(v) || e.code } })
       },
       !!manual
     )
     // v2.2.13-fix：无论成功/失败，结束前发一次 done=1，让前端 Toast 有机会 dismiss
-    emitProgress({ libraryId: v.libraryId, total: 1, done: 1, current: v.meta?.title || v.title })
+    emitProgress({ libraryId: v.libraryId, total: 1, done: 1, current: localCanonicalName(v) })
     if (!mr.detail) return { ok: false as const, error: mr.error || '未获取到数据' }
     await repo.updateVideo(id, { meta: mr.detail, ...backfillFromDetail(v, mr.detail) })
     // **列表/详情封面同步**：详情抓取成功且有真实封面，但视频当前是 ffmpeg 截帧 / 占位 / 无封面时，
@@ -830,13 +850,13 @@ export function registerIpc(): void {
     // 跳过明细随结果返回，UI 结束后明确告知用户。
     const lockedSkipped = allVideos
       .filter((v) => v.locked)
-      .map((v) => ({ id: v.id, title: v.meta?.title || v.title }))
+      .map((v) => ({ id: v.id, title: localCanonicalName(v) }))
     // v2.7.x：文件已不存在的失效记录也跳过（不去浪费请求；下次扫描会自动清理掉）
     const missingSkipped: Array<{ id: string; title: string }> = []
     const videos = allVideos.filter((v) => {
       if (v.locked) return false
       if (!v.path || !existsSync(v.path)) {
-        missingSkipped.push({ id: v.id, title: v.meta?.title || v.title })
+        missingSkipped.push({ id: v.id, title: localCanonicalName(v) })
         return false
       }
       return true
@@ -880,6 +900,14 @@ export function registerIpc(): void {
     const failures: Array<{ id: string; title: string; reason: string }> = []
     const smartState = createSmartFetchState()
     activeFetchState = smartState
+    // v2.8.5：批量补齐开始时先推一条事件，让 renderer 的左下角浮层立刻显示
+    emitProgress({
+      libraryId,
+      total: videos.length,
+      done: 0,
+      current: force ? '强制重新获取全部信息' : '补齐缺失信息',
+      fetchEvent: { code: 'start', src: 'batch', status: 'trying', detail: `total=${videos.length}` }
+    })
     // 同检索词复用：本批内同名影片（同片多文件）只抓一次，其余直接复用，节省请求额度
     const queryCache = new Map<string, MovieMeta>()
     let idx = 0
@@ -923,12 +951,13 @@ export function registerIpc(): void {
         // 防御：批量执行期间被临时锁定 → 同样跳过，不发任何请求
         if (v.locked) {
           done++
-          emitProgress({ libraryId, total: videos.length, done, current: v.meta?.title || v.title })
+          emitProgress({ libraryId, total: videos.length, done, current: localCanonicalName(v) })
           continue
         }
         // 本轮是否发过网络请求（封面抓取 / 详情抓取）——有才延时，避免无请求也空等
         let madeRequest = false
-        const displayTitle = v.meta?.title || v.title
+        // v2.8.5：抓取过程 UI 显示名统一用「本地真名」，与实际搜索词保持一致
+        const displayTitle = localCanonicalName(v)
         emitProgress({ libraryId, total: videos.length, done, current: displayTitle })
 
         // 0) 所有影片统一走「封面抓取 → 详情抓取」流程（元数据抓取对所有影片开放）
@@ -948,12 +977,12 @@ export function registerIpc(): void {
             localPath = null
           }
           if (!localPath) {
-            const set = await generatePreviewSet(v, settings).catch(() => null)
-            if (set?.coverPath) {
-              localPath = set.coverPath
+            const coverPath = await generateQuickCover(v, settings, { cancelled: false }).catch(() => null)
+            if (coverPath) {
+              localPath = coverPath
               source = 'ffmpeg'
             }
-            if (set?.previewPaths?.length) previews = set.previewPaths
+            if (coverPath) {} // quick cover only, full previews via V2 queue
           }
           if (localPath) {
             const patch: Partial<Video> = { posterSource: source, posterPath: localPath }
@@ -978,7 +1007,8 @@ export function registerIpc(): void {
           (d.cover ? /^https?:\/\//.test(d.cover) : false) ||
           // v2.7.x：新版 MovieDB 详情会回填演员头像，旧数据缺失时视为陈旧，触发重新抓取
           (d.source === 'moviedb' && !d.castProfiles)
-        const fetchCodeRaw = v.meta?.title || v.title || v.folderName || v.fileName || ''
+        // v2.8.5：本地文件夹/文件名是用户唯一真名，搜索时优先用它，而不是上次抓取到的 meta.title
+        const fetchCodeRaw = localCanonicalName(v)
         const base = extractMovieQuery(fetchCodeRaw).query
         // 同一检索词已在本批抓取过 → 直接复用，不重复请求
         const queryHit = base ? queryCache.get(base) : undefined
@@ -987,6 +1017,14 @@ export function registerIpc(): void {
           ok++
           const src = queryHit.source ?? 'moviedb'
           bySource[src] = (bySource[src] ?? 0) + 1
+          // v2.8.5：queryCache 复用也要在左下角浮层显示命中，否则用户看不到过程
+          emitProgress({
+            libraryId,
+            total: videos.length,
+            done,
+            current: displayTitle,
+            fetchEvent: { code: displayTitle, src, status: 'hit', detail: 'cache-hit' }
+          })
         } else if (force || detailStale) {
           madeRequest = true
           // 智能抓取：数据源 连续失败自动切 数据源；数据源 也连续失败自动停止
@@ -1025,8 +1063,17 @@ export function registerIpc(): void {
             bySource[src] = (bySource[src] ?? 0) + 1
           } else {
             failed++
-            failures.push({ id: v.id, title: v.meta?.title || v.title, reason: mr.error || '未知原因' })
+            failures.push({ id: v.id, title: localCanonicalName(v), reason: mr.error || '未知原因' })
           }
+        } else {
+          // v2.8.5：非强制模式且详情不陈旧 → 在左下角浮层显示跳过，避免用户以为没反应
+          emitProgress({
+            libraryId,
+            total: videos.length,
+            done,
+            current: displayTitle,
+            fetchEvent: { code: displayTitle, src: 'skip', status: 'skipped', detail: 'detail-up-to-date' }
+          })
         }
         // 统一限速：本轮发过请求才延时一次（修复旧逻辑封面+详情都抓时延时两次、间隔翻倍）
         if (madeRequest) await new Promise((r) => setTimeout(r, interval))
@@ -1073,14 +1120,13 @@ export function registerIpc(): void {
             const v = noPoster[i2++]
             let frameFailed = true
             try {
-              const set = await generatePreviewSet(v, settings)
-              if (set?.coverPath) {
+              const coverPath = await generateQuickCover(v, settings, { cancelled: false }).catch(() => null)
+              if (coverPath) {
                 frameFailed = false
                 const patch: Partial<Video> = {
                   posterSource: 'ffmpeg' as const,
-                  posterPath: set.coverPath,
-                  posterPathFfmpeg: set.coverPath,
-                  previewPaths: set.previewPaths,
+                  posterPath: coverPath,
+                  posterPathFfmpeg: coverPath,
                   frameFailedAt: undefined // 截帧成功：清掉此前的失败标记
                 }
                 const existing = frameChanges.find((c) => c.type === 'update' && c.video.id === v.id)
@@ -1091,7 +1137,7 @@ export function registerIpc(): void {
                 }
                 for (const w of BrowserWindow.getAllWindows()) {
                   if (!w.isDestroyed()) {
-                    w.webContents.send(IPC.posterFetched, { videoId: v.id, posterPath: set.coverPath, posterSource: 'ffmpeg' })
+                    w.webContents.send(IPC.posterFetched, { videoId: v.id, posterPath: coverPath, posterSource: 'ffmpeg' })
                   }
                 }
               }
@@ -1462,15 +1508,15 @@ export function registerIpc(): void {
           }
         }
         // 2) 生成 FFmpeg 截帧（封面 + 预览图），并持久化两处
-        const set = await generatePreviewSet(v, settings)
-        if (!set?.coverPath) return { ok: false, error: 'FFmpeg 截帧失败（检查 ffmpeg 是否可用）' }
+        const coverPath = await generateQuickCover(v, settings, { cancelled: false }).catch(() => null)
+        if (!coverPath) return { ok: false, error: 'FFmpeg 截帧失败（检查 ffmpeg 是否可用）' }
         await repo.updateVideo(id, {
-          posterPath: set.coverPath,
+          posterPath: coverPath,
           posterSource: 'ffmpeg',
-          posterPathFfmpeg: set.coverPath,
-          previewPaths: set.previewPaths
+          posterPathFfmpeg: coverPath,
+          
         })
-        return { ok: true, posterPath: set.coverPath, posterSource: 'ffmpeg' }
+        return { ok: true, posterPath: coverPath, posterSource: 'ffmpeg' }
       }
 
       // source === 'data'：优先复用数据源缓存图（src-cover-CODE）
@@ -1735,64 +1781,103 @@ export function registerIpc(): void {
   // ---------- 检查更新（GitHub / Gitee） ----------
   ipcMain.handle(IPC.updateCheck, (): Promise<UpdateCheckResult> => runUpdateCheck())
 
-  // ---------- ffmpeg 批量截帧：1 封面 + 15 预览图 ----------
+  // ---------- ffmpeg 截帧：同步生成封面 + 预览帧，立即返回 ----------
   ipcMain.handle(IPC.videoGeneratePreviews, async (_e, id: string) => {
-    const v = await repo.getVideo(id)
-    if (!v) throw new Error('视频不存在')
-    await frameLog(`[videoGeneratePreviews] start id=${id} path=${v.path}`)
-    const settings = await repo.getSettings()
-    const set = await generatePreviewSet(v, settings)
-    if (!set || (!set.coverPath && set.previewPaths.length === 0)) {
-      await frameLog(`[videoGeneratePreviews] no images id=${id}`)
-      return null
+    // 去重：同一视频正在处理 → 直接等那个 Promise 完成
+    const existing = inFlightPreviews.get(id)
+    if (existing) {
+      await frameLog(`[videoGeneratePreviews] dedup id=${id} 已有进行中任务，等待完成`)
+      return existing
     }
-    const patch: Partial<Video> = {}
-    if (set.coverPath) {
-      patch.posterSource = 'ffmpeg'
-      patch.posterPath = set.coverPath
-      // 独立保存 FFmpeg 截帧封面，供「数据源图 / FFmpeg 截图」自由切换
-      patch.posterPathFfmpeg = set.coverPath
-    }
-    if (set.previewPaths.length) patch.previewPaths = set.previewPaths
-    await frameLog(`[videoGeneratePreviews] update id=${id} cover=${set.coverPath ?? 'none'} previews=${set.previewPaths.length}`)
-    return repo.updateVideo(id, patch)
+    const task = (async () => {
+      const v = await repo.getVideo(id)
+      if (!v) throw new Error('视频不存在')
+      await frameLog(`[videoGeneratePreviews] start id=${id} path=${v.path}`)
+      const settings = await repo.getSettings()
+      try {
+        // 同步生成完整预览集
+        const result = await generatePreviewV2(v, settings, {
+          requestedCount: settings.previewFrameCount,
+          qualityMode: settings.previewQualityMode,
+          token: { cancelled: false }
+        })
+        const coverPath = result.coverPath
+        const previewPaths = result.manifest.frames.map((f) => f.filePath)
+        await frameLog(`[videoGeneratePreviews] done id=${id} cover=${coverPath} previews=${previewPaths.length}`)
+        const updated = await repo.updateVideo(id, {
+          posterSource: 'ffmpeg',
+          posterPath: coverPath,
+          posterPathFfmpeg: coverPath,
+          previewPaths,
+          previewVersion: 2,
+          previewStatus: 'COMPLETED',
+          previewRequestedCount: settings.previewFrameCount
+        })
+        // 关键：updateVideo 内部是 debounce 写盘，这里强制 flush 确保落盘
+        await flushSave()
+        const verify = await repo.getVideo(id)
+        const ppCount = verify?.previewPaths?.length ?? 0
+        const posterStr = (verify?.posterPath ?? 'null').slice(0, 60)
+        await frameLog(`[videoGeneratePreviews] saved id=${id} previewPaths.count=${ppCount} poster=${posterStr}`)
+        return updated
+      } catch (err) {
+        await frameLog(`[videoGeneratePreviews] failed id=${id} err=${(err as Error)?.message ?? String(err)}`)
+        // 失败兜底：至少截个封面
+        const coverPath = await generateQuickCover(v, settings, { cancelled: false }).catch(() => null)
+        if (coverPath) {
+          await frameLog(`[videoGeneratePreviews] fallback cover=${coverPath}`)
+          const fallbackUpdated = await repo.updateVideo(id, {
+            posterSource: 'ffmpeg',
+            posterPath: coverPath,
+            posterPathFfmpeg: coverPath
+          })
+          await flushSave()
+          return fallbackUpdated
+        }
+        return null
+      } finally {
+        inFlightPreviews.delete(id)
+      }
+    })()
+    inFlightPreviews.set(id, task)
+    return task
   })
 
-  // ---------- ffmpeg 单帧兜底：无封面时截 1 帧视频画面作封面（列表懒加载用） ----------
+  // ---------- ffmpeg 单帧兜底  // ---------- ffmpeg 单帧兜底：无封面时截 1 帧视频画面作封面（列表懒加载用） ----------
   ipcMain.handle(IPC.videoFrameFallback, async (_e, id: string) => {
     const v = await repo.getVideo(id)
     if (!v || !v.path) return null
     const settings = await repo.getSettings()
-    // 已有可用的封面文件（含历史生成的截帧）直接复用，避免重复截帧；
-    // **必须验证是有效图片**：损坏的 jpg（文件在但 ffprobe 读不出尺寸）会黑屏，
-    // 删除坏文件后重新截帧/解析，否则前端一直显示坏图
     if (v.posterPath) {
       if (await isCoverUsable(v.posterPath, settings)) return v.posterPath
       await fs.unlink(v.posterPath).catch(() => {})
     }
     await frameLog(`[videoFrameFallback] start id=${id} path=${v.path}`)
-    const lib = (await repo.listLibraries()).find((l) => l.id === v.libraryId) ?? defaultLibrary()
-    // resolvePoster 会按 imagePriority 依次尝试：侧车图 → 已缓存抓取 → ffmpeg 截帧，最终兜底占位
-    const r = await resolvePoster(v, lib, settings, { allowFfmpeg: true })
-    if (!r.posterPath) {
-      await frameLog(`[videoFrameFallback] no frame id=${id} source=${r.source}`)
+    const coverPath = await generateQuickCover(v, settings, { cancelled: false }).catch(() => null)
+    if (!coverPath) {
+      await frameLog(`[videoFrameFallback] no frame id=${id}`)
       return null
     }
-    await repo.updateVideo(id, { posterSource: r.source, posterPath: r.posterPath })
-    await frameLog(`[videoFrameFallback] ok id=${id} source=${r.source} poster=${r.posterPath}`)
-    return r.posterPath
+    await repo.updateVideo(id, { posterSource: 'ffmpeg', posterPath: coverPath })
+    await frameLog(`[videoFrameFallback] ok id=${id} source=ffmpeg poster=${coverPath}`)
+    return coverPath
   })
 
-  // ---------- 截帧预览帧 → 设为封面：把某张预览帧复制为 <id>.jpg 并更新记录 ----------
+  // ---------- 截帧预览帧  // ---------- 截帧预览帧 → 设为封面：把某张预览帧复制为 <id>.jpg 并更新记录 ----------
   ipcMain.handle(IPC.videoSetPreviewAsCover, async (_e, id: string, previewPath: string) => {
     if (!isSafeId(id)) throw new Error('非法 id')
     const v = await repo.getVideo(id)
     if (!v) throw new Error('视频不存在')
-    // v2.2.13：previewPath 是写文件操作，必须是指向海报缓存目录内的绝对路径（防任意路径写文件）
+    // v2.2.13：previewPath 是写文件操作，必须是指向缓存目录内的绝对路径（防任意路径写文件）
+    // v2.8.5 修复：预览帧在 userData/preview-frames/ 下，之前只允许 posters/ 导致全部被拒
     if (typeof previewPath !== 'string' || !path.isAbsolute(previewPath)) return null
-    const cacheDir = postersCacheDir()
-    if (!previewPath.startsWith(cacheDir + path.sep)) {
-      console.warn('[ipc] videoSetPreviewAsCover 被拒绝（previewPath 不在海报缓存目录内）')
+    const posterDir = postersCacheDir()
+    const previewDir = previewRoot()
+    const inAllowedDir =
+      previewPath.startsWith(posterDir + path.sep) ||
+      previewPath.startsWith(previewDir + path.sep)
+    if (!inAllowedDir) {
+      console.warn('[ipc] videoSetPreviewAsCover 被拒绝（previewPath 不在允许的缓存目录内）')
       return null
     }
     const settings = await repo.getSettings()

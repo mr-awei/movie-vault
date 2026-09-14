@@ -3,6 +3,7 @@ import path from 'node:path'
 import { promises as fs, appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { registerIpc, runUpdateCheck } from './lib/ipc'
+import { startPreviewTaskQueue, stopPreviewTaskQueue } from './lib/preview-task-queue'
 import { runtime, applyRuntimeSettings } from './lib/runtime'
 import { tMain, setLocale as setMainLocale, subscribeLocale, type Locale } from '../shared/i18n'
 
@@ -183,6 +184,11 @@ function registerLocalMedia(): void {
       const url = new URL(request.url)
       const encoded = url.pathname.slice(1)
       const real = Buffer.from(decodeURIComponent(encoded), 'base64').toString('utf-8')
+      if (!app.isPackaged) {
+        const fs = require('node:fs') as typeof import('node:fs')
+        const exists = fs.existsSync(real)
+        console.log(`[lm] req=${request.url} path=${real} exists=${exists} ext=${path.extname(real)}`)
+      }
       const ext = path.extname(real).toLowerCase()
       if (!POSTER_MIME[ext]) {
         console.warn('[lm] 不支持的扩展名, ext=' + JSON.stringify(ext) + ' path=' + real)
@@ -226,6 +232,29 @@ function createWindow(): void {
   })
 
   attachRendererLog(win)
+
+  // 设置内容安全策略，消除 Electron Security Warning
+  const csp = app.isPackaged
+    ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: lm:; font-src 'self'; media-src 'self' lm:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';"
+    : "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: lm:; font-src 'self'; media-src 'self' lm:; connect-src 'self' ws://localhost:* http://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self';" 
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp]
+      }
+    })
+  })
+
+  // dev 模式：拦截所有 HTTP 请求，记录 4xx/5xx（排查资源 404）
+  if (!app.isPackaged) {
+    const ws = win.webContents.session.webRequest
+    ws.onCompleted((details) => {
+      if (details.statusCode >= 400 && details.url.startsWith('http')) {
+        console.log(`[req-4xx] ${details.statusCode} ${details.method} ${details.url}`)
+      }
+    })
+  }
 
   // 调试快捷键：Ctrl+Shift+I 切换开发者工具（打包版也可用，便于排查）
   win.webContents.on('before-input-event', (e, input) => {
@@ -300,12 +329,33 @@ function showMainWindow(): void {
   }
 }
 
+/** Electron 单实例锁：防止同时启动多个实例争抢 Cache 目录导致报错 */
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  console.log('[app] 已有实例在运行，退出新实例')
+  app.quit()
+  process.exit(0)
+}
+
+app.on('second-instance', (_event, _argv, _workingDirectory) => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win) {
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  }
+})
+
 /** 其他窗口全关时：托盘模式不退出，否则正常退出 */
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' && !runtime.minimizeToTray) {
     forceQuit = true
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  void stopPreviewTaskQueue()
 })
 
 app.whenReady().then(() => {
@@ -318,6 +368,7 @@ app.whenReady().then(() => {
 
   registerLocalMedia()
   registerIpc()
+  void startPreviewTaskQueue()
 
   // 启动时应用界面语言：安装器首次安装的语言选择 > settings.language > 默认中文
   void (async () => {

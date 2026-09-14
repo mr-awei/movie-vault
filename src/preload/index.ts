@@ -61,6 +61,17 @@ const api: AppApi = {
   appQuit: () => ipcRenderer.invoke(IPC.appQuit),
   updateCheck: () => ipcRenderer.invoke(IPC.updateCheck),
   videoGeneratePreviews: (id) => ipcRenderer.invoke(IPC.videoGeneratePreviews, id),
+  previewTaskStats: () => ipcRenderer.invoke(IPC.previewTaskStats),
+  previewTaskEnqueue: (id, requestedCount) => ipcRenderer.invoke(IPC.previewTaskEnqueue, id, requestedCount),
+  previewTaskPause: () => ipcRenderer.invoke(IPC.previewTaskPause),
+  previewTaskResume: () => ipcRenderer.invoke(IPC.previewTaskResume),
+  previewTaskCancel: (taskId) => ipcRenderer.invoke(IPC.previewTaskCancel, taskId),
+  previewTaskRetry: (taskId) => ipcRenderer.invoke(IPC.previewTaskRetry, taskId),
+  onPreviewTaskEvent: (cb) => {
+    const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as never)
+    ipcRenderer.on(IPC.previewTaskEvent, handler)
+    return () => ipcRenderer.removeListener(IPC.previewTaskEvent, handler)
+  },
   videoFrameFallback: (id) => ipcRenderer.invoke(IPC.videoFrameFallback, id),
   videoSetPreviewAsCover: (id, previewPath) => ipcRenderer.invoke(IPC.videoSetPreviewAsCover, id, previewPath),
   onScanProgress: (cb) => {

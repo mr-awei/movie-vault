@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import type { Library, Settings, Video, ImageSource } from '../../shared/types'
-import { resolveFfmpegExe } from './ffmpegEnv'
+import { resolveFfmpegExe, acquireFfmpeg } from './ffmpegEnv'
 
 /** 截帧诊断日志：写到 userData/logs/ffmpeg-frame.log，便于排查“点了截帧但不出图” */
 function frameLogPath(): string {
@@ -83,19 +83,21 @@ async function generateFrame(video: Video, settings: Settings): Promise<string |
     '-q:v', '2',
     out
   ]
+  const release = await acquireFfmpeg()
   return new Promise<string | null>((resolve) => {
+    const done = (v: string | null) => { release(); resolve(v) }
     const p = spawn(exe, baseArgs, { windowsHide: true })
     // 超时兜底：thumbnail 全片分析较慢，30s 未结束强制 kill
     const timer = setTimeout(() => {
       try { p.kill('SIGKILL') } catch {}
-      resolve(null)
+      done(null)
     }, FRAME_TIMEOUT_MS)
-    p.on('error', () => { clearTimeout(timer); resolve(null) })
+    p.on('error', () => { clearTimeout(timer); done(null) })
     p.on('close', async (code) => {
       clearTimeout(timer)
       if (code === 0) {
-        try { await fs.access(out); resolve(out) } catch { resolve(null) }
-      } else resolve(null)
+        try { await fs.access(out); done(out) } catch { done(null) }
+      } else done(null)
     })
   })
 }

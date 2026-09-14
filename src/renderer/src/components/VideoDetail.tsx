@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DisplayEntry, MovieMeta, Video } from '../../../shared/types'
 import { hasDocTags, primaryTags, NON_TAG_CATEGORY_NAMES } from '../../../shared/types'
 import { posterUrl, placeholderGradient, titleInitial, formatSize, formatDuration, resolveEntryPoster, pureTitle, stringToMutedColor } from '../lib/util'
@@ -92,6 +92,22 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
     setPreviewVersion(0)
     autoFramedRef.current = false
   }, [video.id])
+  useEffect(() => {
+    return api.onPreviewTaskEvent((event) => {
+      if (event.type !== 'completed' || event.mediaId !== localVideo.id) return
+      setLocalVideo((prev) => ({
+        ...prev,
+        posterPath: event.posterPath ?? prev.posterPath,
+        posterSource: event.posterPath ? 'ffmpeg' : prev.posterSource,
+        previewPaths: event.previewPaths ?? prev.previewPaths,
+        previewStatus: 'COMPLETED',
+        previewGeneratedCount: event.previewPaths?.length ?? prev.previewGeneratedCount
+      }))
+      setPosterVersion((v) => v + 1)
+      setPreviewVersion((v) => v + 1)
+      if (event.posterPath) onPosterFetched?.(localVideo.id, event.posterPath, event.previewPaths, 'ffmpeg')
+    })
+  }, [localVideo.id, onPosterFetched])
   /** 手动「补齐信息」进行中（与截帧互不干扰，各自独立 loading） */
   const [fetching, setFetching] = useState(false)
   /** 与 fetching 状态同步的 ref 锁，useEffect 自动补齐和按钮手动补齐互斥 */
@@ -151,18 +167,31 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
       setFetching(false)
     }
   }, [localVideo.id, onDetailFetched, urlInput, onPosterFetched])
-  /** ffmpeg 重新截帧（1 封面 + 预览帧），所有视频都可用 */
+  /** ffmpeg 重新截帧：同步生成封面 + 预览帧，立即返回并更新展示 */
   const handleGenerateFrames = useCallback(async () => {
     if (framing) return
     setFraming(true)
     setError(null)
     try {
       const updated = await api.videoGeneratePreviews(localVideo.id)
-      if (updated?.posterPath) {
-        setLocalVideo((prev) => ({ ...prev, posterPath: updated.posterPath, posterSource: updated.posterSource ?? 'ffmpeg', previewPaths: updated.previewPaths }))
+      if (updated) {
+        // 同步生成完整预览集，所有字段立即更新
+        setLocalVideo((prev) => ({
+          ...prev,
+          posterPath: updated.posterPath ?? prev.posterPath,
+          posterSource: updated.posterSource ?? prev.posterSource,
+          posterPathFfmpeg: updated.posterPathFfmpeg ?? prev.posterPathFfmpeg,
+          previewPaths: updated.previewPaths ?? prev.previewPaths,
+          previewStatus: updated.previewStatus ?? prev.previewStatus,
+          previewRequestedCount: updated.previewRequestedCount ?? prev.previewRequestedCount
+        }))
+        // v2.8.5 修复：只要截帧成功就递增版本号，强制刷新 img 缓存
+        // （之前放在 if (updated.posterPath) 内，极端情况下 posterPath 为空会导致预览图不刷新）
         setPosterVersion((v) => v + 1)
         setPreviewVersion((v) => v + 1)
-        onPosterFetched?.(localVideo.id, updated.posterPath, updated.previewPaths, updated.posterSource ?? 'ffmpeg')
+        if (updated.posterPath) {
+          onPosterFetched?.(localVideo.id, updated.posterPath, updated.previewPaths ?? localVideo.previewPaths, updated.posterSource ?? 'ffmpeg')
+        }
         toast({ text: t('detail.reframeDone'), tone: 'ok' })
       } else {
         toast({ text: t('detail.reframeFailNoFfmpeg'), tone: 'err' })
@@ -238,6 +267,25 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
   /** 当前 zoom 浮层显示的图片属于哪一组, 用于滚轮切换 */
   const zoomGroup = useRef<string[]>([])   // 当前轮播的图片 URL 组
   const zoomIndex = useRef(0)
+  // v2.8.5 修复：wheel 事件必须用 { passive: false } 绑定才能 preventDefault，
+  // React 的 onWheel 默认是 passive，会报 Unable to preventDefault inside passive event listener
+  useEffect(() => {
+    const el = overlayRef.current
+    if (!el || !zoomUrl) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const grp = zoomGroup.current
+      if (!grp.length) return
+      let next = zoomIndex.current + (e.deltaY > 0 ? 1 : -1)
+      if (next < 0) next = grp.length - 1
+      if (next >= grp.length) next = 0
+      zoomIndex.current = next
+      cancelClose()
+      setZoomUrl(grp[next])
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [zoomUrl])
   /** 右键关闭后短暂禁用 hover 自动打开 (防止鼠标还停在缩略图上 scheduleOpen 又开出来) */
   const hoverDisabledUntil = useRef(0)
   const disableHover = () => {
@@ -610,13 +658,13 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                 ) : undefined}
               </MetaRow>
               <MetaRow label={t('detail.series')}>
-                {d?.series ? (
+                {(localVideo.series || d?.series) ? (
                   <button
                     type="button"
-                    onClick={() => onPickFilter?.({ type: 'series', value: d.series! })}
+                    onClick={() => onPickFilter?.({ type: 'series', value: (localVideo.series || d?.series)! })}
                     className="text-brand hover:underline underline-offset-2"
                   >
-                    {d.series}
+                    {localVideo.series || d?.series}
                   </button>
                 ) : undefined}
               </MetaRow>
@@ -631,6 +679,10 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                     {localVideo.introCategory}
                   </button>
                 </MetaRow>
+              ) : null}
+              {/* v2.8.5：Excel 片单「地区」列，权威源 */}
+              {localVideo.region ? (
+                <MetaRow label={t('detail.region')} value={localVideo.region} />
               ) : null}
               {/* 数据源 评分仅在没有我的评分时兜底显示 */}
               <MetaRow label={t('detail.score')} value={video.rating != null ? undefined : d?.rating} />
@@ -854,11 +906,11 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
         </div>
 
         {/* 剧情简介：横跨左右两栏 */}
-        {video.meta?.synopsis || video.description ? (
+        {detail?.synopsis || video.description ? (
           <div className="mb-6 bg-ink-800/40 rounded-xl p-4 ring-1 ring-white/8">
             <div className="text-xs font-medium text-white/60 mb-2">{t('detail.synopsis')}</div>
             <div className="text-[13px] leading-[1.85] text-white/85 whitespace-pre-wrap max-h-[260px] overflow-y-auto thin-scroll">
-              {video.meta?.synopsis || video.description}
+              {detail?.synopsis || video.description}
             </div>
           </div>
         ) : null}
@@ -994,17 +1046,6 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
             e.stopPropagation()
             disableHover()            // 右键关闭后 2s 内禁用 hover 自动打开
             setZoomUrl(null)
-          }}
-          onWheel={(e) => {
-            e.preventDefault()
-            const grp = zoomGroup.current
-            if (!grp.length) return
-            let next = zoomIndex.current + (e.deltaY > 0 ? 1 : -1)
-            if (next < 0) next = grp.length - 1
-            if (next >= grp.length) next = 0
-            zoomIndex.current = next
-            cancelClose()
-            setZoomUrl(grp[next])
           }}
         >
           <img

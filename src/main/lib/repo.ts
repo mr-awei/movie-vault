@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { getDB, mutate, saveDB } from './store'
-import type { Library, Settings, Video, VideoFilter } from '../../shared/types'
+import type { Library, PreviewManifest, PreviewStatus, PreviewTask, PreviewQualityMode, Settings, Video, VideoFilter } from '../../shared/types'
 import { DEFAULT_IMAGE_PRIORITY } from '../../shared/types'
 
 // ---------- 设置 ----------
@@ -83,6 +83,8 @@ export async function updateVideo(id: string, patch: Partial<Video>): Promise<Vi
 export async function removeVideo(id: string): Promise<void> {
   await mutate((db) => {
     db.videos = db.videos.filter((v) => v.id !== id)
+    db.previewTasks = db.previewTasks.filter((t) => t.mediaId !== id)
+    delete db.previewManifests[id]
   })
 }
 
@@ -162,6 +164,217 @@ export async function applyVideoChanges(changes: VideoChange[]): Promise<void> {
     }
   }
   await saveDB()
+}
+
+// ---------- Preview V2 任务 / 清单 ----------
+
+export const PREVIEW_ALGORITHM_VERSION = 'V2.0'
+
+export async function listPreviewTasks(): Promise<PreviewTask[]> {
+  const db = await getDB()
+  return [...db.previewTasks]
+}
+
+export async function getPreviewTask(id: string): Promise<PreviewTask | null> {
+  const db = await getDB()
+  return db.previewTasks.find((t) => t.id === id) ?? null
+}
+
+export async function getPreviewTaskForMedia(mediaId: string): Promise<PreviewTask | null> {
+  const db = await getDB()
+  return (
+    db.previewTasks.find(
+      (t) =>
+        t.mediaId === mediaId &&
+        t.taskType === 'GENERATE_PREVIEW' &&
+        (t.status === 'PENDING' || t.status === 'PROCESSING')
+    ) ?? null
+  )
+}
+
+export async function enqueuePreviewTask(
+  mediaId: string,
+  opts: {
+    priority?: number
+    requestedCount?: number
+    qualityMode?: PreviewQualityMode
+    force?: boolean
+  } = {}
+): Promise<PreviewTask> {
+  return mutate((db) => {
+    const v = db.videos.find((x) => x.id === mediaId)
+    if (!v) throw new Error('视频不存在')
+    const requestedCount = Math.max(1, Math.floor(opts.requestedCount ?? db.settings.previewFrameCount ?? 20))
+    const qualityMode = opts.qualityMode ?? db.settings.previewQualityMode ?? 'STANDARD'
+    const fingerprint = `${v.path}|${v.fileSize ?? 0}|${v.contentHash ?? ''}`
+    const manifest = db.previewManifests[mediaId]
+    const cacheFresh =
+      !opts.force &&
+      manifest?.algorithmVersion === PREVIEW_ALGORITHM_VERSION &&
+      manifest.requestedCount === requestedCount &&
+      manifest.sourceFingerprint === fingerprint &&
+      manifest.generatedCount > 0
+    if (cacheFresh) {
+      v.previewStatus = 'COMPLETED'
+      v.previewAlgorithmVersion = manifest.algorithmVersion
+      v.previewRequestedCount = manifest.requestedCount
+      v.previewGeneratedCount = manifest.generatedCount
+      v.previewPaths = manifest.frames.map((f) => f.filePath)
+      return db.previewTasks.find((t) => t.mediaId === mediaId && t.status === 'COMPLETED') ?? {
+        id: randomUUID(),
+        mediaId,
+        taskType: 'GENERATE_PREVIEW',
+        priority: opts.priority ?? 3,
+        status: 'COMPLETED',
+        progress: 1,
+        requestedCount,
+        generatedCount: manifest.generatedCount,
+        retryCount: 0,
+        algorithmVersion: PREVIEW_ALGORITHM_VERSION,
+        qualityMode,
+        createdAt: Date.now(),
+        finishedAt: manifest.generatedAt
+      }
+    }
+    const existing = db.previewTasks.find(
+      (t) =>
+        t.mediaId === mediaId &&
+        t.taskType === 'GENERATE_PREVIEW' &&
+        (t.status === 'PENDING' || t.status === 'PROCESSING')
+    )
+    if (existing) {
+      existing.priority = Math.min(existing.priority, opts.priority ?? existing.priority)
+      existing.requestedCount = requestedCount
+      existing.qualityMode = qualityMode
+      existing.algorithmVersion = PREVIEW_ALGORITHM_VERSION
+      existing.status = existing.status === 'PROCESSING' ? existing.status : 'PENDING'
+      v.previewStatus = existing.status
+      v.previewRequestedCount = requestedCount
+      return existing
+    }
+    const task: PreviewTask = {
+      id: randomUUID(),
+      mediaId,
+      taskType: 'GENERATE_PREVIEW',
+      priority: opts.priority ?? 3,
+      status: 'PENDING',
+      progress: 0,
+      requestedCount,
+      generatedCount: 0,
+      retryCount: 0,
+      algorithmVersion: PREVIEW_ALGORITHM_VERSION,
+      qualityMode,
+      createdAt: Date.now()
+    }
+    db.previewTasks.push(task)
+    v.previewStatus = 'PENDING'
+    v.previewRequestedCount = requestedCount
+    v.previewGeneratedCount = 0
+    v.previewAlgorithmVersion = PREVIEW_ALGORITHM_VERSION
+    v.previewLastError = undefined
+    return task
+  })
+}
+
+export async function claimNextPreviewTask(): Promise<PreviewTask | null> {
+  return mutate((db) => {
+    const task = db.previewTasks
+      .filter((t) => t.taskType === 'GENERATE_PREVIEW' && t.status === 'PENDING')
+      .sort((a, b) => a.priority - b.priority || a.createdAt - b.createdAt)[0]
+    if (!task) return null
+    task.status = 'PROCESSING'
+    task.progress = 0
+    task.startedAt = Date.now()
+    task.lastError = undefined
+    const v = db.videos.find((x) => x.id === task.mediaId)
+    if (v) {
+      v.previewStatus = 'PROCESSING'
+      v.previewRequestedCount = task.requestedCount
+      v.previewGeneratedCount = 0
+      v.previewLastError = undefined
+    }
+    return { ...task }
+  })
+}
+
+export async function updatePreviewTask(
+  id: string,
+  patch: Partial<PreviewTask>,
+  videoPatch?: Partial<Video>
+): Promise<PreviewTask | null> {
+  return mutate((db) => {
+    const task = db.previewTasks.find((t) => t.id === id)
+    if (!task) return null
+    Object.assign(task, patch)
+    const v = db.videos.find((x) => x.id === task.mediaId)
+    if (v) Object.assign(v, videoPatch ?? {})
+    return { ...task }
+  })
+}
+
+export async function completePreviewTask(
+  taskId: string,
+  manifest: PreviewManifest,
+  coverPath?: string
+): Promise<PreviewTask | null> {
+  return mutate((db) => {
+    db.previewManifests[manifest.mediaId] = manifest
+    const task = db.previewTasks.find((t) => t.id === taskId)
+    if (!task) return null
+    Object.assign(task, {
+      status: 'COMPLETED' as PreviewStatus,
+      progress: 1,
+      generatedCount: manifest.generatedCount,
+      finishedAt: Date.now(),
+      lastError: undefined,
+      errorCode: undefined
+    })
+    const v = db.videos.find((x) => x.id === manifest.mediaId)
+    if (v) {
+      v.previewStatus = 'COMPLETED'
+      v.previewAlgorithmVersion = manifest.algorithmVersion
+      v.previewRequestedCount = manifest.requestedCount
+      v.previewGeneratedCount = manifest.generatedCount
+      v.previewUpdatedAt = manifest.generatedAt
+      v.previewPaths = manifest.frames.map((f) => f.filePath)
+      v.previewLastError = undefined
+      if (coverPath && (!v.posterPath || v.posterSource === 'placeholder' || v.posterSource === 'ffmpeg')) {
+        v.posterSource = 'ffmpeg'
+        v.posterPath = coverPath
+        v.posterPathFfmpeg = coverPath
+      }
+    }
+    return { ...task }
+  })
+}
+
+export async function savePreviewManifest(manifest: PreviewManifest): Promise<void> {
+  await mutate((db) => {
+    db.previewManifests[manifest.mediaId] = manifest
+  })
+}
+
+export async function getPreviewManifest(mediaId: string): Promise<PreviewManifest | null> {
+  const db = await getDB()
+  return db.previewManifests[mediaId] ?? null
+}
+
+export async function resetProcessingPreviewTasks(): Promise<number> {
+  return mutate((db) => {
+    let count = 0
+    for (const task of db.previewTasks) {
+      if (task.status === 'PROCESSING') {
+        task.status = 'PENDING'
+        task.progress = 0
+        task.startedAt = undefined
+        count++
+      }
+    }
+    for (const v of db.videos) {
+      if (v.previewStatus === 'PROCESSING') v.previewStatus = 'PENDING'
+    }
+    return count
+  })
 }
 
 export function applyFilter(videos: Video[], filter: VideoFilter): Video[] {
