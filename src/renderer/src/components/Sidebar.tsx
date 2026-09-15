@@ -528,100 +528,6 @@ function SidebarInner(props: Props) {
         </Section>
 
         {/* 待处理（系统诊断 / 差异视图） */}
-        {/* 播放列表 */}
-        <Section title="播放列表" icon="list">
-          <div className="flex flex-col gap-0.5">
-            {playlists.map((pl) => (
-              editingPlaylistId === pl.id ? (
-                <div key={pl.id} className="flex items-center gap-1.5 px-2 py-1.5">
-                  <input
-                    className="flex-1 bg-ink-700 text-white text-sm rounded-md px-2 py-1.5 outline-none placeholder:text-white/30 ring-1 ring-brand/50"
-                    value={editingName}
-                    onChange={(e) => setEditingName(e.target.value)}
-                    autoFocus
-                    onKeyDown={(e) => {
-                      e.stopPropagation()
-                      if (e.key === 'Enter') handleRenamePlaylist(pl.id, editingName)
-                      if (e.key === 'Escape') setEditingPlaylistId(null)
-                    }}
-                    onBlur={() => handleRenamePlaylist(pl.id, editingName)}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </div>
-              ) : (
-                <div
-                  key={pl.id}
-                  className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-[13px] transition-colors ${activePlaylistId === pl.id ? 'bg-brand/15 text-brand' : 'text-white/70 hover:text-white hover:bg-ink-700'}`}
-                  onClick={() => onSelectPlaylist(activePlaylistId === pl.id ? null : pl.id)}
-                >
-                  <Icon name="list" size={15} className="shrink-0" />
-                  <span className="flex-1 truncate">{pl.name}</span>
-                  <span className="text-white/30 text-xs">{pl.videoIds.length}</span>
-                  <button
-                    className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white transition-all"
-                    onClick={(e) => { e.stopPropagation(); setEditingPlaylistId(pl.id); setEditingName(pl.name) }}
-                    title="重命名"
-                  >
-                    <Icon name="pencil" size={13} />
-                  </button>
-                  <button
-                    className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-red-400 transition-all"
-                    onClick={(e) => { e.stopPropagation(); onDeletePlaylist(pl.id) }}
-                    title="删除列表"
-                  >
-                    <Icon name="x" size={13} />
-                  </button>
-                </div>
-              )
-            ))}
-            {creatingPlaylist ? (
-              <div className="flex items-center gap-1.5 px-2 py-1.5">
-                <input
-                  key={playlistInputKey}
-                  ref={playlistInputRef}
-                  className="flex-1 bg-ink-700 text-white text-sm rounded-md px-2 py-1.5 outline-none placeholder:text-white/30 ring-1 ring-brand/50"
-                  placeholder="播放列表名称，回车创建"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => {
-                    e.stopPropagation()
-                    if (e.key === 'Enter') {
-                      const name = playlistInputRef.current?.value.trim()
-                      if (name) onCreatePlaylist(name)
-                      setCreatingPlaylist(false)
-                    }
-                    if (e.key === 'Escape') setCreatingPlaylist(false)
-                  }}
-                />
-              </div>
-            ) : (
-              <button
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-white/45 hover:text-white hover:bg-ink-700 transition-colors"
-                onClick={(e) => { e.stopPropagation(); setPlaylistInputKey((k) => k + 1); setCreatingPlaylist(true) }}
-              >
-                <Icon name="plus" size={15} />
-                <span>新建播放列表</span>
-              </button>
-            )}
-          </div>
-        </Section>
-
-        <Section title={t('sidebar.pending')} icon="alert">
-          <div className="flex flex-col gap-0.5">
-            <NavItem
-              icon="alert"
-              label={t('sidebar.untracked')}
-              badge={unlistedCount}
-              alert={unlistedCount > 0}
-              active={view === 'browse' && smart === 'unlisted'}
-              onClick={() => onNav('browse', 'unlisted')}
-            />
-            <NavItem icon="star" label={t('sidebar.unrated')} badge={unratedCount} active={view === 'browse' && smart === 'unrated'} onClick={() => onNav('browse', 'unrated')} />
-            <NavItem icon="image" label={t('sidebar.noPoster')} badge={nocoverCount} active={view === 'browse' && smart === 'nocover'} onClick={() => onNav('browse', 'nocover')} />
-          </div>
-        </Section>
-
         {/* 筛选：合并为可折叠 Tab 组，默认收起，显著降低首屏高度 */}
         <Section title={t('sidebar.filter')} icon="sliders" count={filterCount} onClear={clearAllFilters} active={filterCount > 0} defaultOpen={false} grow>
           <div className="flex flex-wrap gap-1 mb-2 shrink-0">
@@ -829,6 +735,100 @@ function SidebarInner(props: Props) {
             <FacetGroup title={t('sidebar.year')} icon="calendar" facets={yearFacets} selected={selectedYears} onToggle={onToggleYear} onClear={onClearYears} />
           ) : null}
         </Section>
+        {/* 播放列表 */}
+        <Section title="播放列表" icon="list">
+          <div className="flex flex-col gap-0.5">
+            {playlists.map((pl) => (
+              editingPlaylistId === pl.id ? (
+                <div key={pl.id} className="flex items-center gap-1.5 px-2 py-1.5">
+                  <input
+                    className="flex-1 bg-ink-700 text-white text-sm rounded-md px-2 py-1.5 outline-none placeholder:text-white/30 ring-1 ring-brand/50"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      e.stopPropagation()
+                      if (e.key === 'Enter') handleRenamePlaylist(pl.id, editingName)
+                      if (e.key === 'Escape') setEditingPlaylistId(null)
+                    }}
+                    onBlur={() => handleRenamePlaylist(pl.id, editingName)}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              ) : (
+                <div
+                  key={pl.id}
+                  className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-[13px] transition-colors ${activePlaylistId === pl.id ? 'bg-brand/15 text-brand' : 'text-white/70 hover:text-white hover:bg-ink-700'}`}
+                  onClick={() => onSelectPlaylist(activePlaylistId === pl.id ? null : pl.id)}
+                >
+                  <Icon name="list" size={15} className="shrink-0" />
+                  <span className="flex-1 truncate">{pl.name}</span>
+                  <span className="text-white/30 text-xs">{pl.videoIds.length}</span>
+                  <button
+                    className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white transition-all"
+                    onClick={(e) => { e.stopPropagation(); setEditingPlaylistId(pl.id); setEditingName(pl.name) }}
+                    title="重命名"
+                  >
+                    <Icon name="pencil" size={13} />
+                  </button>
+                  <button
+                    className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-red-400 transition-all"
+                    onClick={(e) => { e.stopPropagation(); onDeletePlaylist(pl.id) }}
+                    title="删除列表"
+                  >
+                    <Icon name="x" size={13} />
+                  </button>
+                </div>
+              )
+            ))}
+            {creatingPlaylist ? (
+              <div className="flex items-center gap-1.5 px-2 py-1.5">
+                <input
+                  key={playlistInputKey}
+                  ref={playlistInputRef}
+                  className="flex-1 bg-ink-700 text-white text-sm rounded-md px-2 py-1.5 outline-none placeholder:text-white/30 ring-1 ring-brand/50"
+                  placeholder="播放列表名称，回车创建"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    e.stopPropagation()
+                    if (e.key === 'Enter') {
+                      const name = playlistInputRef.current?.value.trim()
+                      if (name) onCreatePlaylist(name)
+                      setCreatingPlaylist(false)
+                    }
+                    if (e.key === 'Escape') setCreatingPlaylist(false)
+                  }}
+                />
+              </div>
+            ) : (
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-white/45 hover:text-white hover:bg-ink-700 transition-colors"
+                onClick={(e) => { e.stopPropagation(); setPlaylistInputKey((k) => k + 1); setCreatingPlaylist(true) }}
+              >
+                <Icon name="plus" size={15} />
+                <span>新建播放列表</span>
+              </button>
+            )}
+          </div>
+        </Section>
+
+        <Section title={t('sidebar.pending')} icon="alert">
+          <div className="flex flex-col gap-0.5">
+            <NavItem
+              icon="alert"
+              label={t('sidebar.untracked')}
+              badge={unlistedCount}
+              alert={unlistedCount > 0}
+              active={view === 'browse' && smart === 'unlisted'}
+              onClick={() => onNav('browse', 'unlisted')}
+            />
+            <NavItem icon="star" label={t('sidebar.unrated')} badge={unratedCount} active={view === 'browse' && smart === 'unrated'} onClick={() => onNav('browse', 'unrated')} />
+            <NavItem icon="image" label={t('sidebar.noPoster')} badge={nocoverCount} active={view === 'browse' && smart === 'nocover'} onClick={() => onNav('browse', 'nocover')} />
+          </div>
+        </Section>
+
       </div>
 
       {/* 底部固定：统计 / 关于 / 设置 */}
