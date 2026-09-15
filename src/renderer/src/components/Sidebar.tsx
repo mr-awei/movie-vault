@@ -185,6 +185,25 @@ function Section({
   )
 }
 
+/** 持久化滚动位置：key 唯一标识滚动容器，scrollTop 存 localStorage */
+function usePersistentScroll(key: string) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    try {
+      const saved = localStorage.getItem(`sidebar_scroll_${key}`)
+      if (saved) el.scrollTop = parseInt(saved, 10) || 0
+    } catch {}
+    const onScroll = () => {
+      try { localStorage.setItem(`sidebar_scroll_${key}`, String(el.scrollTop)) } catch {}
+    }
+    el.addEventListener('scroll', onScroll)
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [key])
+  return ref
+}
+
 /** 元信息 facet 单组（演员 / 制片公司 / 系列） */
 function FacetGroup({
   title,
@@ -369,6 +388,13 @@ function SidebarInner(props: Props) {
 
   // 筛选：合并为可折叠 Tab 组（分类 / 类别 / 标签 / 影人 / 规格 / 年份），默认收起
   const [filterTab, setFilterTab] = useState<'cat' | 'genre' | 'tag' | 'meta' | 'tech' | 'year'>('cat')
+  // 各分组滚动位置持久化
+  const scrollLibRef = usePersistentScroll('library')
+  const scrollCatRef = usePersistentScroll('filter_cat')
+  const scrollGenreRef = usePersistentScroll('filter_genre')
+  const scrollTagRef = usePersistentScroll('filter_tag')
+  const scrollMetaRef = usePersistentScroll('filter_meta')
+  const scrollTechRef = usePersistentScroll('filter_tech')
   useEffect(() => {
     if (creatingPlaylist) {
       let attempts = 0
@@ -483,7 +509,7 @@ function SidebarInner(props: Props) {
         {/* 媒体库 */}
         <Section title={t('sidebar.library')} icon="folder" active={false} defaultOpen={false}>
           <div className="flex flex-col gap-0.5">
-            <div className="flex flex-col gap-0.5 max-h-[320px] overflow-auto thin-scroll -mr-1 pr-1">
+            <div ref={scrollLibRef} className="flex flex-col gap-0.5 max-h-[320px] overflow-auto thin-scroll -mr-1 pr-1">
               {libraries.length === 0 ? (
                 <div className="text-white/35 text-[11px] py-1 px-1">{t('sidebar.noLibrary')}</div>
               ) : (
@@ -566,7 +592,7 @@ function SidebarInner(props: Props) {
               {visibleSections.length === 0 ? (
                 <div className="text-white/35 text-[11px] py-1">{t('sidebar.noCategory')}</div>
               ) : (
-                <div className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
+                <div ref={scrollCatRef} className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
                   {(() => {
                     // 需求 B：自动归类（order 9000-9998，如【数据源】高清·字幕）与用户分类分组显示
                     const autoSections = visibleSections.filter((s) => s.order >= 9000 && s.order < 9999)
@@ -624,7 +650,7 @@ function SidebarInner(props: Props) {
               {genreFacets.length === 0 ? (
                 <div className="text-white/35 text-[11px] py-1">{t('sidebar.noGenre')}</div>
               ) : (
-                <div className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
+                <div ref={scrollGenreRef} className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
                   {genreFacets.map((g) => {
                      const sel = selectedGenres.has(g.name)
                      return (
@@ -658,7 +684,7 @@ function SidebarInner(props: Props) {
                   <button className="h-5 px-1.5 rounded text-[10px] text-white/50 hover:text-white hover:bg-ink-700 transition-colors" onClick={onClear}>{t('sidebar.clear')}</button>
                 ) : null}
               </div>
-              <div className="flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
+              <div ref={scrollTagRef} className="flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
               {tags.length === 0 ? <div className="text-white/35 text-xs py-2 text-center">{t('sidebar.noTag')}</div> : null}
               {categories.map((cat) => {
                 const list = grouped.get(cat) ?? []
@@ -716,7 +742,7 @@ function SidebarInner(props: Props) {
 
           {/* 主演 / 制片公司 / 系列 */}
           {filterTab === 'meta' ? (
-            <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
+            <div ref={scrollMetaRef} className="flex flex-col gap-1 flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
               <FacetGroup title={t('sidebar.starring')} icon="users" facets={actorFacets} selected={selectedActors} onToggle={onToggleActor} onClear={onClearActors} />
               <FacetGroup title={t('sidebar.studio')} icon="building" facets={studioFacets} selected={selectedStudios} onToggle={onToggleStudio} onClear={onClearStudios} />
               <FacetGroup title={t('sidebar.series')} icon="layers" facets={seriesFacets} selected={selectedSeries} onToggle={onToggleSeries} onClear={onClearSeries} />
@@ -725,7 +751,7 @@ function SidebarInner(props: Props) {
 
           {/* 技术规格 */}
           {filterTab === 'tech' ? (
-            <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
+            <div ref={scrollTechRef} className="flex flex-col gap-1 flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
               <FacetGroup title={t('sidebar.resolution')} icon="monitor" facets={resolutionFacets} selected={selectedResolutions} onToggle={onToggleResolution} onClear={onClearResolutions} />
               <FacetGroup title={t('sidebar.duration')} icon="clock" facets={durationFacets} selected={selectedDurations} onToggle={onToggleDuration} onClear={onClearDurations} />
               <FacetGroup title={t('sidebar.score')} icon="star" facets={scoreFacets} selected={selectedScores} onToggle={onToggleScore} onClear={onClearScores} />
