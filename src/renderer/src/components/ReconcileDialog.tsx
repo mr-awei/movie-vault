@@ -45,7 +45,7 @@ export default function ReconcileDialog({
   onIgnoreUnlisted,
   onUnignoreUnlisted,
   onOpenExternal,
-  onOpenLibrarySettings
+  onOpenLibrarySettings,
   onOpenSpec,
   onRevealSpec,
 }: Props) {
