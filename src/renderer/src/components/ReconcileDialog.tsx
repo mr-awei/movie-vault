@@ -311,6 +311,16 @@ export default function ReconcileDialog({
                       {t('reconcile.step2.openGrok')}
                     </button>
                   ) : null}
+                    {onOpenSpec ? (
+                      <button onClick={onOpenSpec} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-white/5 text-white/80 ring-1 ring-white/10 hover:bg-white/10 transition shrink-0">
+                        <Icon name="fileText" size={14} />查看完整规范
+                      </button>
+                    ) : null}
+                    {onRevealSpec ? (
+                      <button onClick={onRevealSpec} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-white/5 text-white/80 ring-1 ring-white/10 hover:bg-white/10 transition shrink-0">
+                        <Icon name="folder" size={14} />打开规范文件位置
+                      </button>
+                    ) : null}
                 </div>
               </section>
 
