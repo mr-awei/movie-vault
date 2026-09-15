@@ -1024,25 +1024,39 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                 return (
                   <button
                     key={r.code}
-                    className="group rounded-lg overflow-hidden bg-ink-800 ring-1 ring-white/5 aspect-[2/3] relative hover:ring-brand/50 transition-colors"
+                    className="group flex flex-col rounded-lg overflow-hidden bg-ink-800 ring-1 ring-white/5 hover:ring-brand/50 transition-colors text-left"
                     onClick={() => onOpenRelated?.(r)}
                     title={r.title}
                   >
-                    {rs ? (
-                      <img src={rs} alt={r.title} className="h-full w-full object-cover poster-img group-hover:scale-105 transition-transform duration-300" loading="lazy" />
-                    ) : (
-                      <div
-                        className="h-full w-full flex items-center justify-center text-2xl font-bold text-white/70"
-                        style={{ background: placeholderGradient(r.code) }}
-                      >
-                        {titleInitial(r.code)}
-                      </div>
-                    )}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1 pt-5">
-                      <div className="flex items-end justify-between gap-1">
-                        <div className="text-[11px] text-white truncate min-w-0 flex-1">{r.code}</div>
-                        {r.video?.durationSec ?? r.video?.techInfo?.durationSec ? (
-                          <div className="text-[10px] text-white/70 tabular-nums shrink-0">{formatDuration((r.video?.durationSec ?? r.video?.techInfo?.durationSec)!)}</div>
+                    {/* 封面 */}
+                    <div className="relative aspect-[2/3] overflow-hidden">
+                      {rs ? (
+                        <img src={rs} alt={r.title} className="h-full w-full object-cover poster-img group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                      ) : (
+                        <div
+                          className="h-full w-full flex items-center justify-center text-2xl font-bold text-white/70"
+                          style={{ background: placeholderGradient(r.code) }}
+                        >
+                          {titleInitial(r.code)}
+                        </div>
+                      )}
+                      {/* 时长角标 */}
+                      {r.video?.durationSec ?? r.video?.techInfo?.durationSec ? (
+                        <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-[2px] !text-white text-[10px] font-semibold tabular-nums [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">
+                          {formatDuration((r.video?.durationSec ?? r.video?.techInfo?.durationSec)!)}
+                        </span>
+                      ) : null}
+                    </div>
+                    {/* 基本信息：标题 + 年份 + 评分 */}
+                    <div className="px-1.5 py-1.5 flex flex-col gap-0.5">
+                      <div className="text-[12px] text-white/90 font-medium truncate leading-tight">{r.title || r.code}</div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-white/50">
+                        {r.video?.year ? <span className="tabular-nums">{r.video.year}</span> : null}
+                        {r.video?.rating ? (
+                          <span className="flex items-center gap-0.5 text-amber-400/90">
+                            <Icon name="star" size={9} className="fill-amber-400/90" />
+                            <span className="tabular-nums">{Number(r.video.rating).toFixed(1)}</span>
+                          </span>
                         ) : null}
                       </div>
                     </div>
