@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import type { DisplayEntry, Video } from '../../../shared/types'
 import { posterUrl, placeholderGradient, titleInitial, titleSecondary, displayTitle } from '../lib/util'
 import { api } from '../lib/api'

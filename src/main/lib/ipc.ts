@@ -9,7 +9,7 @@ import { readFileSync, promises as fs, existsSync } from 'node:fs'
 import * as XLSX from 'xlsx'
 import { spawn } from 'node:child_process'
 import { reconcileLibrary } from './reconcile'
-import { openVideo } from './player'
+import { openVideo, openPlaylist } from './player'
 import { frameLog } from './images'
 import { generateQuickCover, generatePreviewV2, previewRoot } from './preview-v2'
 import { wakePreviewTaskQueue } from './preview-task-queue'
@@ -25,6 +25,11 @@ import { detectFfmpeg } from './ffmpegEnv'
 import { applyRuntimeSettings } from './runtime'
 import { probeVideo, probeImage } from './ffprobe'
 import { previewRenames, applyRenames, safeFileBaseName } from './rename'
+import { findDuplicates } from './dedup'
+import { readNfoForVideo, writeNfoForVideo } from './nfo'
+import * as playlist from './playlist'
+import { updatePlaybackPosition } from './player'
+import { startWatching, stopWatching } from './watcher'
 import { type MovieMeta, type SourceId, type Library, type ScanProgress, type Settings, type Video, type ImageSource, type UpdateSource, type TechInfo } from '../../shared/types'
 import { type UpdateCheckResult, type UpdateAssetInfo } from '../../shared/api-types'
 // v2.2.4 抽到独立模块（让 reconcile.ts 也能调 fetchDetailSmart，无循环依赖）
@@ -651,12 +656,13 @@ export function registerIpc(): void {
     const settings = await repo.getSettings()
     return scanLibrary(lib, settings, emitProgress)
   })
-  ipcMain.handle(IPC.videoOpen, async (_e, id: string) => {
+  ipcMain.handle(IPC.videoOpen, async (_e, id: string) => {
     const v = await repo.getVideo(id)
     if (!v) throw new Error('视频不存在')
     const settings = await repo.getSettings()
     return openVideo(v, settings)
   })
+  ipcMain.handle(IPC.videoOpenPlaylist, async (_e, videos: Video[]) => openPlaylist(videos, await repo.getSettings()))
   ipcMain.handle(IPC.videoRegeneratePoster, async (_e, id: string) => {
     const v = await repo.getVideo(id)
     if (!v) throw new Error('视频不存在')
@@ -1193,6 +1199,19 @@ export function registerIpc(): void {
     // 运行时设置即时生效：开机自启 / 最小化到托盘
     const s = await repo.getSettings()
     applyRuntimeSettings(s)
+    // 文件夹自动监控：开关变更时启动/停止所有媒体库监控
+    if (patch.autoWatchFolders !== undefined) {
+      const libs = await repo.listLibraries()
+      if (s.autoWatchFolders) {
+        for (const lib of libs) {
+          startWatching(lib.id, lib.folderPath, s.watchDebounceMs ?? 3000)
+        }
+      } else {
+        for (const lib of libs) {
+          stopWatching(lib.id)
+        }
+      }
+    }
     return saved
   })
   // ---------- 卸载应用（危险操作） ----------
@@ -1885,5 +1904,48 @@ export function registerIpc(): void {
       }
     }
     return updated
+  })
+
+  // ---------- v2.9.0 新增 handler ----------
+
+  // 重复视频检测
+  ipcMain.handle(IPC.libraryFindDuplicates, async (_e, libraryId: string) => {
+    if (!isSafeId(libraryId)) throw new Error('非法 libraryId')
+    return findDuplicates(libraryId)
+  })
+
+  // 读取 NFO 文件
+  ipcMain.handle(IPC.videoReadNfo, async (_e, id: string) => {
+    if (!isSafeId(id)) return { ok: false, error: '非法 id' }
+    const v = await repo.getVideo(id)
+    if (!v) return { ok: false, error: '视频不存在' }
+    return readNfoForVideo(v.path)
+  })
+
+  // 写入 NFO 文件
+  ipcMain.handle(IPC.videoWriteNfo, async (_e, id: string) => {
+    if (!isSafeId(id)) return { ok: false, error: '非法 id' }
+    const v = await repo.getVideo(id)
+    if (!v) return { ok: false, error: '视频不存在' }
+    const result = await writeNfoForVideo(v)
+    if (result.ok && result.path) {
+      await repo.updateVideo(id, { nfoPath: result.path })
+    }
+    return result
+  })
+
+  // 播放列表 CRUD
+  ipcMain.handle(IPC.playlistList, () => playlist.listPlaylists())
+  ipcMain.handle(IPC.playlistCreate, (_e, name: string) => playlist.createPlaylist(name))
+  ipcMain.handle(IPC.playlistDelete, (_e, id: string) => playlist.deletePlaylist(id))
+  ipcMain.handle(IPC.playlistRename, (_e, id: string, name: string) => playlist.renamePlaylist(id, name))
+  ipcMain.handle(IPC.playlistAddVideo, (_e, id: string, videoId: string) => playlist.addVideoToPlaylist(id, videoId))
+  ipcMain.handle(IPC.playlistRemoveVideo, (_e, id: string, videoId: string) => playlist.removeVideoFromPlaylist(id, videoId))
+  ipcMain.handle(IPC.playlistReorder, (_e, id: string, videoIds: string[]) => playlist.reorderPlaylist(id, videoIds))
+
+  // 更新播放进度（断点续播）
+  ipcMain.handle(IPC.videoUpdatePlaybackPosition, (_e, id: string, positionSec: number) => {
+    if (!isSafeId(id)) return null
+    return updatePlaybackPosition(id, positionSec)
   })
 }

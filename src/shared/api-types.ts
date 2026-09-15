@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   MovieMeta,
   SourceId,
   Library,
@@ -10,7 +10,10 @@ import type {
   ReconcileResult,
   RenamePreviewItem,
   PreviewTask,
-  PreviewTaskStats
+  PreviewTaskStats,
+  Playlist,
+  DuplicateGroup,
+  NfoData
 } from './types'
 
 /** videoFetchDetail 返回：成功（含详情 + 来源）或失败（含原因） */
@@ -141,6 +144,7 @@ export interface AppApi {
   videoLockMany(ids: string[], locked: boolean): Promise<number>
   videoScan(libraryId: string): Promise<Video[]>
   videoOpen(id: string): Promise<OpenResult>
+  videoOpenPlaylist(videos: Video[]): Promise<{ ok: boolean; method: string; count: number }>
   videoRegeneratePoster(id: string): Promise<Video | null>
   /** 从数据源按检索词抓取封面并缓存到该视频 */
   videoFetchPoster(id: string): Promise<Video | null>
@@ -268,4 +272,17 @@ export interface AppApi {
   libraryExportCodes(id: string, format: 'txt' | 'xlsx'): Promise<{ ok: boolean; path?: string; error?: string }>
   /** 返回内置规范文件路径（中文：通用评分与简介规范.md / 英文：Scoring_and_Synopsis_Guide.en.md） */
   specGet(): Promise<{ path: string }>
+  // ---------- v2.9.0 新增 API ----------
+  libraryFindDuplicates(libraryId: string): Promise<DuplicateGroup[]>
+  videoReadNfo(id: string): Promise<{ ok: boolean; nfo?: NfoData; error?: string }>
+  videoWriteNfo(id: string): Promise<{ ok: boolean; path?: string; error?: string }>
+  playlistList(): Promise<Playlist[]>
+  playlistCreate(name: string): Promise<Playlist>
+  playlistDelete(id: string): Promise<void>
+  playlistRename(id: string, name: string): Promise<Playlist | null>
+  playlistAddVideo(id: string, videoId: string): Promise<Playlist | null>
+  playlistRemoveVideo(id: string, videoId: string): Promise<Playlist | null>
+  playlistReorder(id: string, videoIds: string[]): Promise<Playlist | null>
+  videoUpdatePlaybackPosition(id: string, positionSec: number): Promise<Video | null>
+  onWatcherEvent(cb: (p: { type: 'changed' | 'added' | 'removed'; libraryId: string; paths: string[] }) => void): () => void
 }

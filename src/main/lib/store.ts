@@ -1,7 +1,7 @@
-import { app } from 'electron'
+﻿import { app } from 'electron'
 import { promises as fs, mkdirSync, writeFileSync, existsSync, unlinkSync, renameSync } from 'node:fs'
 import path from 'node:path'
-import { DEFAULT_SETTINGS, type Library, type PreviewManifest, type PreviewTask, type Settings, type Video } from '../../shared/types'
+import { DEFAULT_SETTINGS, type Library, type Playlist, type PreviewManifest, type PreviewTask, type Settings, type Video } from '../../shared/types'
 import type { MovieMeta } from '../../shared/types'
 import { cleanGenreName } from './image-util'
 
@@ -11,6 +11,7 @@ export interface DBShape {
   previewTasks: PreviewTask[]
   previewManifests: Record<string, PreviewManifest>
   settings: Settings
+  playlists: Playlist[]
   /** 数据结构迁移的最后版本号，用于启动时只跑新增迁移；缺失视为 v0（v2.2.12 及以前）*/
   schemaVersion?: number
 }
@@ -20,7 +21,8 @@ const DEFAULT_DB: DBShape = {
   videos: [],
   previewTasks: [],
   previewManifests: {},
-  settings: { ...DEFAULT_SETTINGS }
+  settings: { ...DEFAULT_SETTINGS },
+  playlists: []
 }
 
 /** v2.2.13 schemaVersion：标签分层（tagCategories / backupTags）已完成迁移
@@ -99,7 +101,8 @@ async function ensureLoaded(): Promise<DBShape> {
       videos: parsed.videos ?? [],
       previewTasks: parsed.previewTasks ?? [],
       previewManifests: parsed.previewManifests ?? {},
-      settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) }
+      settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
+      playlists: parsed.playlists ?? []
     }
     migrateInPlace(current)
     cache = current

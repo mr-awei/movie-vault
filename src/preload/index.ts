@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+﻿import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { AppApi } from '../shared/api-types'
 
@@ -19,6 +19,7 @@ const api: AppApi = {
   videoLockMany: (ids, locked) => ipcRenderer.invoke(IPC.videoLockMany, ids, locked),
   videoScan: (libraryId) => ipcRenderer.invoke(IPC.videoScan, libraryId),
   videoOpen: (id) => ipcRenderer.invoke(IPC.videoOpen, id),
+  videoOpenPlaylist: (videos) => ipcRenderer.invoke(IPC.videoOpenPlaylist, videos),
   videoRegeneratePoster: (id) => ipcRenderer.invoke(IPC.videoRegeneratePoster, id),
   videoFetchPoster: (id) => ipcRenderer.invoke(IPC.videoFetchPoster, id),
   libraryFetchAll: (libraryId, force) => ipcRenderer.invoke(IPC.libraryFetchAll, libraryId, force),
@@ -81,7 +82,24 @@ const api: AppApi = {
   },
   libraryGetCodes: (libraryId) => ipcRenderer.invoke(IPC.libraryGetCodes, libraryId),
   libraryExportCodes: (id, fmt) => ipcRenderer.invoke(IPC.libraryExportCodes, id, fmt),
-  specGet: () => ipcRenderer.invoke(IPC.specGet)
+  specGet: () => ipcRenderer.invoke(IPC.specGet),
+  // ---------- v2.9.0 新增 ----------
+  libraryFindDuplicates: (libraryId) => ipcRenderer.invoke(IPC.libraryFindDuplicates, libraryId),
+  videoReadNfo: (id) => ipcRenderer.invoke(IPC.videoReadNfo, id),
+  videoWriteNfo: (id) => ipcRenderer.invoke(IPC.videoWriteNfo, id),
+  playlistList: () => ipcRenderer.invoke(IPC.playlistList),
+  playlistCreate: (name) => ipcRenderer.invoke(IPC.playlistCreate, name),
+  playlistDelete: (id) => ipcRenderer.invoke(IPC.playlistDelete, id),
+  playlistRename: (id, name) => ipcRenderer.invoke(IPC.playlistRename, id, name),
+  playlistAddVideo: (id, videoId) => ipcRenderer.invoke(IPC.playlistAddVideo, id, videoId),
+  playlistRemoveVideo: (id, videoId) => ipcRenderer.invoke(IPC.playlistRemoveVideo, id, videoId),
+  playlistReorder: (id, videoIds) => ipcRenderer.invoke(IPC.playlistReorder, id, videoIds),
+  videoUpdatePlaybackPosition: (id, positionSec) => ipcRenderer.invoke(IPC.videoUpdatePlaybackPosition, id, positionSec),
+  onWatcherEvent: (cb) => {
+    const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as never)
+    ipcRenderer.on(IPC.watcherEvent, handler)
+    return () => ipcRenderer.removeListener(IPC.watcherEvent, handler)
+  }
 }
 
 contextBridge.exposeInMainWorld('api', api)

@@ -102,6 +102,12 @@ export interface Video {
   region?: string
   /** v2.8.5：系列（Excel 片单权威源，如 改编、系列作品、原创） */
   series?: string
+  /** v2.9.0：最后播放位置（秒），断点续播用 */
+  playbackPositionSec?: number
+  /** v2.9.0：播放进度最后更新时间戳 */
+  playbackUpdatedAt?: number
+  /** v2.9.0：关联 NFO 文件路径（如有） */
+  nfoPath?: string
 }
 
 export interface PreviewFrameMeta {
@@ -216,6 +222,30 @@ export interface TechInfo {
   audioCodec?: string
   /** 平均帧率（fps） */
   fps?: number
+  /** 视频编码 profile，如 High / Main / Main10 */
+  videoProfile?: string
+  /** 视频编码 level，如 4.0 / 5.1 */
+  videoLevel?: string
+  /** 色彩空间，如 bt709 / bt2020nc */
+  colorSpace?: string
+  /** 色彩传输特性，如 bt709 / smpte2084 (HDR) / arib-std-b67 (HLG) */
+  colorTransfer?: string
+  /** 色彩原色，如 bt709 / bt2020 */
+  colorPrimaries?: string
+  /** HDR 格式：HDR10 / HLG / Dolby Vision / SDR */
+  hdrFormat?: 'HDR10' | 'HLG' | 'Dolby Vision' | 'SDR'
+  /** 音频声道数，如 2 / 6 / 8 */
+  audioChannels?: number
+  /** 音频采样率（Hz），如 44100 / 48000 */
+  audioSampleRate?: number
+  /** 音频码率（kbps） */
+  audioBitrate?: number
+  /** 音频轨道列表（多音轨） */
+  audioTracks?: Array<{ index: number; codec?: string; channels?: number; language?: string; sampleRate?: number }>
+  /** 字幕轨道列表 */
+  subtitleTracks?: Array<{ index: number; codec?: string; language?: string }>
+  /** 文件容器格式，如 matroska / mov / mpegts */
+  container?: string
 }
 
 /** 代理模式：none 关闭 / http / https / socks4 / socks5 / system 自动读取系统代理 */
@@ -321,6 +351,10 @@ export interface Settings {
   language?: 'zh-CN' | 'en-US'
   /** v2.4.4：列表页默认展示模式，flat 全库平铺 / grouped 按 Excel 分类分组 */
   listViewMode?: 'flat' | 'grouped'
+  /** v2.9.0：文件夹自动监控，检测到新增/删除文件时自动增量扫描 */
+  autoWatchFolders?: boolean
+  /** v2.9.0：监控事件去抖毫秒数（默认 3000），避免批量拷贝时频繁触发 */
+  watchDebounceMs?: number
 }
 
 export interface VideoFilter {
@@ -390,7 +424,9 @@ export const DEFAULT_SETTINGS: Settings = {
   noticeDismissed: false,
   suppressIntroExcelNotice: false,
   language: 'zh-CN',
-  listViewMode: 'flat'
+  listViewMode: 'flat',
+  autoWatchFolders: false,
+  watchDebounceMs: 3000
 }
 
 /** 默认海报来源优先级：手动 > 同名图 > moviedb > omdb > openlibrary > justwatch > wikipedia > 截帧 > 占位 */
@@ -563,4 +599,58 @@ export function flattenAllTags(v: { tags?: string[]; tagCategories?: Record<stri
   for (const t of p) set.add(t)
   for (const t of v.backupTags ?? []) set.add(t)
   return [...set]
+}
+
+// ---------- v2.9.0 新增类型 ----------
+
+/** 播放列表 */
+export interface Playlist {
+  id: string
+  name: string
+  /** 视频 id 列表（有序） */
+  videoIds: string[]
+  createdAt: number
+  updatedAt: number
+}
+
+/** 重复视频分组（按 contentHash 分组） */
+export interface DuplicateGroup {
+  /** 分组 key（contentHash） */
+  key: string
+  /** 组内视频列表 */
+  videos: Array<{ id: string; title: string; path: string; fileSize?: number; addedAt: number }>
+  /** 组内总大小（字节） */
+  totalSizeBytes: number
+  /** 可释放空间（保留一份后可删除的字节数） */
+  wastedBytes: number
+}
+
+/** NFO 文件解析结果（Kodi/Jellyfin/Plex 标准格式） */
+export interface NfoData {
+  title?: string
+  originaltitle?: string
+  sorttitle?: string
+  year?: number
+  plot?: string
+  outline?: string
+  tagline?: string
+  rating?: number
+  votes?: number
+  mpaa?: string
+  premiered?: string
+  runtime?: number
+  genres?: string[]
+  tags?: string[]
+  actors?: Array<{ name?: string; role?: string; thumb?: string }>
+  director?: string
+  writer?: string
+  studio?: string
+  country?: string
+  set?: string
+  /** 各数据源唯一 ID，如 imdb、tmdb */
+  uniqueids?: Record<string, string>
+  /** 封面图相对路径 */
+  thumb?: string
+  /** fanart 背景图相对路径 */
+  fanart?: string
 }

@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto'
+﻿import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { getDB, mutate, saveDB } from './store'
 import type { Library, PreviewManifest, PreviewStatus, PreviewTask, PreviewQualityMode, Settings, Video, VideoFilter } from '../../shared/types'
 import { DEFAULT_IMAGE_PRIORITY } from '../../shared/types'
@@ -53,7 +54,14 @@ export async function removeLibrary(id: string): Promise<void> {
 // ---------- 视频 ----------
 export async function getVideo(id: string): Promise<Video | null> {
   const db = await getDB()
-  return db.videos.find((v) => v.id === id) ?? null
+  const v = db.videos.find((x) => x.id === id)
+  if (!v) return null
+  // 防御：previewPaths 指向的文件已被清理（手动删/磁盘清理工具）→ 清掉坏路径，
+  // 让详情页走「无预览图自动截帧」分支，避免显示一整排破损图。
+  if (v.previewPaths?.length && !existsSync(v.previewPaths[0])) {
+    return { ...v, previewPaths: undefined, previewStatus: undefined }
+  }
+  return v
 }
 
 export async function upsertVideo(video: Video): Promise<Video> {
@@ -208,8 +216,12 @@ export async function enqueuePreviewTask(
     const qualityMode = opts.qualityMode ?? db.settings.previewQualityMode ?? 'STANDARD'
     const fingerprint = `${v.path}|${v.fileSize ?? 0}|${v.contentHash ?? ''}`
     const manifest = db.previewManifests[mediaId]
+    // 缓存有效条件：元数据匹配 + 第一个预览图文件存在（同目录生成的，第一个在则都在）
+    const firstFrame = manifest?.frames?.[0]?.filePath
+    const filesExist = firstFrame ? existsSync(firstFrame) : false
     const cacheFresh =
       !opts.force &&
+      filesExist &&
       manifest?.algorithmVersion === PREVIEW_ALGORITHM_VERSION &&
       manifest.requestedCount === requestedCount &&
       manifest.sourceFingerprint === fingerprint &&

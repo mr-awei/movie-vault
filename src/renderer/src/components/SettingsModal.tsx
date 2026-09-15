@@ -3,10 +3,13 @@ import type { Settings, ProxyMode, SortKey, SourceId, PreviewQualityMode, Backgr
 import type { UpdateCheckResult } from '../../../shared/api-types'
 import { api } from '../lib/api'
 import Icon from './Icon'
+import DuplicateModal from './DuplicateModal'
 import UninstallConfirmModal from './UninstallConfirmModal'
 import { t, setLocale, SUPPORTED_LOCALES, type Locale } from '../../../shared/i18n'
 import type { IconName } from './Icon'
 interface Props {
+  /** 当前库 id，用于重复检测 */
+  libraryId?: string
   open: boolean
   settings: Settings
   onClose: () => void
@@ -409,7 +412,8 @@ function ThemeCard({
   )
 }
 /* ---------------- main component ---------------- */
-export default function SettingsModal({ open, settings, onClose, onSave, onSaved }: Props) {
+export default function SettingsModal({ open, settings, onClose, onSave, onSaved, libraryId }: Props) {
+  const [showDuplicates, setShowDuplicates] = useState(false)
   const [draft, setDraft] = useState<Settings>(settings)
   const [activeCategory, setActiveCategory] = useState<Category>('general')
   // v2.2.6：顶部 auto 降级文案动态跟着 draft.customSourceOrder 走
@@ -711,7 +715,30 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
                   <FieldRow label={t("settings.minimizeToTray")} hint={t("settings.minimizeToTrayHint")}>
                     <Toggle on={!!draft.minimizeToTray} onChange={(v) => setDraft({ ...draft, minimizeToTray: v })} />
                   </FieldRow>
+                  <FieldRow label={t("settings.autoWatchFolders")} hint={t("settings.autoWatchFoldersHint")}>
+                    <Toggle on={!!draft.autoWatchFolders} onChange={(v) => setDraft({ ...draft, autoWatchFolders: v })} />
+                  </FieldRow>
                 </Card>
+                {/* 库工具 */}
+                <div className="mt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon name="sliders" size={14} className="text-white/50" />
+                    <span className="text-white/70 text-xs font-medium">库工具</span>
+                  </div>
+                  <Card>
+                    <button
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors text-left"
+                      onClick={() => setShowDuplicates(true)}
+                    >
+                      <Icon name="copy" size={16} className="text-yellow-400" />
+                      <div className="flex-1">
+                        <div className="text-white/90 text-sm">重复视频检测</div>
+                        <div className="text-white/40 text-xs">查找内容相同的重复视频，释放磁盘空间</div>
+                      </div>
+                      <Icon name="chevronRight" size={14} className="text-white/30" />
+                    </button>
+                  </Card>
+                </div>
               </section>
             )}
             {/* ===== 网络 ===== */}
@@ -1599,6 +1626,9 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
           </div>
         </div>
       </div>
+      {showDuplicates && libraryId && (
+        <DuplicateModal onClose={() => setShowDuplicates(false)} libraryId={libraryId} />
+      )}
     </div>
   )
 }

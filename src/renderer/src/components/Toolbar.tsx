@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import Icon from './Icon'
 import { t } from '../../../shared/i18n'
 
@@ -13,6 +13,7 @@ interface Props {
   libraryName?: string
   /** 重新扫描当前影视库（文件对账） */
   onScan: () => void
+  onShowDuplicates?: () => void
   /** 批量补齐当前库 数据源 信息；force=true 时忽略缓存逐部重抓 */
   onBatchFetch: (force: boolean) => void
   /** v2.3.7 批量补时长：对当前库所有缺时长的视频 ffprobe 读取时长写 techInfo */
@@ -22,7 +23,7 @@ interface Props {
 export default function Toolbar(props: Props) {
   const {
     search, onSearch, onHome, onAddLibrary, privacy, onTogglePrivacy,
-    libraryName, onScan, onBatchFetch, onBatchProbe
+    libraryName, onScan, onBatchFetch, onBatchProbe, onShowDuplicates
   } = props
   const [batchMenuOpen, setBatchMenuOpen] = useState(false)
 
@@ -76,6 +77,16 @@ export default function Toolbar(props: Props) {
           <Icon name="refresh" size={13} />
           {t('toolbar.scanLibrary')}
         </button>
+        {onShowDuplicates ? (
+          <button
+            className="h-9 px-3.5 rounded-xl flex items-center gap-2 text-sm font-medium bg-ink-700 hover:bg-ink-600 text-white/80 transition-colors"
+            onClick={onShowDuplicates}
+            title="查找内容相同的重复视频，释放磁盘空间"
+          >
+            <Icon name="copy" size={15} />
+            重复检测
+          </button>
+        ) : null}
 
         <div className="relative">
           <button

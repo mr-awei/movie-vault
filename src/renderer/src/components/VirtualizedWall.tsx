@@ -1,5 +1,5 @@
 ﻿import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { DisplayEntry, Video } from '../../../shared/types'
+import type { DisplayEntry, Playlist, Video } from '../../../shared/types'
 import EntryCard from './EntryCard'
 import { t } from '../../../shared/i18n'
 
@@ -24,6 +24,17 @@ interface Props {
   selectable?: boolean
   selectedIds?: Set<string>
   onToggleSelect?: (id: string) => void
+  playlists?: Playlist[]
+  onAddToPlaylist?: (playlistId: string, videoId: string) => void
+  activePlaylistId?: string | null
+  onRemoveFromPlaylist?: (playlistId: string, videoId: string) => void
+  onDragStart?: (videoId: string) => string | undefined
+  onDragOver?: (e: React.DragEvent, targetVideoId: string) => void
+  onDrop?: (targetVideoId: string, fromIdx: string) => void
+  onDragSelectStart?: (videoId: string) => void
+  onDragSelectEnter?: (videoId: string) => void
+  dragSelectActive?: boolean
+  inPlaylistIds?: Set<string>
 }
 
 const GAP = 16
@@ -41,7 +52,7 @@ type Row =
  * 只渲染可见行 ± OVERSCAN。整个应用只有这一个滚动容器，
  * 大库（几百上千部）DOM 数量恒定为一屏几十张，滚动性能与库大小无关。
  */
-function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag, onPickTag, onDelete, aspect = 'portrait', selectable = false, selectedIds, onToggleSelect }: Props) {
+function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag, onPickTag, onDelete, aspect = 'portrait', selectable = false, selectedIds, onToggleSelect, playlists, onAddToPlaylist, activePlaylistId, onRemoveFromPlaylist, onDragStart, onDragOver, onDrop, onDragSelectStart, onDragSelectEnter, dragSelectActive, inPlaylistIds }: Props) {
   const RATIO = aspect === 'landscape' ? 9 / 16 : 3 / 2
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
@@ -133,7 +144,7 @@ function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag
         >
           {row.items.map((e, ci) => (
             <div key={`${e.code}-${ci}`} style={{ width: colW, height: colW * RATIO }} className="shrink-0">
-              <EntryCard entry={e} onOpen={onOpen} onEdit={onEdit} onOpenMissing={onOpenMissing} onToggleFlag={onToggleFlag} onPickTag={onPickTag} onDelete={onDelete} aspect={aspect} selectable={selectable} selected={!!(e.video?.id && selectedIds?.has(e.video.id))} onToggleSelect={onToggleSelect} />
+              <EntryCard entry={e} onOpen={onOpen} onEdit={onEdit} onOpenMissing={onOpenMissing} onToggleFlag={onToggleFlag} onPickTag={onPickTag} onDelete={onDelete} aspect={aspect} selectable={selectable} selected={!!(e.video?.id && selectedIds?.has(e.video.id))} onToggleSelect={onToggleSelect} playlists={playlists} onAddToPlaylist={onAddToPlaylist} activePlaylistId={activePlaylistId} onRemoveFromPlaylist={onRemoveFromPlaylist} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragSelectStart={onDragSelectStart} onDragSelectEnter={onDragSelectEnter} dragSelectActive={dragSelectActive} inPlaylist={!!(inPlaylistIds && e.video?.id && inPlaylistIds.has(e.video.id))} />
             </div>
           ))}
         </div>

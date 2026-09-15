@@ -1,6 +1,6 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+﻿import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { DisplayEntry, Video } from '../../../shared/types'
+import type { DisplayEntry, Playlist, Video } from '../../../shared/types'
 import { hasDocTags, primaryTags } from '../../../shared/types'
 import { posterUrl, placeholderGradient, titleInitial, titleSecondary, formatDuration, displayTitle } from '../lib/util'
 import { useFrameFallback } from '../lib/frameFallback'
@@ -28,6 +28,17 @@ interface Props {
   selected?: boolean
   /** 切换选中状态（多选模式） */
   onToggleSelect?: (id: string) => void
+  playlists?: Playlist[]
+  onAddToPlaylist?: (playlistId: string, videoId: string) => void
+  activePlaylistId?: string | null
+  onRemoveFromPlaylist?: (playlistId: string, videoId: string) => void
+  onDragStart?: (videoId: string) => string | undefined
+  onDragOver?: (e: React.DragEvent, targetVideoId: string) => void
+  onDrop?: (targetVideoId: string, fromIdx: string) => void
+  onDragSelectStart?: (videoId: string) => void
+  onDragSelectEnter?: (videoId: string) => void
+  dragSelectActive?: boolean
+  inPlaylist?: boolean
 }
 
 /** 把 DisplayEntry 组装成 Video 视图，供 HoverDetail / 预览面板复用。
@@ -55,12 +66,13 @@ function hoverVideo(entry: DisplayEntry): Video {
 /** Netflix 式悬浮预览面板：宽 360，高度动态；小图 96 宽 */
 const PANEL_W = 360
 
-function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, onPickTag, onDelete, aspect = 'portrait', selectable = false, selected = false, onToggleSelect }: Props) {
+function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, onPickTag, onDelete, aspect = 'portrait', selectable = false, selected = false, onToggleSelect, playlists, onAddToPlaylist, activePlaylistId, onRemoveFromPlaylist, onDragStart, onDragOver, onDrop, onDragSelectStart, onDragSelectEnter, dragSelectActive, inPlaylist }: Props) {
   const [imgError, setImgError] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [preview, setPreview] = useState<{ x: number; y: number } | null>(null)
   const openTimer = useRef<number | null>(null)
   const closeTimer = useRef<number | null>(null)
+  const dragClickHandled = useRef(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const isMissing = entry.kind === 'missing'
   const v0 = entry.video
@@ -192,13 +204,20 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
       } ${isMissing ? 'opacity-80' : ''}`}
       onClick={() => {
         if (canSelect && vid) {
+          if (dragClickHandled.current) { dragClickHandled.current = false; return }
           onToggleSelect?.(vid)
           return
         }
         if (isMissing) onOpenMissing(entry)
         else onOpen(entry)
       }}
-      onMouseEnter={canSelect ? undefined : scheduleOpen}
+      onMouseEnter={() => {
+        if (dragSelectActive && onDragSelectEnter && entry.video?.id) {
+          onDragSelectEnter(entry.video.id)
+        } else if (!canSelect) {
+          scheduleOpen()
+        }
+      }}
       onMouseLeave={canSelect ? undefined : scheduleClose}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -207,8 +226,40 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
           y: Math.min(e.clientY, window.innerHeight - 190)
         })
       }}
-    >
-      <div className={`${aspect === 'landscape' ? 'aspect-video' : 'aspect-[2/3]'} w-full relative`}>
+    
+      onMouseDown={(e) => {
+        if (selectable && onDragSelectStart && entry.video?.id && e.button === 0) {
+          e.preventDefault()
+          dragClickHandled.current = true
+          onDragSelectStart(entry.video.id)
+        }
+      }}
+      draggable={!!activePlaylistId}
+      onDragStart={(e: React.DragEvent) => {
+        if (activePlaylistId && entry.video?.id) {
+          e.dataTransfer.effectAllowed = 'move'
+          const data = onDragStart?.(entry.video.id); if (data) e.dataTransfer.setData('text/plain', data)
+        }
+      }}
+      onDragOver={(e: React.DragEvent) => {
+        if (activePlaylistId && entry.video?.id) {
+          e.preventDefault()
+          onDragOver?.(e, entry.video.id)
+        }
+      }}
+      onDrop={(e: React.DragEvent) => {
+        if (activePlaylistId && entry.video?.id) {
+          e.preventDefault()
+          const fromIdx = e.dataTransfer.getData('text/plain'); if (fromIdx) onDrop?.(entry.video.id, fromIdx)
+        }
+      }}>
+      <div className={`${aspect === 'landscape' ? 'aspect-video' : 'aspect-[2/3]'} w-full relative ${inPlaylist ? 'ring-2 ring-emerald-400/60 rounded-lg' : ''}`}>
+        {inPlaylist ? (
+          <div className="absolute top-1.5 right-1.5 z-10 px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-medium shadow-md flex items-center gap-1">
+            <Icon name="check" size={10} />
+            已添加
+          </div>
+        ) : null}
         {showPoster ? (
           <div className="absolute inset-0 poster-img">
             {/* 模糊铺底：横竖屏封面都能完整显示，四周裁切处由模糊同图填充，不露黑边 */}
@@ -551,6 +602,34 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
                       }}
                     />
                   ) : null}
+                  {activePlaylistId && onRemoveFromPlaylist ? (
+                    <MenuItem
+                      icon="x"
+                      label="从当前列表移除"
+                      danger
+                      onClick={() => {
+                        setMenu(null)
+                        onRemoveFromPlaylist(activePlaylistId, entry.video!.id)
+                      }}
+                    />
+                  ) : null}
+                  {playlists && playlists.length > 0 && onAddToPlaylist ? (
+                    <>
+                      <div className="my-1 border-t border-white/5" />
+                      <div className="px-3 py-1 text-[10px] text-white/35 uppercase tracking-wide">添加到播放列表</div>
+                      {playlists.slice(0, 8).map((pl) => (
+                        <MenuItem
+                          key={pl.id}
+                          icon="list"
+                          label={pl.name}
+                          onClick={() => {
+                            setMenu(null)
+                            onAddToPlaylist(pl.id, entry.video!.id)
+                          }}
+                        />
+                      ))}
+                    </>
+                  ) : null}
                   <div className="my-1 border-t border-white/5" />
                 </>
               ) : (
@@ -585,7 +664,7 @@ function MenuItem({
   onClick,
   danger
 }: {
-  icon: 'play' | 'pencil' | 'folderOpen' | 'copy' | 'trash' | 'lock' | 'unlock'
+  icon: 'play' | 'pencil' | 'folderOpen' | 'copy' | 'trash' | 'lock' | 'unlock' | 'list' | 'x'
   label: string
   onClick: () => void
   /** 危险操作样式（红色） */

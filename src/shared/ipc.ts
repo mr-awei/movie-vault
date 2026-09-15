@@ -1,4 +1,4 @@
-// 类型化 IPC 通道名集合（主进程 handle / 渲染进程 invoke 共用）
+﻿// 类型化 IPC 通道名集合（主进程 handle / 渲染进程 invoke 共用）
 
 export const IPC = {
   // 媒体库
@@ -20,6 +20,7 @@ export const IPC = {
   videoLockMany: 'video:lockMany',
   videoScan: 'video:scan',
   videoOpen: 'video:open',
+  videoOpenPlaylist: 'video:open-playlist',
   videoRegeneratePoster: 'video:regeneratePoster',
   // 数据源封面抓取
   videoFetchPoster: 'video:fetchPoster',
@@ -101,7 +102,26 @@ export const IPC = {
   // 导出影片清单为 txt 或 xlsx（模板：带 编号/分类/推荐评分/简介 表头）
   libraryExportCodes: 'library:exportCodes',
   // 返回内置规范文件路径（中文：通用评分与简介规范.md / 英文：Scoring_and_Synopsis_Guide.en.md）
-  specGet: 'system:specGet'
+  specGet: 'system:specGet',
+  // ---------- v2.9.0 新增通道 ----------
+  // 重复视频检测：按 contentHash 分组返回重复项
+  libraryFindDuplicates: 'library:findDuplicates',
+  // NFO 文件：读取同目录 .nfo 元数据
+  videoReadNfo: 'video:readNfo',
+  // NFO 文件：把当前视频元数据导出为同目录 .nfo
+  videoWriteNfo: 'video:writeNfo',
+  // 播放列表 CRUD
+  playlistList: 'playlist:list',
+  playlistCreate: 'playlist:create',
+  playlistDelete: 'playlist:delete',
+  playlistRename: 'playlist:rename',
+  playlistAddVideo: 'playlist:addVideo',
+  playlistRemoveVideo: 'playlist:removeVideo',
+  playlistReorder: 'playlist:reorder',
+  // 播放进度更新（断点续播）
+  videoUpdatePlaybackPosition: 'video:updatePlaybackPosition',
+  // 文件夹监控事件（主进程 -> 渲染进程）：检测到文件变化
+  watcherEvent: 'watcher:event'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

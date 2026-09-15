@@ -131,7 +131,7 @@ function ToastCard({ item, onClose }: { item: ToastItem; onClose: () => void }) 
  * - 支持富内容 detail（失败原因、来源分布）与自定义操作按钮；
  * - 退场带 200ms 淡出动画；全局尊重 prefers-reduced-motion。
  */
-export function ToastProvider({ children }: { children: ReactNode }) {
+export function ToastProvider({ children, bottomOffset = 0 }: { children: ReactNode; bottomOffset?: number }) {
   const [items, setItems] = useState<ToastItem[]>([])
   const timers = useRef<Map<string, number>>(new Map())
 
@@ -188,7 +188,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-2.5 pointer-events-none">
+      <div style={{ bottom: 24 + bottomOffset }} className="fixed right-6 z-[100] flex flex-col items-end gap-2.5 pointer-events-none">
         {items.map((i) => (
           <div key={i.id} className="pointer-events-auto">
             <ToastCard item={i} onClose={() => dismiss(i.id)} />

@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { DisplayEntry, MovieMeta, Video } from '../../../shared/types'
+import type { DisplayEntry, MovieMeta, Playlist, Video } from '../../../shared/types'
 import { hasDocTags, primaryTags, NON_TAG_CATEGORY_NAMES } from '../../../shared/types'
 import { posterUrl, placeholderGradient, titleInitial, formatSize, formatDuration, resolveEntryPoster, pureTitle, stringToMutedColor } from '../lib/util'
 import { useFrameFallback } from '../lib/frameFallback'
@@ -33,6 +33,9 @@ interface Props {
   onEdit?: (v: Video) => void
   /** 从磁盘删除视频文件（弹二次确认、按需连带删同目录种子文件夹） */
   onDelete?: (v: Video) => void
+  /** v2.9.0 播放列表 */
+  playlists?: Playlist[]
+  onAddToPlaylist?: (playlistId: string, videoId: string) => void
 }
 
 /** 渲染元数据一行（key: value）—— label 左对齐，列宽由最宽 label 自动撑开 */
@@ -66,12 +69,14 @@ function formatTech(tech?: Video['techInfo']): string | undefined {
   return p.length ? p.join(' · ') : undefined
 }
 
-export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, onPosterFetched, onTechInfoFetched, onPickFilter, onPickTag, onToggleFlag, related, onOpenRelated, onEdit, onDelete }: Props) {
+export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, onPosterFetched, onTechInfoFetched, onPickFilter, onPickTag, onToggleFlag, related, onOpenRelated, onEdit, onDelete, playlists, onAddToPlaylist }: Props) {
+  const [playlistMenuOpen, setPlaylistMenuOpen] = useState(false)
   const [detail, setDetail] = useState<Video['meta']>(video.meta)
   /** 本地 video 副本：截帧/封面更新后立即反映，不必等父组件重新拉取 */
   const [localVideo, setLocalVideo] = useState<Video>(video)
   /** 封面加载失败（路径失效）时标记，触发截帧兜底 */
   const [coverImgError, setCoverImgError] = useState(false)
+  const [failedPreviews, setFailedPreviews] = useState<Set<number>>(new Set())
   /** 封面缓存失效版本号：手动设封面/重新截帧后 +1，让封面 img 的 lm:// URL 带 ?v= 强制立即刷新；
    *  初始值取自 App 的 coverVersion，重开详情页时与列表端版本一致，避免退回旧缓存 */
   const [posterVersion, setPosterVersion] = useState(video.coverVersion ?? 0)
@@ -631,6 +636,35 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                 <Icon name="folderOpen" size={14} />
                 {t('detail.openLocation')}
               </button>
+              {playlists && playlists.length > 0 && onAddToPlaylist ? (
+                <div className="relative">
+                  <button
+                    className="h-11 px-4 rounded-xl flex items-center gap-2 bg-ink-700 hover:bg-ink-600 text-white/90 hover:text-white text-sm transition-colors"
+                    onClick={() => setPlaylistMenuOpen((v) => !v)}
+                  >
+                    <Icon name="list" size={14} />
+                    添加到列表
+                  </button>
+                  {playlistMenuOpen ? (
+                    <div className="absolute top-full left-0 mt-1 z-50 min-w-[160px] rounded-xl bg-ink-800 ring-1 ring-white/10 shadow-xl py-1.5 text-sm">
+                      {playlists.slice(0, 10).map((pl) => (
+                        <button
+                          key={pl.id}
+                          className="w-full text-left px-3 py-2 hover:bg-ink-700 transition-colors flex items-center gap-2"
+                          onClick={() => {
+                            onAddToPlaylist(pl.id, video.id)
+                            setPlaylistMenuOpen(false)
+                          }}
+                        >
+                          <Icon name="list" size={13} className="text-white/40" />
+                          <span className="truncate">{pl.name}</span>
+                          <span className="ml-auto text-[11px] text-white/30">{pl.videoIds.length}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {onDelete ? (
                 <button
                   className="h-11 px-4 rounded-xl flex items-center gap-2 bg-red-500/10 hover:bg-red-500/25 text-red-300 hover:text-red-200 text-sm transition-colors"
@@ -944,13 +978,20 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                     setZoomUrl(displayUrl)
                   }}
                 >
-                  <img
-                    src={displayUrl}
-                    alt={`preview-${i}`}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-cover poster-img"
-                  />
+                                    {failedPreviews.has(i) ? (
+                    <div className="h-full w-full flex items-center justify-center" style={{ background: placeholderGradient(`preview-${i}`) }}>
+                      <Icon name="image" size={24} className="text-white/20" />
+                    </div>
+                  ) : (
+                    <img
+                      src={displayUrl}
+                      alt={`preview-${i}`}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover poster-img"
+                      onError={() => setFailedPreviews((prev) => new Set(prev).add(i))}
+                    />
+                  )}
                   {/* {t('detail.setAsCover')}：hover 显示，点击把这帧复制为封面 */}
                   <button
                     type="button"

@@ -1,8 +1,9 @@
-import { app, BrowserWindow, Menu, protocol, Tray, nativeImage, type NativeImage } from 'electron'
+﻿import { app, BrowserWindow, Menu, protocol, Tray, nativeImage, type NativeImage } from 'electron'
 import path from 'node:path'
 import { promises as fs, appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { registerIpc, runUpdateCheck } from './lib/ipc'
+import { startWatching, stopAllWatchers } from './lib/watcher'
 import { startPreviewTaskQueue, stopPreviewTaskQueue } from './lib/preview-task-queue'
 import { runtime, applyRuntimeSettings } from './lib/runtime'
 import { tMain, setLocale as setMainLocale, subscribeLocale, type Locale } from '../shared/i18n'
@@ -273,6 +274,16 @@ function createWindow(): void {
     }
   })
 
+  // 最小化到托盘：点击最小化按钮时也隐藏到系统托盘（而不是只缩到任务栏）
+  // 注意：Electron 的 minimize 事件不可取消（无 event 参数），窗口已最小化后才触发，
+  // 所以这里在事件回调里立即 hide()，把刚缩到任务栏的窗口再藏到托盘。
+  win.on('minimize', () => {
+    if (runtime.minimizeToTray) {
+      win.hide()
+      ensureTray()
+    }
+  })
+
   if (!app.isPackaged) {
     win.webContents.openDevTools({ mode: 'detach' })
   }
@@ -355,6 +366,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  stopAllWatchers()
   void stopPreviewTaskQueue()
 })
 
@@ -425,11 +437,19 @@ app.whenReady().then(() => {
     setInterval(maybeCheck, 30 * 60 * 1000)
   })()
 
-  // 启动时应用运行时设置（开机自启 / 最小化到托盘）
+  // 启动时应用运行时设置（开机自启 / 最小化到托盘 / 文件夹自动监控）
   void (async () => {
     try {
-      const { getSettings } = await import('./lib/repo')
-      applyRuntimeSettings(await getSettings())
+      const { getSettings, listLibraries } = await import('./lib/repo')
+      const s = await getSettings()
+      applyRuntimeSettings(s)
+      // 文件夹自动监控：开启后对所有媒体库根目录启动监控
+      if (s.autoWatchFolders) {
+        const libs = await listLibraries()
+        for (const lib of libs) {
+          startWatching(lib.id, lib.folderPath, s.watchDebounceMs ?? 3000)
+        }
+      }
     } catch {
       /* 静默 */
     }

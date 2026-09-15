@@ -21,6 +21,7 @@ import VirtualizedWall, { type WallSection } from './components/VirtualizedWall'
 import ReconcileDialog from './components/ReconcileDialog'
 import LibraryModal from './components/LibraryModal'
 import SettingsModal from './components/SettingsModal'
+import DuplicateModal from './components/DuplicateModal'
 import EditMetaModal from './components/EditMetaModal'
 import VideoDetail from './components/VideoDetail'
 import StatsPanel from './components/StatsPanel'
@@ -36,6 +37,7 @@ import ConfirmDeleteModal, { type DeletePreview } from './components/ConfirmDele
 import UserNoticeModal from './components/UserNoticeModal'
 import OnboardSheetModal from './components/OnboardSheetModal'
 import type { AppInfo } from '../../shared/api-types'
+import type { Playlist } from '../../shared/types'
 
 interface FilterState {
   search: string
@@ -144,6 +146,12 @@ export default function App() {
   // v2.7.x：多选批量锁定（浏览页）
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // 播放列表
+  const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null)
+  const [pendingPlaylistId, setPendingPlaylistId] = useState<string | null>(null)
+  const [dragSelectMode, setDragSelectMode] = useState<'select' | 'deselect' | null>(null)
+  const [showDuplicates, setShowDuplicates] = useState(false)
   // v2.2.10：实时抓取日志（"数据源失败 → 降级下一源" 这类过程，右下角浮层滚动展示）
   const [fetchLogs, setFetchLogs] = useState<
     Array<{ code: string; src: string; status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'; detail?: string }>
@@ -225,10 +233,11 @@ export default function App() {
   // 初始加载：媒体库 + 设置 + 版本号
   useEffect(() => {
     ;(async () => {
-      const [libs, s, info] = await Promise.all([api.libraryList(), api.settingsGet(), api.appInfo()])
+      const [libs, s, info, pls] = await Promise.all([api.libraryList(), api.settingsGet(), api.appInfo(), api.playlistList()])
       setLibraries(libs)
       setSettings(s)
       setAppInfo(info)
+      setPlaylists(pls)
       // 隐私护盾默认开（仅在用户从未手动设置过时生效）
       if (s.privacyDefaultOn && localStorage.getItem('vm-privacy') === null) setPrivacy(true)
       // 默认排序（仅当用户还没手动改过排序时应用）
@@ -716,6 +725,13 @@ export default function App() {
     return list
   }, [applySmart, filter.category, filter.sort, filter.desc])
 
+  // 添加影片模式下，当前播放列表已有的影片 ID 集合
+  const pendingPlaylistVideoIds = useMemo(() => {
+    if (!pendingPlaylistId) return null
+    const pl = playlists.find((p) => p.id === pendingPlaylistId)
+    return pl ? new Set(pl.videoIds) : null
+  }, [pendingPlaylistId, playlists])
+
   // 当前库已锁定影片数（进度面板运行时提示：这些会被批量补齐自动跳过）
   const lockedCount = useMemo(
     () => (reconcile?.entries ?? []).filter((e) => e.video?.locked).length,
@@ -781,6 +797,114 @@ export default function App() {
     },
     [selectedIds]
   )
+
+
+  // ---------- 播放列表 ----------
+  const handleCreatePlaylist = useCallback(async (name: string) => {
+    const pl = await api.playlistCreate(name)
+    setPlaylists((prev) => [...prev, pl])
+    setPendingPlaylistId(pl.id)
+    setSelectedIds(new Set())
+    setSelectMode(true)
+  }, [])
+
+  const handleDeletePlaylist = useCallback(async (id: string) => {
+    await api.playlistDelete(id)
+    setPlaylists((prev) => prev.filter((p) => p.id !== id))
+    if (activePlaylistId === id) setActivePlaylistId(null)
+    if (pendingPlaylistId === id) {
+      setPendingPlaylistId(null)
+      setSelectMode(false)
+      setSelectedIds(new Set())
+    }
+  }, [activePlaylistId, pendingPlaylistId])
+
+  const handleRenamePlaylist = useCallback(async (id: string, name: string) => {
+    await api.playlistRename(id, name)
+    setPlaylists((prev) => prev.map((p) => (p.id === id ? { ...p, name } : p)))
+  }, [])
+
+  const handleSelectPlaylist = useCallback((id: string | null) => {
+    setActivePlaylistId(id)
+    setSelectMode(false)
+    setSelectedIds(new Set())
+    setPendingPlaylistId(null)
+  }, [])
+
+  const handleAddToPlaylist = useCallback(async (playlistId: string, videoId: string) => {
+    await api.playlistAddVideo(playlistId, videoId)
+    setPlaylists((prev) => prev.map((p) => (p.id === playlistId ? { ...p, videoIds: [...p.videoIds, videoId] } : p)))
+  }, [])
+
+  const handleRemoveFromPlaylist = useCallback(async (playlistId: string, videoId: string) => {
+    await api.playlistRemoveVideo(playlistId, videoId)
+    setPlaylists((prev) => prev.map((p) => (p.id === playlistId ? { ...p, videoIds: p.videoIds.filter((id) => id !== videoId) } : p)))
+  }, [])
+
+  const handleReorderPlaylist = useCallback(async (playlistId: string, videoIds: string[]) => {
+    await api.playlistReorder(playlistId, videoIds)
+    setPlaylists((prev) => prev.map((p) => (p.id === playlistId ? { ...p, videoIds } : p)))
+  }, [])
+
+  const handlePlayPlaylist = useCallback(async () => {
+    if (!activePlaylistId) return
+    const pl = playlists.find((p) => p.id === activePlaylistId)
+    if (!pl || pl.videoIds.length === 0) return
+    const videos = pl.videoIds.map((id) => reconcile?.entries.find((e) => e.video?.id === id)?.video).filter(Boolean) as Video[]
+    if (videos.length > 0) await api.videoOpenPlaylist(videos)
+  }, [activePlaylistId, playlists, reconcile])
+
+  /** 添加影片模式：批量添加选中的影片到播放列表 */
+  const handleAddSelectedToPlaylist = useCallback(async () => {
+    if (!pendingPlaylistId || selectedIds.size === 0) return
+    const ids = [...selectedIds]
+    for (const id of ids) {
+      await api.playlistAddVideo(pendingPlaylistId, id)
+    }
+    setPlaylists((prev) => prev.map((p) => p.id === pendingPlaylistId ? { ...p, videoIds: [...new Set([...p.videoIds, ...ids])] } : p))
+    const targetId = pendingPlaylistId
+    setPendingPlaylistId(null)
+    setSelectMode(false)
+    setSelectedIds(new Set())
+    setActivePlaylistId(targetId)
+  }, [pendingPlaylistId, selectedIds])
+
+  /** 管理模式：批量从播放列表移除选中的影片 */
+  const handleRemoveSelectedFromPlaylist = useCallback(async () => {
+    if (!activePlaylistId || selectedIds.size === 0) return
+    const ids = [...selectedIds]
+    for (const id of ids) {
+      await api.playlistRemoveVideo(activePlaylistId, id)
+    }
+    setPlaylists((prev) => prev.map((p) => p.id === activePlaylistId ? { ...p, videoIds: p.videoIds.filter((id) => !ids.includes(id)) } : p))
+    setSelectMode(false)
+    setSelectedIds(new Set())
+  }, [activePlaylistId, selectedIds])
+
+  /** 拖动选择：mousedown 时决定是选择还是取消 */
+  const handleDragSelectStart = useCallback((id: string) => {
+    const willSelect = !selectedIds.has(id)
+    setDragSelectMode(willSelect ? 'select' : 'deselect')
+    toggleSelectId(id)
+  }, [selectedIds, toggleSelectId])
+
+  const handleDragSelectEnter = useCallback((id: string) => {
+    if (!dragSelectMode) return
+    setSelectedIds((prev) => {
+      const n = new Set(prev)
+      if (dragSelectMode === 'select') n.add(id)
+      else n.delete(id)
+      return n
+    })
+  }, [dragSelectMode])
+
+  // 全局 mouseup 结束拖动选择
+  useEffect(() => {
+    if (!dragSelectMode) return
+    const up = () => setDragSelectMode(null)
+    window.addEventListener('mouseup', up)
+    return () => window.removeEventListener('mouseup', up)
+  }, [dragSelectMode])
 
   // 离开浏览页 / 切换媒体库时退出多选，避免残留选中项
   useEffect(() => {
@@ -1759,7 +1883,7 @@ export default function App() {
   }
 
   return (
-    <ToastProvider>
+    <ToastProvider bottomOffset={progress ? 140 : 0}>
     <div
       className={`h-full flex flex-col text-white ${privacy ? 'privacy-on' : ''} density-${settings.posterDensity}`}
       style={{ contain: 'layout' }}
@@ -1779,6 +1903,7 @@ export default function App() {
         onTogglePrivacy={togglePrivacy}
         libraryName={currentLibrary?.name}
         onScan={handleScan}
+              onShowDuplicates={() => setShowDuplicates(true)}
         onBatchFetch={handleBatchFetch}
         onBatchProbe={handleBatchProbe}
       />
@@ -1850,6 +1975,12 @@ export default function App() {
           onOpenStats={() => setStatsOpen(true)}
           onOpenAbout={() => setAboutOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
+          playlists={playlists}
+          activePlaylistId={activePlaylistId}
+          onSelectPlaylist={handleSelectPlaylist}
+          onCreatePlaylist={handleCreatePlaylist}
+          onDeletePlaylist={handleDeletePlaylist}
+          onRenamePlaylist={handleRenamePlaylist}
         />
 
         <div className="flex-1 min-w-0">
@@ -1926,10 +2057,73 @@ export default function App() {
                 hasActiveFilters={hasActiveFilters}
                 selectMode={selectMode}
                 selectedCount={selectedIds.size}
-                onToggleSelectMode={toggleSelectMode}
+                onToggleSelectMode={activePlaylistId ? undefined : toggleSelectMode}
                 mismatch={mismatch}
                 onShowReconcile={() => setReconcileOpen(true)}
               />
+
+              {/* 播放列表：添加影片模式操作栏 */}
+              {pendingPlaylistId ? (
+                <div className="mb-3 flex items-center justify-between px-4 py-2.5 rounded-xl bg-brand/10 ring-1 ring-brand/30">
+                  <span className="text-sm text-brand font-medium">
+                    选择要添加到「{playlists.find((p) => p.id === pendingPlaylistId)?.name ?? ''}」的影片
+                    <span className="ml-2 text-brand/60">已选 {selectedIds.size} 部</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={selectAllVisible}>全选</button>
+                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => setSelectedIds(new Set())}>取消全选</button>
+                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={invertSelection}>反选</button>
+                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => { setPendingPlaylistId(null); setSelectMode(false); setSelectedIds(new Set()) }}>取消</button>
+                    <button className="h-8 px-3 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand/90 disabled:opacity-40" disabled={selectedIds.size === 0} onClick={() => void handleAddSelectedToPlaylist()}>添加选中 ({selectedIds.size})</button>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* 播放列表：管理模式（批量移除）操作栏 */}
+              {activePlaylistId && selectMode && !pendingPlaylistId ? (
+                <div className="mb-3 flex items-center justify-between px-4 py-2.5 rounded-xl bg-red-500/10 ring-1 ring-red-500/30">
+                  <span className="text-sm text-red-300 font-medium">
+                    选择要从「{playlists.find((p) => p.id === activePlaylistId)?.name ?? ''}」移除的影片
+                    <span className="ml-2 text-red-300/60">已选 {selectedIds.size} 部</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={selectAllVisible}>全选</button>
+                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => setSelectedIds(new Set())}>取消全选</button>
+                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={invertSelection}>反选</button>
+                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => { setSelectMode(false); setSelectedIds(new Set()) }}>取消</button>
+                    <button className="h-8 px-3 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 disabled:opacity-40" disabled={selectedIds.size === 0} onClick={() => void handleRemoveSelectedFromPlaylist()}>移除选中 ({selectedIds.size})</button>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* 播放列表：普通视图操作栏 */}
+              {activePlaylistId && !selectMode && !pendingPlaylistId ? (
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-white/60 text-sm">
+                    <Icon name="list" size={16} />
+                    <span className="font-medium text-white/80">{playlists.find((p) => p.id === activePlaylistId)?.name ?? ''}</span>
+                    <span>{filtered.length} 部影片</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 text-sm transition-colors" onClick={() => { setSelectedIds(new Set()); setSelectMode(true) }}>
+                      <Icon name="trash" size={14} />
+                      删除影片
+                    </button>
+                    <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-white/8 hover:bg-white/15 text-white text-sm transition-colors" onClick={() => { setPendingPlaylistId(activePlaylistId); setSelectedIds(new Set()); setSelectMode(true) }}>
+                      <Icon name="plus" size={14} />
+                      添加影片
+                    </button>
+                    <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-brand hover:bg-brand/90 text-white text-sm font-medium transition-colors" onClick={() => void handlePlayPlaylist()}>
+                      <Icon name="play" size={14} />
+                      播放全部
+                    </button>
+                    <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 text-sm transition-colors" onClick={() => activePlaylistId && void handleDeletePlaylist(activePlaylistId)}>
+                      <Icon name="trash" size={14} />
+                      删除列表
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               {/* 活跃筛选条：多维筛选可视化，可单独移除 */}
               {(metaSelectedCount + techSelectedCount) > 0 ? (
@@ -2042,6 +2236,34 @@ export default function App() {
                     selectable={selectMode}
                     selectedIds={selectedIds}
                     onToggleSelect={toggleSelectId}
+                    playlists={playlists}
+                    onAddToPlaylist={handleAddToPlaylist}
+                    activePlaylistId={activePlaylistId}
+                    onRemoveFromPlaylist={handleRemoveFromPlaylist}
+                    onDragStart={(id) => {
+                      if (!activePlaylistId) return
+                      const pl = playlists.find((p) => p.id === activePlaylistId)
+                      if (!pl) return
+                      const idx = pl.videoIds.indexOf(id)
+                      return idx >= 0 ? String(idx) : undefined
+                    }}
+                    onDragOver={(e: React.DragEvent) => e.preventDefault()}
+                    onDrop={(targetId: string, fromIdxStr: string) => {
+                      if (!activePlaylistId || !fromIdxStr) return
+                      const pl = playlists.find((p) => p.id === activePlaylistId)
+                      if (!pl) return
+                      const fromIdx = parseInt(fromIdxStr, 10)
+                      const toIdx = pl.videoIds.indexOf(targetId)
+                      if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return
+                      const next = [...pl.videoIds]
+                      const [moved] = next.splice(fromIdx, 1)
+                      next.splice(toIdx, 0, moved)
+                      void handleReorderPlaylist(activePlaylistId, next)
+                    }}
+                    onDragSelectStart={handleDragSelectStart}
+                    onDragSelectEnter={handleDragSelectEnter}
+                    dragSelectActive={!!dragSelectMode}
+                    inPlaylistIds={pendingPlaylistVideoIds ?? undefined}
                   />
                 )}
               </div>
@@ -2138,6 +2360,7 @@ export default function App() {
       {detail ? (
         <VideoDetail
           video={detail}
+        onAddToPlaylist={handleAddToPlaylist}
           onClose={() => setDetail(null)}
           onPlay={(v) => {
             setDetail(null)
@@ -2474,6 +2697,9 @@ export default function App() {
       )}
 
     </div>
+      {showDuplicates && libraryId ? (
+        <DuplicateModal onClose={() => setShowDuplicates(false)} libraryId={libraryId} />
+      ) : null}
     </ToastProvider>
   )
 }
