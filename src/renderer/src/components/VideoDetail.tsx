@@ -1046,6 +1046,20 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                           {formatDuration((r.video?.durationSec ?? r.video?.techInfo?.durationSec)!)}
                         </span>
                       ) : null}
+                      {/* hover 时显示影片标签 */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-2 flex flex-col justify-end">
+                        {(() => {
+                          const relTags = primaryTags({ tags: r.tags, tagCategories: r.tagCategories })
+                          if (!relTags.length) return null
+                          return (
+                            <div className="flex flex-wrap gap-1">
+                              {relTags.slice(0, 6).map((tag) => (
+                                <span key={tag} className="px-1.5 py-0.5 rounded bg-brand/25 text-brand text-[10px] font-medium">{tag}</span>
+                              ))}
+                            </div>
+                          )
+                        })()}
+                      </div>
                     </div>
                     {/* 基本信息：标题 + 年份 + 评分 */}
                     <div className="px-1.5 py-1.5 flex flex-col gap-0.5">
