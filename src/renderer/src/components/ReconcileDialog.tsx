@@ -327,6 +327,7 @@ export default function ReconcileDialog({
                       </button>
                     ) : null}
                   </div>
+                </div>
               </section>
 
               {/* ===== Step 3：更新片单 Excel ===== */}
