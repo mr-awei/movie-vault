@@ -705,8 +705,21 @@ export default function App() {
         list = list.filter((e) => e.category === '未收录')
         break
     }
+    // 播放列表筛选 + 按列表顺序排序
+    if (activePlaylistId && !pendingPlaylistId) {
+      const pl = playlists.find((p) => p.id === activePlaylistId)
+      if (pl) {
+        const orderMap = new Map(pl.videoIds.map((id, i) => [id, i]))
+        list = list.filter((e) => e.video?.id && orderMap.has(e.video.id))
+        list = list.slice().sort((a, b) => {
+          const ai = orderMap.get(a.video!.id) ?? 0
+          const bi = orderMap.get(b.video!.id) ?? 0
+          return ai - bi
+        })
+      }
+    }
     return list
-  }, [applyMetaFilters, smart])
+  }, [applyMetaFilters, smart, activePlaylistId, pendingPlaylistId, playlists])
 
   // 客户端排序（在 applySmart 基础上 + category 过滤）
   const filtered = useMemo(() => {
