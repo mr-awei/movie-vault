@@ -199,7 +199,7 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
   return (
     <div
       ref={cardRef}
-      className={`entry-card entry-${aspect} group relative rounded-xl overflow-hidden cursor-pointer bg-ink-800 ring-1 w-full min-w-0 ${
+      className={`entry-card entry-${aspect} group relative rounded-xl overflow-hidden cursor-pointer bg-ink-800 ring-1 w-full min-w-0 hover:z-10 ${
         selected ? 'ring-brand ring-2' : 'ring-white/5'
       } ${isMissing ? 'opacity-80' : ''}`}
       onClick={() => {
@@ -456,7 +456,7 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
       {preview && !isMissing
         ? createPortal(
             <div
-              className="fixed z-[70] w-[360px] rounded-xl bg-ink-800 ring-1 ring-white/10 shadow-2xl shadow-black/50 overflow-hidden animate-fadeIn-fast cursor-pointer no-drag"
+              className="fixed z-[9999] w-[360px] rounded-xl bg-ink-800 ring-1 ring-white/10 shadow-2xl shadow-black/50 overflow-hidden animate-fadeIn-fast cursor-pointer no-drag"
               style={{ left: preview.x, top: preview.y }}
               onMouseEnter={cancelClose}
               onMouseLeave={scheduleClose}
