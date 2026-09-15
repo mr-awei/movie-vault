@@ -10,7 +10,7 @@ import type {
   Video,
   ViewMode
 } from '../../shared/types'
-import { DEFAULT_IMAGE_PRIORITY, DEFAULT_SETTINGS, entryPrimaryTags, flattenAllTags, hasDocTags } from '../../shared/types'
+import { DEFAULT_IMAGE_PRIORITY, DEFAULT_SETTINGS, entryPrimaryTags, flattenAllTags, hasDocTags, splitHierarchicalTag } from '../../shared/types'
 import { displayTitle } from './lib/util'
 import { categorizeTag } from '../../shared/tagCategories'
 import { api } from './lib/api'
@@ -531,13 +531,15 @@ export default function App() {
       const cats = e.tagCategories ?? {}
       for (const [cat, list] of Object.entries(cats)) {
         ensureCat(cat)
-        for (const t of list) {
+        for (const raw of list) {
+          for (const t of splitHierarchicalTag(raw)) {
           const k = counts.get(t)
           if (k) {
             k.count++
             if (k.category === '其他') k.category = cat
           } else {
             counts.set(t, { count: 1, category: cat })
+          }
           }
         }
       }
@@ -552,7 +554,8 @@ export default function App() {
       // 无文档标签时按字典兜底归类（因为它会作为主标签展示）
       const back = e.video?.backupTags ?? []
       const hasDoc = hasDocTags({ tags: e.tags, tagCategories: e.tagCategories })
-      for (const t of back) {
+      for (const raw of back) {
+        for (const t of splitHierarchicalTag(raw)) {
         const existing = counts.get(t)
         if (existing) {
           existing.count++
@@ -562,6 +565,7 @@ export default function App() {
         const cat = hasDoc ? '备用来源' : categorizeTag(t)
         ensureCat(cat)
         counts.set(t, { count: 1, category: cat })
+        }
       }
     }
     catOrder.push('其他')

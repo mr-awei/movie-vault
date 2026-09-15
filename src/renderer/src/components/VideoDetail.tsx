@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DisplayEntry, MovieMeta, Playlist, Video } from '../../../shared/types'
-import { hasDocTags, primaryTags, NON_TAG_CATEGORY_NAMES } from '../../../shared/types'
+import { hasDocTags, primaryTags, NON_TAG_CATEGORY_NAMES, splitHierarchicalTag } from '../../../shared/types'
 import { posterUrl, placeholderGradient, titleInitial, formatSize, formatDuration, resolveEntryPoster, pureTitle, stringToMutedColor } from '../lib/util'
 import { useFrameFallback } from '../lib/frameFallback'
 import { api } from '../lib/api'
@@ -749,7 +749,7 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                     const norm = normalizeCat(name)
                     if (!norm) continue
                     if (NON_TAG_CATEGORY_NAMES.has(norm)) continue
-                    const list = Array.from(new Set((rawList ?? []).map(t => t?.trim() ?? '').filter(Boolean)))
+                    const list = Array.from(new Set((rawList ?? []).map(t => t?.trim() ?? '').filter(Boolean).flatMap(t => splitHierarchicalTag(t))))
                     if (!list.length) continue
                     if (seen.has(norm)) continue
                     seen.add(norm)

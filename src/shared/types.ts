@@ -548,6 +548,11 @@ export const NON_TAG_CATEGORY_NAMES = new Set([
   '推荐', '描述', 'desc', 'description', 'summary'
 ])
 
+/** 拆分多级标签：把 "古装/欲望/夫妻" 拆成 ["古装", "欲望", "夫妻"]，去空去重 */
+export function splitHierarchicalTag(tag: string): string[] {
+  return tag.split(/[\/\\]/).map(t => t.trim()).filter(Boolean)
+}
+
 /** 视频的「主标签源」扁平化列表：
  *  - 有文档结构化 tagCategories → 优先按分类顺序合并去重
  *  - 退化 → tags（片单平铺标签或旧数据）
@@ -565,9 +570,9 @@ export function primaryTags(v: { tags?: string[]; tagCategories?: Record<string,
         if (trimmed) set.add(trimmed)                         // trim + 去空字符串
       }
     }
-    if (set.size) return [...set]
+    if (set.size) return [...set].flatMap(splitHierarchicalTag)
   }
-  return (v.tags ?? []).map(t => t?.trim() ?? '').filter(Boolean)
+  return (v.tags ?? []).map(t => t?.trim() ?? '').filter(Boolean).flatMap(splitHierarchicalTag)
 }
 
 /** DisplayEntry 的「主标签源」扁平化列表（优先 entry.tagCategories，退化 entry.tags）。
@@ -598,7 +603,7 @@ export function flattenAllTags(v: { tags?: string[]; tagCategories?: Record<stri
   const p = primaryTags({ tags: v.tags, tagCategories: v.tagCategories })
   for (const t of p) set.add(t)
   for (const t of v.backupTags ?? []) set.add(t)
-  return [...set]
+  return [...set].flatMap(splitHierarchicalTag)
 }
 
 // ---------- v2.9.0 新增类型 ----------
