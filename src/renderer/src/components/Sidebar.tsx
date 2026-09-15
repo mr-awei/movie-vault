@@ -134,12 +134,23 @@ function Section({
   active?: boolean
   grow?: boolean
 }) {
-  const [open, setOpen] = useState(defaultOpen)
+  const storageKey = `sidebar_section_${title}`
+  const [open, setOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem(storageKey)
+      return saved !== null ? saved === 'true' : defaultOpen
+    } catch { return defaultOpen }
+  })
+  const toggleOpen = () => setOpen((o) => {
+    const next = !o
+    try { localStorage.setItem(storageKey, String(next)) } catch {}
+    return next
+  })
   return (
     <div className={`border-b border-white/5 last:border-b-0 ${grow ? 'flex flex-col flex-1 min-h-0' : ''}`}>
       <button
         className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-ink-800/40 transition-colors"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleOpen}
         title={open ? t('sidebar.collapseSection') : t('sidebar.expandSection')}
       >
         <div className={`flex items-center gap-1.5 font-semibold text-[12px] ${active ? 'text-brand' : 'text-white/90'}`}>
