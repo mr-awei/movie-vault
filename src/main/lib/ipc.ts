@@ -5,7 +5,7 @@ import type { ReconcileResult } from '../../shared/types'
 import * as repo from './repo'
 import { scanLibrary, walk } from './scanner'
 import path from 'node:path'
-import { readFileSync, promises as fs, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, promises as fs, existsSync } from 'node:fs'
 import * as XLSX from 'xlsx'
 import { spawn } from 'node:child_process'
 import { reconcileLibrary } from './reconcile'
@@ -656,7 +656,7 @@ export function registerIpc(): void {
     const settings = await repo.getSettings()
     return scanLibrary(lib, settings, emitProgress)
   })
-  ipcMain.handle(IPC.videoOpen, async (_e, id: string) => {
+  ipcMain.handle(IPC.videoOpen, async (_e, id: string) => {
     const v = await repo.getVideo(id)
     if (!v) throw new Error('视频不存在')
     const settings = await repo.getSettings()
@@ -1350,7 +1350,7 @@ export function registerIpc(): void {
         XLSX.utils.book_append_sheet(wb, ws, '片单')
         XLSX.writeFile(wb, filePath)
       } else {
-        fs.writeFileSync(filePath, codes.join('\n'), 'utf-8')
+        writeFileSync(filePath, codes.join('\n'), 'utf-8')
         console.log('[exportCodes] txt written:', filePath, 'codes:', codes.length)
       }
       return { ok: true, path: filePath }
