@@ -313,7 +313,7 @@ export default function ReconcileDialog({
                   ) : null}
                     {onOpenSpec ? (
                       <button onClick={onOpenSpec} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-white/5 text-white/80 ring-1 ring-white/10 hover:bg-white/10 transition shrink-0">
-                        <Icon name="fileText" size={14} />查看完整规范
+                        <Icon name="info" size={14} />查看完整规范
                       </button>
                     ) : null}
                     {onRevealSpec ? (

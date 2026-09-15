@@ -324,9 +324,12 @@ export default function OnboardSheetModal({
                   </button>
                 </div>
                 {savedAt && (
-                  <p className="text-white/40 text-xs break-all">
+                  <p className="text-emerald-400/80 text-xs break-all">
                     {t('onboard.step1.savedAt', { path: savedAt })}
                   </p>
+                )}
+                {exportError && (
+                  <p className="text-rose-400/90 text-xs break-all">{exportError}</p>
                 )}
               </div>
             ) : (
