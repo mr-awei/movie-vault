@@ -408,7 +408,7 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
 
         {/* 时长角标（右下角悬浮，位于底部信息条上方避免重叠） */}
         {entry.video?.durationSec ?? entry.video?.techInfo?.durationSec ? (
-          <span className="absolute bottom-9 right-1.5 px-2 py-0.5 rounded-md bg-black/85 backdrop-blur-sm text-white text-[11px] font-semibold tabular-nums z-[5] ring-1 ring-white/15 shadow-lg shadow-black/40">
+          <span className="absolute bottom-9 right-1.5 px-2 py-0.5 rounded-md bg-zinc-900 text-white text-[11px] font-bold tabular-nums z-[5] ring-1 ring-white/25 shadow-md shadow-black/50">
             {formatDuration((entry.video?.durationSec ?? entry.video?.techInfo?.durationSec)!)}
           </span>
         ) : null}
