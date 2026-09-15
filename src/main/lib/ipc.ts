@@ -1315,6 +1315,7 @@ export function registerIpc(): void {
 
   // ---------- 导出影片清单（txt 或 xlsx 模板）----------
   ipcMain.handle(IPC.libraryExportCodes, async (_e, libraryId: string, format: 'txt' | 'xlsx') => {
+    console.log('[exportCodes] called:', { libraryId, format })
     const lib = (await repo.listLibraries()).find((l) => l.id === libraryId)
     if (!lib) return { ok: false, error: 'library-not-found' }
     // 复用上面的 walk + 提取文件名逻辑
@@ -1340,6 +1341,7 @@ export function registerIpc(): void {
         ? [{ name: 'Excel', extensions: ['xlsx'] }]
         : [{ name: 'Text', extensions: ['txt'] }]
     })
+    console.log('[exportCodes] save dialog result:', { canceled, filePath, codesCount: codes.length })
     if (canceled || !filePath) return { ok: false, error: 'canceled' }
     try {
       if (format === 'xlsx') {
@@ -1348,7 +1350,9 @@ export function registerIpc(): void {
         codes.forEach((title, idx) => rows.push([String(idx + 1), title, '', '', '', '']))
         const ws = XLSX.utils.aoa_to_sheet(rows)
         XLSX.utils.book_append_sheet(wb, ws, '片单')
-        XLSX.writeFile(wb, filePath)
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' })
+        writeFileSync(filePath, wbout)
+        console.log('[exportCodes] xlsx written:', filePath, 'rows:', rows.length, 'codes:', codes.length)
       } else {
         writeFileSync(filePath, codes.join('\n'), 'utf-8')
         console.log('[exportCodes] txt written:', filePath, 'codes:', codes.length)
