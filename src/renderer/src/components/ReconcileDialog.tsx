@@ -30,6 +30,10 @@ interface Props {
   onOpenExternal?: (url: string) => void
   /** 关闭对账弹窗并打开库设置（片单 Excel tab），用于重新加载/配置片单 */
   onOpenLibrarySettings?: () => void
+  /** 打开完整规范 */
+  onOpenSpec?: () => void
+  /** 打开规范文件位置 */
+  onRevealSpec?: () => void
 }
 
 export default function ReconcileDialog({

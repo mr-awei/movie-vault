@@ -204,11 +204,16 @@ export default function OnboardSheetModal({
     if (!library) return
     setExporting(fmt)
     setSavedAt('')
+    setExportError('')
     try {
       const r = await onExportCodes(library.id, fmt)
-      if (r.ok && r.path) setSavedAt(r.path)
-    } catch {
-      /* ignore — handler 已返回 ok:false */
+      if (r.ok && r.path) {
+        setSavedAt(r.path)
+      } else if (r.error && r.error !== 'canceled') {
+        setExportError('导出失败：' + r.error)
+      }
+    } catch (e) {
+      setExportError('导出异常：' + String(e))
     } finally {
       setExporting(null)
     }
