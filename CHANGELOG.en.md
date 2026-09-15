@@ -10,6 +10,27 @@ Change types: `Added` / `Changed` / `Fixed` / `Removed` / `Security`.
 
 ---
 
+## [2.9.0] - 2026-09-16
+
+**Full playlist feature + hierarchical tag splitting + sidebar state persistence**
+
+### Added
+- **Full playlist feature**: create/delete/rename, right-click add to playlist, detail page "Add to Playlist" button, playlist view action bar (Add/Remove videos, Play All), drag-to-reorder, multi-select delete, added-video indicator
+- **Hierarchical tag auto-splitting**: "古装/欲望/夫妻" automatically splits into three independent tags. Both filter panel and detail page use split tags; clicking a sub-tag filters all videos containing that tag
+- **Sidebar state persistence**: expand/collapse state of each section (Library/Filter/My Lists/Playlists/Pending) and scroll position within each section are saved to localStorage and restored on next launch
+- **Duplicate detection moved to top toolbar**: common feature elevated next to Scan Library, hover shows tooltip
+
+### Changed
+- **Sidebar layout**: Playlists and My Lists moved from before Filter to after Filter
+- **Sidebar default state**: Filter expanded by default, all other sections collapsed
+- **Tag button style**: increased spacing, borders, optimized width for more tags per row
+- **Removed Boxset/Collection feature**: duplicated with Playlists, removed per user request
+
+### Fixed
+- Numerous playlist bugs: no file selection after create, playlist showing all videos, empty playlist cannot add files, occasional input field unresponsive, selection cancels immediately, play button unresponsive, PotPlayer no resume playback, Sidebar playlists undefined crash, etc.
+- Overlapping dialogs
+- Excess blank space below collapsed Filter section
+
 ## [2.8.6] - 2026-09-15
 
 **Excel sheet as single source of truth + preview frame algorithm rewrite + multiple UX fixes**
