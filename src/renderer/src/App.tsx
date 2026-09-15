@@ -2042,7 +2042,7 @@ export default function App() {
               viewMode={viewMode}
               onSetView={setViewMode}
             />
-          ) : filtered.length === 0 ? (
+          ) : filtered.length === 0 && !activePlaylistId ? (
             <div className="h-full flex flex-col items-center justify-center text-white/40 text-sm px-6 text-center animate-fadeIn">
               <div className="w-14 h-14 rounded-2xl bg-ink-800 ring-1 ring-white/5 flex items-center justify-center mb-4">
                 <Icon name="search" size={26} />
@@ -2563,7 +2563,7 @@ export default function App() {
       )}
 
       {/* v2.7.x：多选批量锁定操作条 */}
-      {selectMode && view === 'browse' ? (
+      {selectMode && !activePlaylistId && !pendingPlaylistId && view === 'browse' ? (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[65] flex items-center gap-2 px-3 py-2 rounded-2xl bg-ink-850/95 ring-1 ring-white/15 shadow-2xl shadow-black/60 backdrop-blur-sm animate-fadeIn-fast">
           <span className="text-sm text-white/80 px-1 whitespace-nowrap">{t('lock.selectedCount', { count: selectedIds.size })}</span>
           <button
