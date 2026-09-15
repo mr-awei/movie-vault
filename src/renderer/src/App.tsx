@@ -723,7 +723,7 @@ export default function App() {
       return ((a.video?.addedAt ?? 0) - (b.video?.addedAt ?? 0)) * dir
     })
     return list
-  }, [applySmart, filter.category, filter.sort, filter.desc])
+  }, [applySmart, filter.category, filter.sort, filter.desc, activePlaylistId, pendingPlaylistId, playlists])
 
   // 添加影片模式下，当前播放列表已有的影片 ID 集合
   const pendingPlaylistVideoIds = useMemo(() => {
