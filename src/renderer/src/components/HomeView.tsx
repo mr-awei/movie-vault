@@ -155,13 +155,28 @@ export default function HomeView({ entries, onOpen, onEdit, onOpenMissing, onTog
     )
   }
 
+  // 快速缩放时强制重渲染，避免布局重绘不及时出现黑边
+  const [, setResizeTick] = useState(0)
+  useEffect(() => {
+    let raf = 0
+    const onResize = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => setResizeTick((t) => t + 1))
+    }
+    window.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      cancelAnimationFrame(raf)
+    }
+  }, [])
+
   const heroV = hero?.video
   const heroTitle = hero ? displayTitle(hero) : heroV?.title ?? ''
   const heroPoster = resolveEntryPoster(heroV)
   const heroSrc = heroPoster ? posterUrl(heroPoster, heroV?.coverVersion) : null
 
   return (
-    <div className="h-full overflow-auto thin-scroll p-5 animate-fadeIn" style={{ contain: 'layout' }}>
+    <div className="h-full overflow-auto thin-scroll p-5 animate-fadeIn">
       {/* Hero 推荐位 - 整张点击播放；海报氛围充满 300px，左下紧凑布局，背景用真实海报图（非纯模糊），右上 chip+刷新 */}
       {heroV ? (
         <div
