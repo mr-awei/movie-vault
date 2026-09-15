@@ -1349,11 +1349,12 @@ export function registerIpc(): void {
         const rows: string[][] = [['编号', '标题', '年份', '分类', '推荐评分', '简介', '主题', '地区', '系列']]
         codes.forEach((title, idx) => rows.push([String(idx + 1), title, '', '', '', '', '', '', '']))
         const ws = XLSX.utils.aoa_to_sheet(rows)
-        // 列宽自适应：标题列按最长标题+4字符空隙，简介列固定宽
-        const maxTitleLen = codes.reduce((max, t) => Math.max(max, [...t].length), 4)
+        // 列宽自适应：中文按2宽度计算，标题列按最长标题+6空隙
+        const displayWidth = (s: string) => [...s].reduce((w, ch) => w + (/[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/.test(ch) ? 2 : 1), 0)
+        const maxTitleW = codes.reduce((max, t) => Math.max(max, displayWidth(t)), 8)
         ws['!cols'] = [
           { wch: 6 },   // 编号
-          { wch: maxTitleLen + 4 },  // 标题（自适应+空隙）
+          { wch: maxTitleW + 6 },  // 标题（自适应+空隙）
           { wch: 8 },   // 年份
           { wch: 10 },  // 分类
           { wch: 10 },  // 推荐评分
