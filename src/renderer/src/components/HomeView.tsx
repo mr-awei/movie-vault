@@ -1,6 +1,6 @@
 ﻿import { useMemo, useState } from 'react'
 import type { DisplayEntry, Video } from '../../../shared/types'
-import { posterUrl, placeholderGradient, titleInitial, titleSecondary, displayTitle } from '../lib/util'
+import { posterUrl, placeholderGradient, titleInitial, titleSecondary, displayTitle, resolveEntryPoster } from '../lib/util'
 import { api } from '../lib/api'
 import { t } from '../../../shared/i18n'
 import EntryCard from './EntryCard'
@@ -157,7 +157,8 @@ export default function HomeView({ entries, onOpen, onEdit, onOpenMissing, onTog
 
   const heroV = hero?.video
   const heroTitle = hero ? displayTitle(hero) : heroV?.title ?? ''
-  const heroSrc = heroV?.posterPath ? posterUrl(heroV.posterPath, heroV.coverVersion) : null
+  const heroPoster = resolveEntryPoster(heroV)
+  const heroSrc = heroPoster ? posterUrl(heroPoster, heroV.coverVersion) : null
 
   return (
     <div className="h-full overflow-auto thin-scroll p-5 animate-fadeIn" style={{ contain: 'layout' }}>
