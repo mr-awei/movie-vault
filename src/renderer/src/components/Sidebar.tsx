@@ -470,7 +470,7 @@ function SidebarInner(props: Props) {
         </div>
 
         {/* 媒体库 */}
-        <Section title={t('sidebar.library')} icon="folder" active={false}>
+        <Section title={t('sidebar.library')} icon="folder" active={false} defaultOpen={false}>
           <div className="flex flex-col gap-0.5">
             <div className="flex flex-col gap-0.5 max-h-[320px] overflow-auto thin-scroll -mr-1 pr-1">
               {libraries.length === 0 ? (
@@ -520,7 +520,7 @@ function SidebarInner(props: Props) {
         </Section>
         {/* 待处理（系统诊断 / 差异视图） */}
         {/* 筛选：合并为可折叠 Tab 组，默认收起，显著降低首屏高度 */}
-        <Section title={t('sidebar.filter')} icon="sliders" count={filterCount} onClear={clearAllFilters} active={filterCount > 0} defaultOpen={false}>
+        <Section title={t('sidebar.filter')} icon="sliders" count={filterCount} onClear={clearAllFilters} active={filterCount > 0} defaultOpen={true}>
           <div className="flex flex-wrap gap-1 mb-2 shrink-0">
             {FILTER_TABS.map((tab) => {
               const sel = filterTab === tab.key
@@ -727,7 +727,7 @@ function SidebarInner(props: Props) {
           ) : null}
         </Section>
         {/* 我的清单（用户主动创建的视图） */}
-        <Section title={t('sidebar.myLists')} icon="heart">
+        <Section title={t('sidebar.myLists')} icon="heart" defaultOpen={false}>
           <div className="flex flex-col gap-0.5">
             <NavItem icon="heart" label={t('sidebar.favorites')} badge={favoriteCount} active={view === 'browse' && smart === 'favorite'} onClick={() => onNav('browse', 'favorite')} />
             <NavItem icon="clock" label={t('sidebar.recentPlayed')} badge={recentCount} active={view === 'browse' && smart === 'recent'} onClick={() => onNav('browse', 'recent')} />
@@ -736,7 +736,7 @@ function SidebarInner(props: Props) {
 
 
         {/* 播放列表 */}
-        <Section title="播放列表" icon="list">
+        <Section title="播放列表" icon="list" defaultOpen={false}>
           <div className="flex flex-col gap-0.5">
             {playlists.map((pl) => (
               editingPlaylistId === pl.id ? (
@@ -814,7 +814,7 @@ function SidebarInner(props: Props) {
           </div>
         </Section>
 
-        <Section title={t('sidebar.pending')} icon="alert">
+        <Section title={t('sidebar.pending')} icon="alert" defaultOpen={false}>
           <div className="flex flex-col gap-0.5">
             <NavItem
               icon="alert"
