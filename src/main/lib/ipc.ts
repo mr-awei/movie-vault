@@ -1349,6 +1349,19 @@ export function registerIpc(): void {
         const rows: string[][] = [['编号', '标题', '年份', '分类', '推荐评分', '简介', '主题', '地区', '系列']]
         codes.forEach((title, idx) => rows.push([String(idx + 1), title, '', '', '', '', '', '', '']))
         const ws = XLSX.utils.aoa_to_sheet(rows)
+        // 列宽自适应：标题列按最长标题+4字符空隙，简介列固定宽
+        const maxTitleLen = codes.reduce((max, t) => Math.max(max, [...t].length), 4)
+        ws['!cols'] = [
+          { wch: 6 },   // 编号
+          { wch: maxTitleLen + 4 },  // 标题（自适应+空隙）
+          { wch: 8 },   // 年份
+          { wch: 10 },  // 分类
+          { wch: 10 },  // 推荐评分
+          { wch: 60 },  // 简介
+          { wch: 20 },  // 主题
+          { wch: 12 },  // 地区
+          { wch: 12 },  // 系列
+        ]
         XLSX.utils.book_append_sheet(wb, ws, '片单')
         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' })
         writeFileSync(filePath, wbout)
