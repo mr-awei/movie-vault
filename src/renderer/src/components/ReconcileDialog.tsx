@@ -306,15 +306,16 @@ export default function ReconcileDialog({
                       {fullPrompt}
                     </pre>
                   </div>
-                  {onOpenExternal ? (
-                    <button
-                      onClick={() => onOpenExternal(GROK_URL)}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-brand text-ink-900 font-medium hover:bg-brand/90 transition shrink-0"
-                    >
-                      <Icon name="external" size={14} />
-                      {t('reconcile.step2.openGrok')}
-                    </button>
-                  ) : null}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {onOpenExternal ? (
+                      <button
+                        onClick={() => onOpenExternal(GROK_URL)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-brand text-ink-900 font-medium hover:bg-brand/90 transition shrink-0"
+                      >
+                        <Icon name="external" size={14} />
+                        {t('reconcile.step2.openGrok')}
+                      </button>
+                    ) : null}
                     {onOpenSpec ? (
                       <button onClick={onOpenSpec} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-white/5 text-white/80 ring-1 ring-white/10 hover:bg-white/10 transition shrink-0">
                         <Icon name="info" size={14} />查看完整规范
@@ -325,7 +326,7 @@ export default function ReconcileDialog({
                         <Icon name="folder" size={14} />打开规范文件位置
                       </button>
                     ) : null}
-                </div>
+                  </div>
               </section>
 
               {/* ===== Step 3：更新片单 Excel ===== */}
