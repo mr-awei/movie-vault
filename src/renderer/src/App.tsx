@@ -2333,6 +2333,18 @@ export default function App() {
             setAddingLibrary(false)
           }
         }}
+        onOpenSpec={async () => {
+          try {
+            const r = await window.api.specGet()
+            if (r.path) window.api.openPath(r.path)
+          } catch {}
+        }}
+        onRevealSpec={async () => {
+          try {
+            const r = await window.api.specGet()
+            if (r.path) window.api.shellRevealInFolder(r.path)
+          } catch {}
+        }}
       />
 
       <LibraryModal
