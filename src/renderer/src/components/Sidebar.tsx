@@ -518,7 +518,6 @@ function SidebarInner(props: Props) {
             </button>
           </div>
         </Section>
-
         {/* 我的清单（用户主动创建的视图） */}
         <Section title={t('sidebar.myLists')} icon="heart">
           <div className="flex flex-col gap-0.5">
@@ -527,9 +526,10 @@ function SidebarInner(props: Props) {
           </div>
         </Section>
 
+
         {/* 待处理（系统诊断 / 差异视图） */}
         {/* 筛选：合并为可折叠 Tab 组，默认收起，显著降低首屏高度 */}
-        <Section title={t('sidebar.filter')} icon="sliders" count={filterCount} onClear={clearAllFilters} active={filterCount > 0} defaultOpen={false} grow>
+        <Section title={t('sidebar.filter')} icon="sliders" count={filterCount} onClear={clearAllFilters} active={filterCount > 0} defaultOpen={false}>
           <div className="flex flex-wrap gap-1 mb-2 shrink-0">
             {FILTER_TABS.map((tab) => {
               const sel = filterTab === tab.key
