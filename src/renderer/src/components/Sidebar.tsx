@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, useRef, useEffect, type ReactNode } from 'react'
+﻿import { memo, useMemo, useState, useRef, useEffect, type ReactNode } from 'react'
 import type { Library, Settings, Playlist } from '../../../shared/types'
 import Icon, { type IconName } from './Icon'
 import { t } from '../../../shared/i18n'
@@ -321,7 +321,7 @@ function SidebarInner(props: Props) {
     onToggleResolution, onToggleDuration, onToggleScore, onToggleYear,
     onClearResolutions, onClearDurations, onClearScores, onClearYears, onClearTechFilters,
     collapsed, onToggleCollapsed,
-    playlists, activePlaylistId, onSelectPlaylist, onCreatePlaylist, onDeletePlaylist, onRenamePlaylist,
+    playlists = [], activePlaylistId, onSelectPlaylist, onCreatePlaylist, onDeletePlaylist, onRenamePlaylist,
     onOpenStats, onOpenAbout, onOpenSettings
   } = props
 

@@ -237,7 +237,7 @@ export default function App() {
       setLibraries(libs)
       setSettings(s)
       setAppInfo(info)
-      setPlaylists(pls)
+      setPlaylists(pls ?? [])
       // 隐私护盾默认开（仅在用户从未手动设置过时生效）
       if (s.privacyDefaultOn && localStorage.getItem('vm-privacy') === null) setPrivacy(true)
       // 默认排序（仅当用户还没手动改过排序时应用）
