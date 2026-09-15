@@ -1,6 +1,6 @@
 ﻿import type { IntroDoc, IntroItem } from '../../shared/types'
 // SheetJS：读取 xlsx。xlsx 解析是主进程侧依赖（electron-builder 打进 app.asar）。
-import * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx-js-style'
 import { promises as fs, readFileSync } from 'node:fs'
 import { cleanGenreName } from './image-util'
 

@@ -20,7 +20,8 @@
     "socks": "^2.8.9",
     "socks-proxy-agent": "^8.0.5",
     "undici": "^6.28.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@esbuild/win32-x64": "^0.28.2",
