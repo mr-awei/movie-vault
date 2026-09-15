@@ -1363,6 +1363,17 @@ export function registerIpc(): void {
           { wch: 12 },  // 地区
           { wch: 12 },  // 系列
         ]
+        // 所有单元格水平+垂直居中对齐
+        const range = XLSX.utils.decode_range(ws['!ref'] || '')
+        for (let R = range.s.r; R <= range.e.r; R++) {
+          for (let C = range.s.c; C <= range.e.c; C++) {
+            const addr = XLSX.utils.encode_cell({ r: R, c: C })
+            const cell = ws[addr]
+            if (cell) {
+              cell.s = { ...(cell.s || {}), alignment: { vertical: 'center', horizontal: 'center', wrapText: true } }
+            }
+          }
+        }
         XLSX.utils.book_append_sheet(wb, ws, '片单')
         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' })
         writeFileSync(filePath, wbout)
