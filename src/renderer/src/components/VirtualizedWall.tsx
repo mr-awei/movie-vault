@@ -60,6 +60,7 @@ function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag
   const [scrollTop, setScrollTop] = useState(0)
   const [minPosterW, setMinPosterW] = useState(150)
   const rafRef = useRef(0)
+  const resizeRafRef = useRef(0)
 
   // 容器尺寸 + 海报最小列宽（--poster-min，随主题/密度变化）
   useLayoutEffect(() => {
@@ -67,9 +68,12 @@ function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag
     if (!el) return
     const readMinW = () => parseInt(getComputedStyle(el).getPropertyValue('--poster-min')) || 150
     const measure = () => {
-      setWidth(el.clientWidth)
-      setHeight(el.clientHeight)
-      setMinPosterW(readMinW())
+      cancelAnimationFrame(resizeRafRef.current)
+      resizeRafRef.current = requestAnimationFrame(() => {
+        setWidth(el.clientWidth)
+        setHeight(el.clientHeight)
+        setMinPosterW(readMinW())
+      })
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -85,6 +89,7 @@ function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag
       ro.disconnect()
       mo.disconnect()
       cancelAnimationFrame(rafRef.current)
+      cancelAnimationFrame(resizeRafRef.current)
     }
   }, [])
 

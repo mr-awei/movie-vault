@@ -1,7 +1,7 @@
 {
   "name": "local-movie-vault",
   "productName": "影海",
-  "version": "2.9.1",
+  "version": "2.9.2",
   "description": "Local-only video library manager — poster wall, hover preview, local playback, zero cloud uploads, privacy-first",
   "type": "module",
   "main": "out/main/index.js",

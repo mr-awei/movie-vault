@@ -10,6 +10,27 @@ Change types: `Added` / `Changed` / `Fixed` / `Removed` / `Security`.
 
 ---
 
+## [2.9.2] - 2026-09-16
+
+**Export Excel improvements + Reconcile dialog spec buttons + poster consistency fix**
+
+### Added
+- **Reconcile dialog spec buttons**: Step 2 now has "View full spec" and "Reveal spec file location" buttons, consistent with the onboard sheet wizard
+- **Related recommendation hover tags**: Hovering related recommendation cards shows gradient overlay + movie tags (brand-colored chips)
+- **Export Excel cell styling**: All content horizontally + vertically centered with text wrap; switched to xlsx-js-style for style support
+
+### Changed
+- **Export Excel headers**: Expanded from 6 to 9 columns (ID/Title/Year/Category/Rating/Synopsis/Theme/Region/Series), matching reference format
+- **Export Excel column widths**: Title column auto-fits longest title (CJK chars count as 2 width) + 6 char padding; other columns have reasonable widths
+- **Related recommendation info**: Shows title + year + rating below poster, no longer poster-only
+
+### Fixed
+- **Poster inconsistency**: Home hero/list cards showed ffmpeg frame captures while detail page showed correct poster. Root cause was resolveEntryPoster priority (frame capture ranked above detail cover). Fixed to "manual poster > detail cover > frame capture > posterPath", unifying posters across the app
+- **Export Excel no file generated**: XLSX.writeFile unreliable in Electron main process, switched to XLSX.write + writeFileSync; added detailed console logs for debugging
+- **List page hover preview obscured**: z-index increased from 70 to 9999, card hover z-index boosted
+- **Duration badge overlaps hover preview**: Duration badge auto-hides when hovering card
+- **Reconcile dialog JSX structure error**: Missing div closing tag caused HMR 500 error, preventing code updates
+
 ## [2.9.1] - 2026-09-16
 
 **Video card duration badge readability fix**
