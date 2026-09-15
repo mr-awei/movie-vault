@@ -181,7 +181,7 @@ export default function HomeView({ entries, onOpen, onEdit, onOpenMissing, onTog
       {heroV ? (
         <div
           className="relative rounded-2xl overflow-hidden mb-7 h-[300px] ring-1 ring-white/10 shadow-2xl shadow-black/40 group cursor-pointer"
-          style={{ contain: 'layout paint', willChange: 'transform' }}
+          
           onClick={() => void api.videoOpen(heroV.id)}
         >
           {/* 背景大图：直接展示（去一点饱和度让左下文字清楚），不再 blur */}

@@ -157,11 +157,7 @@ body {
   box-shadow: var(--shadow-card);
   transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.28s ease,
     border-color 0.28s ease;
-  will-change: transform;
-  /* 隔离每张卡片的 layout/style 计算，避免窗口 resize 时单张卡片 reflow 引发整页重排，
-     显著缓解 Windows + Chromium 上 resize 过程中的「重影/双绘」问题 */
-  contain: layout style;
-  /* 固定宽高比（由外层按 aspect 挂类），浏览器不依赖子元素渲染即可确定卡片尺寸，
+/* 固定宽高比（由外层按 aspect 挂类），浏览器不依赖子元素渲染即可确定卡片尺寸，
      避免切换视图/缩放时出现高度塌缩与空隙 */
 }
 .entry-card.entry-portrait {
