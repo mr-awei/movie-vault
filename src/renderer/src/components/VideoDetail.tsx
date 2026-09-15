@@ -761,14 +761,14 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                       {dedup.map(([catName, list], idx) => (
                         <div key={`${catName}_${idx}`} className="flex flex-wrap gap-1.5 min-w-0 items-center">
                           <span className="text-[11px] text-white/40 shrink-0 pr-1 min-w-[3.5rem]">{catName}</span>
-                          <div className="flex flex-wrap gap-1.5 min-w-0">
+                          <div className="flex flex-wrap gap-2 min-w-0">
                             {list.map((tagStr) => (
                               <button
                                 key={`${catName}:${tagStr}`}
                                 type="button"
                                 onClick={() => onPickTag?.(tagStr)}
                                 title={t('detail.filterTagsByCategory', { category: catName, tag: tagStr })}
-                                className="px-2 py-0.5 rounded-md bg-brand/12 ring-1 ring-brand/20 text-brand text-xs hover:bg-brand/25 hover:ring-brand/40 transition-colors"
+                                className="px-2.5 py-1 rounded-lg bg-brand/12 ring-1 ring-brand/25 text-brand text-xs hover:bg-brand/25 hover:ring-brand/50 transition-all"
                               >
                                 {tagStr}
                               </button>

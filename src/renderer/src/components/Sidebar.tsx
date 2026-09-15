@@ -235,7 +235,7 @@ function FacetGroup({
                 <button
                   key={f.name}
                   onClick={() => onToggle(f.name)}
-                  className={`h-6 px-1.5 rounded-md text-[11px] flex items-center gap-1 transition-all max-w-full ${
+                  className={`h-6 px-2 rounded-lg text-[11px] flex items-center gap-1 transition-all max-w-full ring-1 ${
                     sel
                       ? 'bg-brand text-white shadow-sm shadow-brand/30 font-medium'
                       : 'bg-white/6 hover:bg-white/12 text-white/75 hover:text-white'
@@ -669,7 +669,7 @@ function SidebarInner(props: Props) {
                       <span className="text-white/35 text-[10px] tabular-nums">{list.length}</span>
                     </button>
                     {!catClosed ? (
-                      <div className="flex flex-wrap gap-1 mt-0.5 animate-fadeIn-fast">
+                      <div className="flex flex-wrap gap-1.5 mt-1 animate-fadeIn-fast">
                         {show.map((t) => {
                           const sel = selected.has(t.tag)
                           const zero = t.count === 0 && !sel
@@ -679,12 +679,12 @@ function SidebarInner(props: Props) {
                               onClick={() => onToggle(t.tag)}
                               disabled={zero}
                               className={`h-6 px-1.5 rounded-md text-[11px] flex items-center gap-1 transition-all max-w-full ${
-                                sel ? 'bg-brand text-white shadow-sm shadow-brand/30 font-medium' : zero ? 'bg-white/3 text-white/30 cursor-not-allowed' : 'bg-white/6 hover:bg-white/12 text-white/75 hover:text-white'
+                                sel ? 'bg-brand text-white shadow-sm shadow-brand/30 font-medium ring-brand/50' : zero ? 'bg-white/3 text-white/30 cursor-not-allowed ring-white/5' : 'bg-white/6 hover:bg-white/12 text-white/75 hover:text-white ring-white/10'
                               }`}
                               title={t.tag}
                             >
                               {sel ? <Icon name="check" size={10} className="shrink-0" /> : null}
-                              <span className="max-w-[100px] truncate">{t.tag}</span>
+                              <span className="max-w-[72px] truncate">{t.tag}</span>
                               <span className={sel ? 'opacity-75 text-[10px]' : 'opacity-50 text-[10px]'}>{t.count}</span>
                             </button>
                           )
