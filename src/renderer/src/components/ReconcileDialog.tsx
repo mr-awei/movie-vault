@@ -46,6 +46,8 @@ export default function ReconcileDialog({
   onUnignoreUnlisted,
   onOpenExternal,
   onOpenLibrarySettings
+  onOpenSpec,
+  onRevealSpec,
 }: Props) {
   const [previews, setPreviews] = useState<RenamePreviewItem[] | null>(null)
   const [applying, setApplying] = useState(false)
