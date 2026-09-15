@@ -1054,7 +1054,7 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                           return (
                             <div className="flex flex-wrap gap-1">
                               {relTags.slice(0, 6).map((tag) => (
-                                <span key={tag} className="px-1.5 py-0.5 rounded bg-brand/25 text-brand text-[10px] font-medium">{tag}</span>
+                                <span key={tag} className="px-2 py-1 rounded bg-brand/25 text-brand text-[12px] font-medium">{tag}</span>
                               ))}
                             </div>
                           )
