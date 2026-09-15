@@ -814,13 +814,17 @@ export default function App() {
 
   // ---------- 播放列表 ----------
   const handleCreatePlaylist = useCallback(async (name: string) => {
+    if (playlists.some((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase())) {
+      toast({ text: '已存在同名播放列表', tone: 'warn' })
+      return
+    }
     const pl = await api.playlistCreate(name)
     setPlaylists((prev) => [...prev, pl])
     setPendingPlaylistId(pl.id)
     setSelectedIds(new Set())
     setSelectMode(true)
     setView('browse')
-  }, [])
+  }, [playlists])
 
   const handleDeletePlaylist = useCallback(async (id: string) => {
     await api.playlistDelete(id)
@@ -834,6 +838,10 @@ export default function App() {
   }, [activePlaylistId, pendingPlaylistId])
 
   const handleRenamePlaylist = useCallback(async (id: string, name: string) => {
+    if (playlists.some((p) => p.id !== id && p.name.trim().toLowerCase() === name.trim().toLowerCase())) {
+      toast({ text: '已存在同名播放列表', tone: 'warn' })
+      return
+    }
     await api.playlistRename(id, name)
     setPlaylists((prev) => prev.map((p) => (p.id === id ? { ...p, name } : p)))
   }, [])
