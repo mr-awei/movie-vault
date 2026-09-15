@@ -10,6 +10,13 @@ Change types: `Added` / `Changed` / `Fixed` / `Removed` / `Security`.
 
 ---
 
+## [2.9.1] - 2026-09-16
+
+**Video card duration badge readability fix**
+
+### Fixed
+- Duration badge unreadable on light/dark posters: after multiple iterations, final solution uses semi-transparent black background (60%) + backdrop blur + white text + black text-shadow + compact sizing, ensuring readability on any poster without looking obtrusive
+
 ## [2.9.0] - 2026-09-16
 
 **Full playlist feature + hierarchical tag splitting + sidebar state persistence**
