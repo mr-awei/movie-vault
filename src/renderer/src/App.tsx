@@ -806,6 +806,7 @@ export default function App() {
     setPendingPlaylistId(pl.id)
     setSelectedIds(new Set())
     setSelectMode(true)
+    setView('browse')
   }, [])
 
   const handleDeletePlaylist = useCallback(async (id: string) => {
