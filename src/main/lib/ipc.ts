@@ -1344,13 +1344,14 @@ export function registerIpc(): void {
     try {
       if (format === 'xlsx') {
         const wb = XLSX.utils.book_new()
-        const rows: string[][] = [['编号', '分类', '推荐评分', '简介']]
-        codes.forEach((c) => rows.push([c, '', '', '']))
+        const rows: string[][] = [['编号', '标题', '年份', '分类', '推荐评分', '简介']]
+        codes.forEach((title, idx) => rows.push([String(idx + 1), title, '', '', '', '']))
         const ws = XLSX.utils.aoa_to_sheet(rows)
         XLSX.utils.book_append_sheet(wb, ws, '片单')
         XLSX.writeFile(wb, filePath)
       } else {
-        fs.writeFile(filePath, codes.join('\n'), 'utf-8')
+        fs.writeFileSync(filePath, codes.join('\n'), 'utf-8')
+        console.log('[exportCodes] txt written:', filePath, 'codes:', codes.length)
       }
       return { ok: true, path: filePath }
     } catch (err) {

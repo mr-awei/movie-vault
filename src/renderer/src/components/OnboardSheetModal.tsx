@@ -146,6 +146,7 @@ export default function OnboardSheetModal({
   const [codes, setCodes] = useState<string[] | null>(null) // null=加载中, []=空, 有数组=已加载
   const [exporting, setExporting] = useState<'txt' | 'xlsx' | null>(null)
   const [savedAt, setSavedAt] = useState<string>('')
+  const [exportError, setExportError] = useState<string>('')
   const [dontShowAgain, setDontShowAgain] = useState(false)
   const [locale, setLocale] = useState(getLocale())
   /** copied 状态：1600ms 自动清除 —— 原始 OnboardMdModal 的 copied 管理方式 */
