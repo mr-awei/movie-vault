@@ -68,7 +68,7 @@ export function resolveEntryPoster(v?: { posterPath?: string; posterSource?: str
       ? v.posterPath
       : null
   const detailCover = v.meta?.cover && !/^https?:\/\//.test(v.meta.cover) ? v.meta.cover : null
-  return manualPoster ?? realPoster ?? detailCover ?? v.posterPath ?? null
+  return manualPoster ?? detailCover ?? realPoster ?? v.posterPath ?? null
 }
 
 export function formatSize(bytes?: number): string {
