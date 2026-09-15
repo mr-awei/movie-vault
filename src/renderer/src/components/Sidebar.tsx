@@ -518,15 +518,6 @@ function SidebarInner(props: Props) {
             </button>
           </div>
         </Section>
-        {/* 我的清单（用户主动创建的视图） */}
-        <Section title={t('sidebar.myLists')} icon="heart">
-          <div className="flex flex-col gap-0.5">
-            <NavItem icon="heart" label={t('sidebar.favorites')} badge={favoriteCount} active={view === 'browse' && smart === 'favorite'} onClick={() => onNav('browse', 'favorite')} />
-            <NavItem icon="clock" label={t('sidebar.recentPlayed')} badge={recentCount} active={view === 'browse' && smart === 'recent'} onClick={() => onNav('browse', 'recent')} />
-          </div>
-        </Section>
-
-
         {/* 待处理（系统诊断 / 差异视图） */}
         {/* 筛选：合并为可折叠 Tab 组，默认收起，显著降低首屏高度 */}
         <Section title={t('sidebar.filter')} icon="sliders" count={filterCount} onClear={clearAllFilters} active={filterCount > 0} defaultOpen={false}>
@@ -735,6 +726,15 @@ function SidebarInner(props: Props) {
             <FacetGroup title={t('sidebar.year')} icon="calendar" facets={yearFacets} selected={selectedYears} onToggle={onToggleYear} onClear={onClearYears} />
           ) : null}
         </Section>
+        {/* 我的清单（用户主动创建的视图） */}
+        <Section title={t('sidebar.myLists')} icon="heart">
+          <div className="flex flex-col gap-0.5">
+            <NavItem icon="heart" label={t('sidebar.favorites')} badge={favoriteCount} active={view === 'browse' && smart === 'favorite'} onClick={() => onNav('browse', 'favorite')} />
+            <NavItem icon="clock" label={t('sidebar.recentPlayed')} badge={recentCount} active={view === 'browse' && smart === 'recent'} onClick={() => onNav('browse', 'recent')} />
+          </div>
+        </Section>
+
+
         {/* 播放列表 */}
         <Section title="播放列表" icon="list">
           <div className="flex flex-col gap-0.5">
