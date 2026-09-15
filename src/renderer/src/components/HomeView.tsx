@@ -158,7 +158,7 @@ export default function HomeView({ entries, onOpen, onEdit, onOpenMissing, onTog
   const heroV = hero?.video
   const heroTitle = hero ? displayTitle(hero) : heroV?.title ?? ''
   const heroPoster = resolveEntryPoster(heroV)
-  const heroSrc = heroPoster ? posterUrl(heroPoster, heroV.coverVersion) : null
+  const heroSrc = heroPoster ? posterUrl(heroPoster, heroV?.coverVersion) : null
 
   return (
     <div className="h-full overflow-auto thin-scroll p-5 animate-fadeIn" style={{ contain: 'layout' }}>
