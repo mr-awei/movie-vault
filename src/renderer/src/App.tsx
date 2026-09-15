@@ -859,11 +859,15 @@ export default function App() {
   const handleAddSelectedToPlaylist = useCallback(async () => {
     if (!pendingPlaylistId || selectedIds.size === 0) return
     const ids = [...selectedIds]
-    for (const id of ids) {
-      await api.playlistAddVideo(pendingPlaylistId, id)
-    }
-    setPlaylists((prev) => prev.map((p) => p.id === pendingPlaylistId ? { ...p, videoIds: [...new Set([...p.videoIds, ...ids])] } : p))
     const targetId = pendingPlaylistId
+    try {
+      for (const id of ids) {
+        await api.playlistAddVideo(targetId, id)
+      }
+    } catch (e) {
+      console.error("playlistAddVideo failed:", e)
+    }
+    setPlaylists((prev) => prev.map((p) => p.id === targetId ? { ...p, videoIds: [...new Set([...(p.videoIds || []), ...ids])] } : p))
     setPendingPlaylistId(null)
     setSelectMode(false)
     setSelectedIds(new Set())
