@@ -74,8 +74,6 @@ export default function WatchStatsModal({ onClose }: Props) {
       grid: { left: 60, right: 50, top: 20, bottom: 30 },
       xAxis: {
         type: 'category',
-        name: '月份',
-        nameTextStyle: { color: '#374151', fontSize: 12 },
         data: stats.monthlyTrend.map((m) => m.month),
         axisLine: { lineStyle: { color: '#d1d5db' } },
         axisLabel: { color: '#6b7280', fontSize: 10, rotate: 30 }
@@ -160,8 +158,6 @@ export default function WatchStatsModal({ onClose }: Props) {
       grid: { left: 60, right: 50, top: 20, bottom: 30 },
       xAxis: {
         type: 'category',
-        name: '周',
-        nameTextStyle: { color: '#374151', fontSize: 12 },
         data: stats.weeklyTrend.map((m) => m.week),
         axisLine: { lineStyle: { color: '#d1d5db' } },
         axisLabel: { color: '#6b7280', fontSize: 10, rotate: 30 }
@@ -306,8 +302,6 @@ export default function WatchStatsModal({ onClose }: Props) {
       grid: { left: 60, right: 50, top: 20, bottom: 30 },
       xAxis: {
         type: 'category',
-        name: '小时',
-        nameTextStyle: { color: '#374151', fontSize: 12 },
         data: stats.hourlyDistribution.map((h) => `${h.hour}时`),
         axisLine: { lineStyle: { color: '#d1d5db' } },
         axisLabel: { color: '#6b7280', fontSize: 10, interval: 2 }
