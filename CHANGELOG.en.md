@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.12.0] - 2026-09-17
+
+**Duplicate detection v4 (perceptual hash) / batch metadata edit / scene markers / file logging**
+
+### Added
+- **Duplicate detection level 4 "Content-similar" (pHash)**: dHash perceptual hash + ffmpeg frame extraction, detects same content after transcoding / scaling / watermarking; lazily computed and persisted (already-hashed videos return instantly). False-delete protection: still requires title similarity + manual confirmation in the modal. Speedup: single ffmpeg call per video (fixed 30s seek, no probe pass) + concurrency 4, with real-time x/y progress in the modal.
+- **Batch metadata edit**: multi-select mode → "Edit metadata" bar button; batch edit rating / year / series / region / tags (comma-separated overwrite); whitelist fields applied via main-process batch IPC.
+- **Scene markers** (Stash-style): new "Scene Markers" section on the detail page; add markers with time (e.g. 1:02:30) + name + tags; click a time to jump-play (mpv `--start=` / PotPlayer `/seek=`); deletable.
+- **Main-process file logging**: `%APPDATA%/yinghai/logs/yinghai.log`, auto-rotates after 2 MB, for reproducible debugging.
+
+### Fixed
+- **Batch-edit modal pinned to bottom**: the bottom action bar's `backdrop-blur` created a containing block, making the inner `fixed` modal position relative to the bar; moved the modal outside the bar so it centers on the viewport again.
+- Removed 3 debug `console.log`s in the renderer.
+
 ## [2.11.1] - 2026-09-16
 
 **Duplicate-detection precision / watch-stats tag split / architecture refactor**
