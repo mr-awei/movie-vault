@@ -40,6 +40,7 @@ function rowToVideo(row: Record<string, unknown>): Video {
     durationSec: (row.duration_sec as number) ?? undefined,
     fileSize: (row.file_size as number) ?? undefined,
     contentHash: (row.content_hash as string) ?? undefined,
+    phash: (row.phash as string) ?? undefined,
     posterPath: (row.poster_path as string) ?? undefined,
     posterSource: (row.poster_source as Video['posterSource']) ?? undefined,
     posterPathFfmpeg: (row.poster_path_ffmpeg as string) ?? undefined,
@@ -95,6 +96,7 @@ function videoToRow(v: Video): Record<string, unknown> {
     duration_sec: v.durationSec ?? null,
     file_size: v.fileSize ?? null,
     content_hash: v.contentHash ?? null,
+    phash: v.phash ?? null,
     poster_path: v.posterPath ?? null,
     poster_source: v.posterSource ?? null,
     poster_path_ffmpeg: v.posterPathFfmpeg ?? null,
@@ -138,7 +140,7 @@ function videoToRow(v: Video): Record<string, unknown> {
 
 const VIDEO_COLS = [
   'id', 'library_id', 'path', 'file_name', 'folder_name', 'title', 'year', 'description', 'rating',
-  'duration_sec', 'file_size', 'content_hash', 'poster_path', 'poster_source', 'poster_path_ffmpeg',
+  'duration_sec', 'file_size', 'content_hash', 'phash', 'poster_path', 'poster_source', 'poster_path_ffmpeg',
   'added_at', 'last_played_at', 'favorite', 'locked', 'locked_at',
   'playback_position_sec', 'playback_updated_at', 'nfo_path', 'intro_category', 'region', 'series',
   'tags', 'tag_categories', 'backup_tags', 'actors', 'tech_info', 'meta', 'preview_paths',
@@ -172,6 +174,11 @@ function patchVideoRow(id: string, patch: Partial<Video>): Video | null {
   }
   upsertVideoRow(merged)
   return merged
+}
+
+/** 只更新内容感知哈希（phash 由计算流程写入，不在用户可编辑白名单内） */
+export function setVideoPhash(id: string, phash: string | null): void {
+  getDb().prepare('UPDATE videos SET phash = ? WHERE id = ?').run(phash, id)
 }
 
 // ---------- 设置 ----------

@@ -64,6 +64,8 @@ export interface Video {
   fileSize?: number
   /** 文件内容指纹（大小 + 头部 64KB 的 sha1），用于"文件哈希去重" */
   contentHash?: string
+  /** 内容感知哈希（dHash 64-bit hex），用于"视觉相似"去重（容忍转码/缩放/水印） */
+  phash?: string
   /** ffprobe 读取的视频技术参数（编码/分辨率/码率等） */
   techInfo?: TechInfo
   addedAt: number
@@ -619,7 +621,7 @@ export interface Playlist {
 }
 
 /** 重复视频匹配类型 */
-export type DuplicateMatchType = 'exact' | 'title' | 'feature'
+export type DuplicateMatchType = 'exact' | 'title' | 'feature' | 'phash'
 
 /** 重复视频分组 */
 export interface DuplicateGroup {

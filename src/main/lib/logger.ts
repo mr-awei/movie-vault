@@ -22,7 +22,7 @@ export function initLogger(): string {
   return logFile
 }
 
-function fmt(args: unknown[]): string {
+function fmt(level: string, args: unknown[]): string {
   const ts = new Date().toISOString().replace('T', ' ').slice(0, 19)
   const parts = args.map((a) => {
     if (typeof a === 'string') return a
@@ -32,11 +32,11 @@ function fmt(args: unknown[]): string {
       return String(a)
     }
   })
-  return `[${ts}] ${parts.join(' ')}`
+  return `[${ts}] [${level}] ${parts.join(' ')}`
 }
 
 function write(level: string, args: unknown[]): void {
-  const line = `${fmt(args)}\n`
+  const line = `${fmt(level, args)}\n`
   if (logFile) {
     try {
       // 简单轮转：超限把旧文件改名 .1 再写新文件

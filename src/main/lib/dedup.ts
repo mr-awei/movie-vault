@@ -1,5 +1,6 @@
 import type { DuplicateGroup, Video } from '../../shared/types'
-import { listVideos } from './repo'
+import { listVideos, setVideoPhash, getSettings } from './repo'
+import { computePhash, phashDistance } from './phash'
 
 /**
  * 重复视频检测模块（增强版）。
@@ -140,14 +141,37 @@ function toDupVideo(v: Video, recommended = false): DuplicateGroup['videos'][num
 }
 
 /**
+ * 惰性计算缺失的内容感知哈希（phash）。
+ * 只对没有 phash 的视频抽帧计算（串行，避免 ffmpeg 并发抢 IO），结果写库持久化。
+ */
+async function ensurePhashes(videos: Video[]): Promise<void> {
+  const pending = videos.filter((v) => !v.phash && v.path)
+  if (pending.length === 0) return
+  const settings = await getSettings()
+  let done = 0
+  for (const v of pending) {
+    const h = await computePhash(v.path, settings)
+    if (h) {
+      v.phash = h
+      setVideoPhash(v.id, h)
+    }
+    done++
+    console.log(`[dedup] phash 计算 ${done}/${pending.length} ${v.fileName ?? v.title}`)
+  }
+}
+
+/**
  * 查找指定媒体库中的重复视频。
- * 按三级检测分组，返回组内 > 1 的分组。
+ * 四级检测：精确哈希 / 标题 / 特征 / 内容感知哈希(phash)。
  * 精确匹配优先，避免同一个视频出现在多个组中。
  */
 export async function findDuplicates(libraryId: string): Promise<DuplicateGroup[]> {
   const videos = await listVideos({ libraryId })
   const result: DuplicateGroup[] = []
   const usedIds = new Set<string>()
+
+  // 先补齐缺失的 phash（惰性计算 + 持久化）
+  await ensurePhashes(videos)
 
   // ========== 第一级：精确匹配（contentHash） ==========
   const hashGroups = new Map<string, Video[]>()
@@ -262,6 +286,41 @@ export async function findDuplicates(libraryId: string): Promise<DuplicateGroup[
             })
           }
         }
+      }
+    }
+  }
+
+  // ========== 第四级：内容感知哈希（phash，容忍转码/缩放/水印） ==========
+  // 防误删优先：phash 命中仍需标题相似（同内容不同命名/压制），且阈值保守（≤12/64 bit）
+  const phashCandidates = videos.filter((v) => !usedIds.has(v.id) && v.phash)
+  const phashUsed = new Set<string>()
+  for (let i = 0; i < phashCandidates.length; i++) {
+    for (let j = i + 1; j < phashCandidates.length; j++) {
+      const a = phashCandidates[i]
+      const b = phashCandidates[j]
+      if (phashUsed.has(a.id) || phashUsed.has(b.id)) continue
+      if (!isTitleSimilar(a.title ?? '', b.title ?? '')) continue
+      if (phashDistance(a.phash!, b.phash!) > 12) continue
+      const group = [a, b]
+      phashUsed.add(a.id)
+      phashUsed.add(b.id)
+      for (let k = j + 1; k < phashCandidates.length; k++) {
+        const c = phashCandidates[k]
+        if (phashUsed.has(c.id)) continue
+        if (isTitleSimilar(a.title ?? '', c.title ?? '') && phashDistance(a.phash!, c.phash!) <= 12) {
+          group.push(c)
+          phashUsed.add(c.id)
+        }
+      }
+      if (group.length >= 2) {
+        const { totalSizeBytes, wastedBytes, keepIndex } = calcWasted(group)
+        result.push({
+          key: `phash:${group.map((v) => v.id).join('-')}`,
+          matchType: 'phash',
+          videos: group.map((v, idx) => toDupVideo(v, idx === keepIndex)),
+          totalSizeBytes,
+          wastedBytes
+        })
       }
     }
   }

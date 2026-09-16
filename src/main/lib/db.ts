@@ -90,6 +90,7 @@ function initSchema(): void {
       duration_sec REAL,
       file_size INTEGER,
       content_hash TEXT,
+      phash TEXT,
       poster_path TEXT,
       poster_source TEXT,
       poster_path_ffmpeg TEXT,
@@ -192,7 +193,17 @@ function initSchema(): void {
     );
   `)
 
+  ensureColumns()
   console.log('[db] 表结构初始化完成')
+}
+
+/** 增量加列（旧库升级）：videos.phash（内容感知哈希，v2.12 重复检测用） */
+function ensureColumns(): void {
+  const cols = (db!.prepare('PRAGMA table_info(videos)').all() as Array<{ name: string }>).map((c) => c.name)
+  if (!cols.includes('phash')) {
+    db!.prepare('ALTER TABLE videos ADD COLUMN phash TEXT').run()
+    console.log('[db] videos.phash 列已添加')
+  }
 }
 
 /** 关闭数据库连接（应用退出时调用） */
