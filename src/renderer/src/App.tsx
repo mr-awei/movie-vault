@@ -4,12 +4,11 @@ import type {
   DisplayEntry,
   ImageSource,
   Library,
-  ReconcileResult,
   Settings,
   SourceId,
   Video
 } from '../../shared/types'
-import { DEFAULT_IMAGE_PRIORITY, DEFAULT_SETTINGS, entryPrimaryTags, flattenAllTags, hasDocTags, splitHierarchicalTag } from '../../shared/types'
+import { DEFAULT_IMAGE_PRIORITY, entryPrimaryTags, flattenAllTags, hasDocTags, splitHierarchicalTag } from '../../shared/types'
 import { displayTitle } from './lib/util'
 import { categorizeTag } from '../../shared/tagCategories'
 import { api } from './lib/api'
@@ -36,9 +35,7 @@ import { ToastProvider, toast } from './components/Toast'
 import ConfirmDeleteModal from './components/ConfirmDeleteModal'
 import UserNoticeModal from './components/UserNoticeModal'
 import OnboardSheetModal from './components/OnboardSheetModal'
-import type { AppInfo } from '../../shared/api-types'
-import type { Playlist } from '../../shared/types'
-import { useFilterStore } from './store'
+import { useDataStore, useFilterStore } from './store'
 
 /** Fisher-Yates 洗牌（默认用 Math.random，保证每次重建队列都不同；可传入 rand 做可复现） */
 function shuffleEntries<T>(arr: T[], rand: () => number = Math.random): T[] {
@@ -85,7 +82,8 @@ const DUR_ORDER = ['30分钟内', '30-60分', '1-2小时', '2-3小时', '3小时
 const SCORE_ORDER = ['9-10', '8-9', '7-8', '6-7', '6以下', '未评分']
 
 export default function App() {
-  const [libraries, setLibraries] = useState<Library[]>([])
+  const libraries = useDataStore((s) => s.libraries)
+  const setLibraries = useDataStore((s) => s.setLibraries)
   const licenseOpen = useUIStore((s) => s.licenseOpen)
   const setLicenseOpen = useUIStore((s) => s.setLicenseOpen)
   const settingsOpen = useUIStore((s) => s.settingsOpen)
@@ -98,9 +96,12 @@ export default function App() {
   const setNoticeOpen = useUIStore((s) => s.setNoticeOpen)
   const reconcileOpen = useUIStore((s) => s.reconcileOpen)
   const setReconcileOpen = useUIStore((s) => s.setReconcileOpen)
-  const [settings, setSettings] = useState<Settings>({ ...DEFAULT_SETTINGS })
-  const [libraryId, setLibraryId] = useState('')
-  const [reconcile, setReconcile] = useState<ReconcileResult | null>(null)
+  const settings = useDataStore((s) => s.settings)
+  const setSettings = useDataStore((s) => s.setSettings)
+  const libraryId = useDataStore((s) => s.libraryId)
+  const setLibraryId = useDataStore((s) => s.setLibraryId)
+  const reconcile = useDataStore((s) => s.reconcile)
+  const setReconcile = useDataStore((s) => s.setReconcile)
   const filter = useFilterStore((s) => s.filter)
   const setFilter = useFilterStore((s) => s.setFilter)
   /** 搜索输入框的值（立即更新 UI）；实际过滤用防抖后的 filter.search */
@@ -134,7 +135,8 @@ export default function App() {
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const showDuplicates = useUIStore((s) => s.showDuplicates)
   const setShowDuplicates = useUIStore((s) => s.setShowDuplicates)
-  const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
+  const appInfo = useDataStore((s) => s.appInfo)
+  const setAppInfo = useDataStore((s) => s.setAppInfo)
   const addingLibrary = useUIStore((s) => s.addingLibrary)
   const setAddingLibrary = useUIStore((s) => s.setAddingLibrary)
   const editing = useUIStore((s) => s.editing)
@@ -158,13 +160,16 @@ export default function App() {
   // 隐私护盾：一键模糊所有预览图（防截图泄露敏感内容），持久化到 localStorage（store 初始化）
   const privacy = useUIStore((s) => s.privacy)
   const setPrivacy = useUIStore((s) => s.setPrivacy)
-  const [progress, setProgress] = useState<{ total: number; done: number; current?: string } | null>(null)
-  const [fetchPaused, setFetchPaused] = useState(false)
+  const progress = useDataStore((s) => s.progress)
+  const setProgress = useDataStore((s) => s.setProgress)
+  const fetchPaused = useDataStore((s) => s.fetchPaused)
+  const setFetchPaused = useDataStore((s) => s.setFetchPaused)
   // v2.7.x：多选批量锁定（浏览页）
   const selectedIds = useUIStore((s) => s.selectedIds)
   const setSelectedIds = useUIStore((s) => s.setSelectedIds)
   // 播放列表
-  const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const playlists = useDataStore((s) => s.playlists)
+  const setPlaylists = useDataStore((s) => s.setPlaylists)
   const activePlaylistId = useUIStore((s) => s.activePlaylistId)
   const setActivePlaylistId = useUIStore((s) => s.setActivePlaylistId)
   const pendingPlaylistId = useUIStore((s) => s.pendingPlaylistId)
@@ -172,19 +177,18 @@ export default function App() {
   const showWatchStats = useUIStore((s) => s.showWatchStats)
   const setShowWatchStats = useUIStore((s) => s.setShowWatchStats)
   // v2.2.10：实时抓取日志（"数据源失败 → 降级下一源" 这类过程，右下角浮层滚动展示）
-  const [fetchLogs, setFetchLogs] = useState<
-    Array<{ code: string; src: string; status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'; detail?: string }>
-  >([])
+  const fetchLogs = useDataStore((s) => s.fetchLogs)
+  const setFetchLogs = useDataStore((s) => s.setFetchLogs)
   // v2.2.14：批量抓取失败明细弹窗（居中显示失败影片标题 + 原因）
-  const [batchFailures, setBatchFailures] = useState<Array<{ id: string; title: string; reason: string }> | null>(null)
+  const batchFailures = useDataStore((s) => s.batchFailures)
+  const setBatchFailures = useDataStore((s) => s.setBatchFailures)
   const batchFailuresVisible = useUIStore((s) => s.batchFailuresVisible)
   const setBatchFailuresVisible = useUIStore((s) => s.setBatchFailuresVisible)
   const retryingFailures = useUIStore((s) => s.retryingFailures)
   const setRetryingFailures = useUIStore((s) => s.setRetryingFailures)
   /** v2.7.x：本次批量补齐自动跳过的文件明细（已锁定 / 文件不存在），结束后弹窗告知用户 */
-  const [skippedFiles, setSkippedFiles] = useState<
-    Array<{ id: string; title: string; reason: 'locked' | 'missing' }> | null
-  >(null)
+  const skippedFiles = useDataStore((s) => s.skippedFiles)
+  const setSkippedFiles = useDataStore((s) => s.setSkippedFiles)
 
   // === 批量抓取失败明细：打开详情时藏弹窗，关详情时自动恢复 ===
   const prevDetailRef = useRef<Video | null>(null)
@@ -221,7 +225,8 @@ export default function App() {
   const allRandomNonce = useUIStore((s) => s.allRandomNonce)
   const setAllRandomNonce = useUIStore((s) => s.setAllRandomNonce)
   /** 所有媒体库的 reconcile 缓存（全库随机数据源；key = libraryId） */
-  const [allReconciles, setAllReconciles] = useState<Record<string, ReconcileResult>>({})
+  const allReconciles = useDataStore((s) => s.allReconciles)
+  const setAllReconciles = useDataStore((s) => s.setAllReconciles)
 
   // ---- Onboard Sheet Wizard 状态 ----
   /** 新建片单 Excel 向导弹窗（introError.kind==='not-configured' 时自动弹） */

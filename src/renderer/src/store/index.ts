@@ -9,3 +9,4 @@
 
 export { useUIStore } from './ui'
 export { useFilterStore, type FilterState } from './filter'
+export { useDataStore } from './data'
