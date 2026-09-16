@@ -16,6 +16,22 @@ interface Props {
   onPickDirector: (director: string) => void
 }
 
+/** 周key(2026-W37) → 日期范围(9/14-9/20)，算法与SQLite %W一致（周一开始） */
+function weekLabel(key: string): string {
+  const m = key.match(/^(\d{4})-W(\d{2})$/)
+  if (!m) return key
+  const year = Number(m[1])
+  const week = Number(m[2])
+  if (week <= 0) return key
+  const jan1 = new Date(year, 0, 1)
+  const wd0 = jan1.getDay() // 0=周日
+  const firstMonday = new Date(year, 0, 1 + (wd0 === 0 ? 1 : 8 - wd0))
+  const monday = new Date(firstMonday.getTime() + (week - 1) * 7 * 86400000)
+  const sunday = new Date(monday.getTime() + 6 * 86400000)
+  const f = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`
+  return `${f(monday)}-${f(sunday)}`
+}
+
 /** 格式化秒数为可读时长 */
 function formatDuration(sec: number): string {
   if (sec < 60) return `${sec}秒`
