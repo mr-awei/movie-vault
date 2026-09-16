@@ -3,18 +3,21 @@
  * v2.2.4 抽到独立模块：原在 ipc.ts 内，reconcile.ts 需要在「无片单兜底」分支
  * 直接调它来抓数据源详情，不能反向 import ipc.ts（会循环依赖）。
  *
- * 数据源顺序：MovieDB → OMDb → OpenLibrary → JustWatch。
- * 任一源连续**网络失败** N 部 → 本轮自动禁用该源（不再浪费请求）；
- * 「搜索无结果」属正常结果（该数据源确实没有这部影片），**不计数、不触发停止**——
- * 只有真正的网络/会话异常（请求失败、超时、年龄验证失败等）才累计失败次数，
- * 避免「IP 没被封、只是数据源没这个externalId」时批量被误停；JustWatch 作为最后兜底，连续网络失败即停止整批。
+ * P1-9 重构：5 个数据源 ×（单源模式 / auto 循环）的重复分支（原 ~150 行）收敛为
+ * SOURCES 源表 + runSingleSource()，行为语义与 v2.6.5 完全一致：
+ * - 数据源顺序：MovieDB → OMDb → OpenLibrary → JustWatch（可自定义）
+ * - 任一源连续**网络失败** N 部 → 本轮自动禁用该源（不再浪费请求）；
+ * - 「搜索无结果」属正常结果（该数据源确实没有这部影片），**不计数、不触发停止**——
+ *   只有真正的网络/会话异常（请求失败、超时、年龄验证失败等）才累计失败次数，
+ *   避免「IP 没被封、只是数据源没这个externalId」时批量被误停；
+ * - 单源模式：不检查批量失败禁用状态、不累计失败（用户明确指定该源）。
  */
 import { fetchMovieDbDetail, hasMovieDbKey } from './movie-db'
 import { fetchOmdbDetail, hasOmdbKey } from './omdb'
 import { fetchOpenLibraryDetail, hasOpenLibraryKey } from './openlibrary'
 import { fetchJustWatchDetail, hasJustWatchKey } from './justwatch'
 import { fetchWikipediaDetail, hasWikipediaKey } from './wikipedia'
-import { extractMovieQuery, localCanonicalName } from '../../shared/code'
+import { extractMovieQuery, localCanonicalName, type MovieQuery } from '../../shared/code'
 import type { MovieMeta, SourceId, Settings, Video } from '../../shared/types'
 
 export interface MovieDetailResult {
@@ -47,11 +50,100 @@ export interface SmartFetchState {
   paused: boolean
 }
 
-const MOVIEDB_CONSECUTIVE_LIMIT = 3
-const OMDB_CONSECUTIVE_LIMIT = 3
-const OPENLIBRARY_CONSECUTIVE_LIMIT = 3
-const JUSTWATCH_CONSECUTIVE_LIMIT = 3
-const WIKIPEDIA_CONSECUTIVE_LIMIT = 3
+export const DEFAULT_SOURCE_ORDER: SourceId[] = ['moviedb', 'omdb', 'openlibrary', 'justwatch', 'wikipedia']
+
+const CONSECUTIVE_LIMIT = 3
+
+/** 单源执行结果（P1-9：供单源模式组装 error、auto 模式判断命中/继续） */
+interface SingleResult {
+  detail: MovieMeta | null
+  source?: SourceId
+  status: 'hit' | 'skipped' | 'no-result' | 'network-failed'
+  /** 网络失败原始 message（单源模式 error 组装用） */
+  failMessage?: string
+}
+
+interface SourceDef {
+  fetch: (
+    q: MovieQuery,
+    settings: Settings,
+    onError?: (m: string) => void,
+    manual?: boolean
+  ) => Promise<MovieMeta | null>
+  hasKey: (s: Settings) => boolean
+  failsKey: 'moviedbFails' | 'omdbFails' | 'openLibraryFails' | 'justWatchFails' | 'wikipediaFails'
+  disabledKey: 'moviedbDisabled' | 'omdbDisabled' | 'openLibraryDisabled' | 'justWatchDisabled' | 'wikipediaDisabled'
+  /** key 缺失时的跳过 detail（null = 该源无需 key） */
+  keyDetail: string | null
+  /** key 缺失时的最终错误（单源模式） */
+  keyError: string
+  /** 异常错误前缀（单源模式）：`Xxx 异常：` */
+  errorLabel: string
+  /** 无结果最终错误（单源模式）：`Xxx 未返回结果` */
+  noResultMsg: string
+}
+
+const SOURCES: Record<SourceId, SourceDef> = {
+  moviedb: {
+    fetch: fetchMovieDbDetail,
+    hasKey: hasMovieDbKey,
+    failsKey: 'moviedbFails',
+    disabledKey: 'moviedbDisabled',
+    keyDetail: 'moviedb-not-configured',
+    keyError: 'MovieDB API Key 未配置',
+    errorLabel: 'MovieDB',
+    noResultMsg: 'MovieDB 未返回结果'
+  },
+  omdb: {
+    fetch: fetchOmdbDetail,
+    hasKey: hasOmdbKey,
+    failsKey: 'omdbFails',
+    disabledKey: 'omdbDisabled',
+    keyDetail: 'omdb-not-configured',
+    keyError: 'OMDb API Key 未配置',
+    errorLabel: 'OMDb',
+    noResultMsg: 'OMDb 未返回结果'
+  },
+  openlibrary: {
+    fetch: fetchOpenLibraryDetail,
+    hasKey: hasOpenLibraryKey,
+    failsKey: 'openLibraryFails',
+    disabledKey: 'openLibraryDisabled',
+    keyDetail: null,
+    keyError: '',
+    errorLabel: 'OpenLibrary',
+    noResultMsg: 'OpenLibrary 未返回结果'
+  },
+  justwatch: {
+    fetch: fetchJustWatchDetail,
+    hasKey: hasJustWatchKey,
+    failsKey: 'justWatchFails',
+    disabledKey: 'justWatchDisabled',
+    keyDetail: null,
+    keyError: '',
+    errorLabel: 'JustWatch',
+    noResultMsg: 'JustWatch 未返回结果'
+  },
+  wikipedia: {
+    fetch: fetchWikipediaDetail,
+    hasKey: hasWikipediaKey,
+    failsKey: 'wikipediaFails',
+    disabledKey: 'wikipediaDisabled',
+    keyDetail: null,
+    keyError: '',
+    errorLabel: '维基百科',
+    noResultMsg: '维基百科未返回结果'
+  }
+}
+
+/** 自动模式下「连续失败禁用」的中文日志标签 */
+const DISABLE_LABEL: Record<SourceId, string> = {
+  moviedb: 'MovieDB',
+  omdb: 'OMDb',
+  openlibrary: 'OpenLibrary',
+  justwatch: 'JustWatch',
+  wikipedia: '维基百科'
+}
 
 /**
  * 提取 fetch 异常的真实原因（undici 的 TypeError 通常把底层错误放在 e.cause 里）。
@@ -100,13 +192,8 @@ export async function waitIfPaused(state: SmartFetchState): Promise<void> {
 
 /**
  * 按 settings.customSourceOrder 依次降级抓取**海报**（只下载封面图，不写 detail）。
- * v2.2.8 修复：原 fetchPosterSmart 前身只硬走单一数据源 search，不读用户自定义顺序——
- * 用户把某源排后面或某源被风控时，海报抓取仍硬试该源而失败。
- *
- * 各源返回约定：
- * - 各数据源 search → { posterUrl }（远程 URL，需 cacheRemoteImage）
- * - 各数据源 fetchXxxDetail → detail.cover（内部已下载到本地）
- * 命中第一个有 cover 的源即返回本地路径。
+ * 各源返回约定：search → { posterUrl }（远程 URL，需 cacheRemoteImage）；
+ * fetchXxxDetail → detail.cover（内部已下载到本地）。命中第一个有 cover 的源即返回本地路径。
  */
 export async function fetchPosterSmart(video: Video, settings: Settings): Promise<string | null> {
   // v2.8.5：海报抓取搜索词统一用「本地真名」folderName 优先，与详情抓取保持一致
@@ -119,31 +206,10 @@ export async function fetchPosterSmart(video: Video, settings: Settings): Promis
   const order = rawOrder.filter((s) => !settings.disabledSources?.includes(s))
   for (const src of order) {
     try {
-      if (src === 'moviedb') {
-        if (hasMovieDbKey(settings)) {
-          const d = await fetchMovieDbDetail(q, settings)
-          if (d?.cover) return d.cover
-        }
-      } else if (src === 'omdb') {
-        if (hasOmdbKey(settings)) {
-          const d = await fetchOmdbDetail(q, settings)
-          if (d?.cover) return d.cover
-        }
-      } else if (src === 'openlibrary') {
-        if (hasOpenLibraryKey(settings)) {
-          const d = await fetchOpenLibraryDetail(q, settings)
-          if (d?.cover) return d.cover
-        }
-      } else if (src === 'justwatch') {
-        if (hasJustWatchKey(settings)) {
-          const d = await fetchJustWatchDetail(q, settings)
-          if (d?.cover) return d.cover
-        }
-      } else if (src === 'wikipedia') {
-        if (hasWikipediaKey(settings)) {
-          const d = await fetchWikipediaDetail(q, settings)
-          if (d?.cover) return d.cover
-        }
+      const def = SOURCES[src]
+      if (def.hasKey(settings)) {
+        const d = await def.fetch(q, settings)
+        if (d?.cover) return d.cover
       }
     } catch {
       /* 单源失败继续下一个 */
@@ -152,14 +218,69 @@ export async function fetchPosterSmart(video: Video, settings: Settings): Promis
   return null
 }
 
-export const DEFAULT_SOURCE_ORDER: SourceId[] = ['moviedb', 'omdb', 'openlibrary', 'justwatch', 'wikipedia']
-
 /** v2.2.10：抓取事件回调（每次源尝试推一条），供 UI 实时展示"数据源失败 → 降级下一源" */
 export interface SmartFetchEvent {
   code: string
   src: SourceId
   status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'
   detail?: string
+}
+
+interface RunCtx {
+  q: MovieQuery
+  settings: Settings
+  manual: boolean
+  state: SmartFetchState
+  code: string
+  ev: (e: Omit<SmartFetchEvent, 'code'>) => void
+  /** auto 模式：null 表示不收集源结果明细（单源模式直接返回） */
+  srcResults: Array<{ src: string; status: SingleResult['status']; detail?: string }> | null
+  /** true = auto 模式：查禁用状态、累计连续失败；false = 单源模式：不查不计 */
+  respectState: boolean
+}
+
+/** P1-9：执行单个数据源的抓取（key 检查 → 禁用检查 → trying → hit/no-result/network-failed） */
+async function runSingleSource(src: SourceId, ctx: RunCtx): Promise<SingleResult> {
+  const def = SOURCES[src]
+  const push = (status: SingleResult['status'], detail?: string) => {
+    ctx.ev({ src, status, detail })
+    ctx.srcResults?.push({ src, status, detail })
+  }
+  // key 缺失（仅需 key 的源）
+  if (def.keyDetail && !def.hasKey(ctx.settings)) {
+    push('skipped', def.keyDetail)
+    return { detail: null, status: 'skipped' }
+  }
+  // 本轮已因连续失败禁用（仅 auto 模式）
+  if (ctx.respectState && ctx.state[def.disabledKey]) {
+    push('skipped', `${src}-disabled`)
+    return { detail: null, status: 'skipped' }
+  }
+  ctx.ev({ src, status: 'trying' })
+  const srcErrors: string[] = []
+  try {
+    const d = await def.fetch(ctx.q, ctx.settings, (m) => srcErrors.push(m), ctx.manual)
+    if (d) {
+      if (ctx.respectState) ctx.state[def.failsKey] = 0
+      push('hit')
+      console.log(`[smart] ${ctx.code} HIT ${src}`)
+      return { detail: d, source: src, status: 'hit' }
+    }
+    push('no-result', srcErrors.join('；') || undefined)
+    return { detail: null, status: 'no-result' }
+  } catch (e) {
+    const d = formatFetchError(e)
+    console.error(`[smart] ${ctx.code} ${src} network-failed:`, e)
+    push('network-failed', d)
+    if (ctx.respectState) {
+      ctx.state[def.failsKey]++
+      if (ctx.state[def.failsKey] >= CONSECUTIVE_LIMIT) {
+        ctx.state[def.disabledKey] = true
+        console.log(`[batch] ${DISABLE_LABEL[src]} 连续失败 ${ctx.state[def.failsKey]} 部，本轮自动停用`)
+      }
+    }
+    return { detail: null, status: 'network-failed', failMessage: (e as Error)?.message || String(e) }
+  }
 }
 
 export async function fetchDetailSmart(
@@ -181,292 +302,39 @@ export async function fetchDetailSmart(
     return { detail: null, error: '此数据源已在设置中禁用（请在「设置 → 数据源」中启用）' }
   }
   const errors: string[] = []
-  const onError = (m: string) => errors.push(m)
   const ev = (e: Omit<SmartFetchEvent, 'code'>) => onEvent?.({ code, ...e })
-  if (mode === 'moviedb') {
-    if (!hasMovieDbKey(settings)) {
-      const d = 'moviedb-not-configured'
-      ev({ src: 'moviedb', status: 'skipped', detail: d })
-      return { detail: null, error: 'MovieDB API Key 未配置' }
+
+  // ---- 单源模式：只跑指定源，不查批量禁用、不累计失败 ----
+  if (mode !== 'auto') {
+    const res = await runSingleSource(mode, { q, settings, manual, state, code, ev, srcResults: null, respectState: false })
+    if (res.detail) return { detail: res.detail, source: res.source }
+    if (res.status === 'skipped') return { detail: null, error: SOURCES[mode].keyError }
+    if (res.status === 'network-failed') {
+      errors.push(`${SOURCES[mode].errorLabel} 异常：${res.failMessage}`)
     }
-    ev({ src: 'moviedb', status: 'trying' })
-    try {
-      const moviedb = await fetchMovieDbDetail(q, settings, onError, manual)
-      if (moviedb) {
-        ev({ src: 'moviedb', status: 'hit' })
-        return { detail: moviedb, source: 'moviedb' }
-      }
-      // v2.8.5：no-result 携带具体错误原因（如 "Too many results."），与失败明细保持一致
-      const detail = errors.join('；') || undefined
-      ev({ src: 'moviedb', status: 'no-result', detail })
-    } catch (e) {
-      const d = formatFetchError(e)
-      ev({ src: 'moviedb', status: 'network-failed', detail: d })
-      errors.push(`MovieDB 异常：${(e as Error)?.message || e}`)
-    }
-    return { detail: null, error: errors.length ? errors.join('；') : 'MovieDB 未返回结果' }
-  } else if (mode === 'omdb') {
-    if (!hasOmdbKey(settings)) {
-      const d = 'omdb-not-configured'
-      ev({ src: 'omdb', status: 'skipped', detail: d })
-      return { detail: null, error: 'OMDb API Key 未配置' }
-    }
-    ev({ src: 'omdb', status: 'trying' })
-    try {
-      const omdb = await fetchOmdbDetail(q, settings, onError, manual)
-      if (omdb) {
-        ev({ src: 'omdb', status: 'hit' })
-        return { detail: omdb, source: 'omdb' }
-      }
-      const detail = errors.join('；') || undefined
-      ev({ src: 'omdb', status: 'no-result', detail })
-    } catch (e) {
-      const d = formatFetchError(e)
-      ev({ src: 'omdb', status: 'network-failed', detail: d })
-      errors.push(`OMDb 异常：${(e as Error)?.message || e}`)
-    }
-    return { detail: null, error: errors.length ? errors.join('；') : 'OMDb 未返回结果' }
-  } else if (mode === 'openlibrary') {
-    ev({ src: 'openlibrary', status: 'trying' })
-    try {
-      const openLibrary = await fetchOpenLibraryDetail(q, settings, onError, manual)
-      if (openLibrary) {
-        ev({ src: 'openlibrary', status: 'hit' })
-        return { detail: openLibrary, source: 'openlibrary' }
-      }
-      const detail = errors.join('；') || undefined
-      ev({ src: 'openlibrary', status: 'no-result', detail })
-    } catch (e) {
-      const d = formatFetchError(e)
-      ev({ src: 'openlibrary', status: 'network-failed', detail: d })
-      errors.push(`OpenLibrary 异常：${(e as Error)?.message || e}`)
-    }
-    return { detail: null, error: errors.length ? errors.join('；') : 'OpenLibrary 未返回结果' }
-  } else if (mode === 'justwatch') {
-    ev({ src: 'justwatch', status: 'trying' })
-    try {
-      const justWatch = await fetchJustWatchDetail(q, settings, onError, manual)
-      if (justWatch) {
-        ev({ src: 'justwatch', status: 'hit' })
-        return { detail: justWatch, source: 'justwatch' }
-      }
-      const detail = errors.join('；') || undefined
-      ev({ src: 'justwatch', status: 'no-result', detail })
-    } catch (e) {
-      const d = formatFetchError(e)
-      ev({ src: 'justwatch', status: 'network-failed', detail: d })
-      errors.push(`JustWatch 异常：${(e as Error)?.message || e}`)
-    }
-    return { detail: null, error: errors.length ? errors.join('；') : 'JustWatch 未返回结果' }
-  } else if (mode === 'wikipedia') {
-    ev({ src: 'wikipedia', status: 'trying' })
-    try {
-      const wikipedia = await fetchWikipediaDetail(q, settings, onError, manual)
-      if (wikipedia) {
-        ev({ src: 'wikipedia', status: 'hit' })
-        return { detail: wikipedia, source: 'wikipedia' }
-      }
-      const detail = errors.join('；') || undefined
-      ev({ src: 'wikipedia', status: 'no-result', detail })
-    } catch (e) {
-      const d = formatFetchError(e)
-      ev({ src: 'wikipedia', status: 'network-failed', detail: d })
-      errors.push(`维基百科异常：${(e as Error)?.message || e}`)
-    }
-    return { detail: null, error: errors.length ? errors.join('；') : '维基百科未返回结果' }
+    return { detail: null, error: errors.length ? errors.join('；') : SOURCES[mode].noResultMsg }
   }
+
   // ---- auto：按自定义/推荐优先级降级 ----
-  // 推荐顺序（信息全面度 / 获取难度 / 风控）：MovieDB → OMDb → OpenLibrary → JustWatch
-  // 用户可在设置里自定义 1-8 优先级（customSourceOrder）；DEFAULT_SOURCE_ORDER 已在模块底部 export
   const rawOrder =
     settings.customSourceOrder && settings.customSourceOrder.length >= 1
       ? settings.customSourceOrder
       : DEFAULT_SOURCE_ORDER
   const order = rawOrder.filter((s) => !settings.disabledSources?.includes(s))
   // v2.2.9：每次抓取开头打印当前生效的顺序 + externalId，让用户能在 userData/logs/main.log 里
-  // 直接看到"这次跑的是 MovieDB→OMDb→..."而不是猜（之前的日志滚动太快看不清顺序）
+  // 直接看到"这次跑的是 MovieDB→OMDb→..."而不是猜
   console.log(`[smart] ${code} order=${order.join('→')}`)
   // v2.2.6 修复：完整记录每个源的结果（"跳过" / "无结果" / "抓到了" / "网络失败"），
-  // 让用户清楚看到 5 个源都跑了哪些、为什么最终失败。errors 数组合并到最终的 return error。
-  const srcResults: Array<{ src: string; status: 'hit' | 'skipped' | 'no-result' | 'network-failed'; detail?: string }> = []
+  // 让用户清楚看到 5 个源都跑了哪些、为什么最终失败
+  const srcResults: Array<{ src: string; status: SingleResult['status']; detail?: string }> = []
   for (const src of order) {
     if (state.stop) break
     await waitIfPaused(state)
     if (state.stop) break
-    
-    if (src === 'moviedb') {
-      if (!hasMovieDbKey(settings)) {
-        const d = 'moviedb-not-configured'
-        srcResults.push({ src, status: 'skipped', detail: d })
-        ev({ src, status: 'skipped', detail: d })
-      } else if (state.moviedbDisabled) {
-        const d = 'moviedb-disabled'
-        srcResults.push({ src, status: 'skipped', detail: d })
-        ev({ src, status: 'skipped', detail: d })
-      } else {
-        ev({ src, status: 'trying' })
-        try {
-          // v2.8.5：每个源独立收集错误原因，no-result 时带上 detail（如 "Too many results."）
-          const srcErrors: string[] = []
-          const moviedb = await fetchMovieDbDetail(q, settings, (m) => srcErrors.push(m), manual)
-          if (moviedb) {
-            state.moviedbFails = 0
-            srcResults.push({ src, status: 'hit' })
-            ev({ src, status: 'hit' })
-            console.log(`[smart] ${code} HIT ${src}`)
-            return { detail: moviedb, source: 'moviedb' }
-          }
-          const detail = srcErrors.join('；') || undefined
-          srcResults.push({ src, status: 'no-result', detail })
-          ev({ src, status: 'no-result', detail })
-        } catch (e) {
-          const d = formatFetchError(e)
-          console.error(`[smart] ${code} ${src} network-failed:`, e)
-          srcResults.push({ src, status: 'network-failed', detail: d })
-          ev({ src, status: 'network-failed', detail: d })
-          state.moviedbFails++
-          if (state.moviedbFails >= MOVIEDB_CONSECUTIVE_LIMIT) {
-            state.moviedbDisabled = true
-            console.log(`[batch] MovieDB 连续失败 ${state.moviedbFails} 部，本轮自动停用`)
-          }
-        }
-      }
-    } else if (src === 'omdb') {
-      if (!hasOmdbKey(settings)) {
-        const d = 'omdb-not-configured'
-        srcResults.push({ src, status: 'skipped', detail: d })
-        ev({ src, status: 'skipped', detail: d })
-      } else if (state.omdbDisabled) {
-        const d = 'omdb-disabled'
-        srcResults.push({ src, status: 'skipped', detail: d })
-        ev({ src, status: 'skipped', detail: d })
-      } else {
-        ev({ src, status: 'trying' })
-        try {
-          const srcErrors: string[] = []
-          const omdb = await fetchOmdbDetail(q, settings, (m) => srcErrors.push(m), manual)
-          if (omdb) {
-            state.omdbFails = 0
-            srcResults.push({ src, status: 'hit' })
-            ev({ src, status: 'hit' })
-            console.log(`[smart] ${code} HIT ${src}`)
-            return { detail: omdb, source: 'omdb' }
-          }
-          const detail = srcErrors.join('；') || undefined
-          srcResults.push({ src, status: 'no-result', detail })
-          ev({ src, status: 'no-result', detail })
-        } catch (e) {
-          const d = formatFetchError(e)
-          console.error(`[smart] ${code} ${src} network-failed:`, e)
-          srcResults.push({ src, status: 'network-failed', detail: d })
-          ev({ src, status: 'network-failed', detail: d })
-          state.omdbFails++
-          if (state.omdbFails >= OMDB_CONSECUTIVE_LIMIT) {
-            state.omdbDisabled = true
-            console.log(`[batch] OMDb 连续失败 ${state.omdbFails} 部，本轮自动停用`)
-          }
-        }
-      }
-    } else if (src === 'openlibrary') {
-      if (state.openLibraryDisabled) {
-        const d = 'openlibrary-disabled'
-        srcResults.push({ src, status: 'skipped', detail: d })
-        ev({ src, status: 'skipped', detail: d })
-      } else {
-        ev({ src, status: 'trying' })
-        try {
-          const srcErrors: string[] = []
-          const openLibrary = await fetchOpenLibraryDetail(q, settings, (m) => srcErrors.push(m), manual)
-          if (openLibrary) {
-            state.openLibraryFails = 0
-            srcResults.push({ src, status: 'hit' })
-            ev({ src, status: 'hit' })
-            console.log(`[smart] ${code} HIT ${src}`)
-            return { detail: openLibrary, source: 'openlibrary' }
-          }
-          const detail = srcErrors.join('；') || undefined
-          srcResults.push({ src, status: 'no-result', detail })
-          ev({ src, status: 'no-result', detail })
-        } catch (e) {
-          const d = formatFetchError(e)
-          console.error(`[smart] ${code} ${src} network-failed:`, e)
-          srcResults.push({ src, status: 'network-failed', detail: d })
-          ev({ src, status: 'network-failed', detail: d })
-          state.openLibraryFails++
-          if (state.openLibraryFails >= OPENLIBRARY_CONSECUTIVE_LIMIT) {
-            state.openLibraryDisabled = true
-            console.log(`[batch] OpenLibrary 连续失败 ${state.openLibraryFails} 部，本轮自动停用`)
-          }
-        }
-      }
-    } else if (src === 'justwatch') {
-      if (state.justWatchDisabled) {
-        const d = 'justwatch-disabled'
-        srcResults.push({ src, status: 'skipped', detail: d })
-        ev({ src, status: 'skipped', detail: d })
-      } else {
-        ev({ src, status: 'trying' })
-        try {
-          const srcErrors: string[] = []
-          const justWatch = await fetchJustWatchDetail(q, settings, (m) => srcErrors.push(m), manual)
-          if (justWatch) {
-            state.justWatchFails = 0
-            srcResults.push({ src, status: 'hit' })
-            ev({ src, status: 'hit' })
-            console.log(`[smart] ${code} HIT ${src}`)
-            return { detail: justWatch, source: 'justwatch' }
-          }
-          const detail = srcErrors.join('；') || undefined
-          srcResults.push({ src, status: 'no-result', detail })
-          ev({ src, status: 'no-result', detail })
-        } catch (e) {
-          const d = formatFetchError(e)
-          console.error(`[smart] ${code} ${src} network-failed:`, e)
-          srcResults.push({ src, status: 'network-failed', detail: d })
-          ev({ src, status: 'network-failed', detail: d })
-          state.justWatchFails++
-          if (state.justWatchFails >= JUSTWATCH_CONSECUTIVE_LIMIT) {
-            state.justWatchDisabled = true
-            console.log(`[batch] JustWatch 连续失败 ${state.justWatchFails} 部，本轮自动停用`)
-          }
-        }
-      }
-    } else if (src === 'wikipedia') {
-      if (state.wikipediaDisabled) {
-        const d = 'wikipedia-disabled'
-        srcResults.push({ src, status: 'skipped', detail: d })
-        ev({ src, status: 'skipped', detail: d })
-      } else {
-        ev({ src, status: 'trying' })
-        try {
-          const srcErrors: string[] = []
-          const wikipedia = await fetchWikipediaDetail(q, settings, (m) => srcErrors.push(m), manual)
-          if (wikipedia) {
-            state.wikipediaFails = 0
-            srcResults.push({ src, status: 'hit' })
-            ev({ src, status: 'hit' })
-            console.log(`[smart] ${code} HIT ${src}`)
-            return { detail: wikipedia, source: 'wikipedia' }
-          }
-          const detail = srcErrors.join('；') || undefined
-          srcResults.push({ src, status: 'no-result', detail })
-          ev({ src, status: 'no-result', detail })
-        } catch (e) {
-          const d = formatFetchError(e)
-          console.error(`[smart] ${code} ${src} network-failed:`, e)
-          srcResults.push({ src, status: 'network-failed', detail: d })
-          ev({ src, status: 'network-failed', detail: d })
-          state.wikipediaFails++
-          if (state.wikipediaFails >= WIKIPEDIA_CONSECUTIVE_LIMIT) {
-            state.wikipediaDisabled = true
-            console.log(`[batch] 维基百科 连续失败 ${state.wikipediaFails} 部，本轮自动停用`)
-          }
-        }
-      }
-    }
+    const res = await runSingleSource(src, { q, settings, manual, state, code, ev, srcResults, respectState: true })
+    if (res.detail) return { detail: res.detail, source: res.source }
   }
-  // v2.2.6 修：完整 5 源结果拼成错误消息（用户能看到"5 个源全试了"而不是只看到跳过提示）
-  const STATUS_LABEL: Record<typeof srcResults[number]['status'], string> = {
+  const STATUS_LABEL: Record<SingleResult['status'], string> = {
     hit: '命中',
     skipped: '跳过',
     'no-result': '无结果',
