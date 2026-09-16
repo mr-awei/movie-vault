@@ -134,8 +134,12 @@ export default function App() {
   const [selectedDurations, setSelectedDurations] = useState<Set<string>>(new Set())
   const [selectedScores, setSelectedScores] = useState<Set<string>>(new Set())
   const [selectedYears, setSelectedYears] = useState<Set<string>>(new Set())
-  const [statsOpen, setStatsOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const statsOpen = useUIStore((s) => s.statsOpen)
+  const setStatsOpen = useUIStore((s) => s.setStatsOpen)
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+  const showDuplicates = useUIStore((s) => s.showDuplicates)
+  const setShowDuplicates = useUIStore((s) => s.setShowDuplicates)
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
   /** 用户须知弹窗：首次启动（noticeDismissed 未设置/为 false）时强制弹出 */
   /** true = 「{t('app.addLibrary')}」新建表单；false = 库设置编辑模式 */
@@ -159,7 +163,6 @@ export default function App() {
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null)
   const [pendingPlaylistId, setPendingPlaylistId] = useState<string | null>(null)
   const [dragSelectMode, setDragSelectMode] = useState<'select' | 'deselect' | null>(null)
-  const [showDuplicates, setShowDuplicates] = useState(false)
   const [showWatchStats, setShowWatchStats] = useState(false)
   // v2.2.10：实时抓取日志（"数据源失败 → 降级下一源" 这类过程，右下角浮层滚动展示）
   const [fetchLogs, setFetchLogs] = useState<
@@ -1901,8 +1904,6 @@ export default function App() {
   }, [])
 
   const clearCategory = useCallback(() => setFilter((f) => ({ ...f, category: null })), [])
-
-  const toggleSidebar = useCallback(() => setSidebarCollapsed((c) => !c), [])
 
   const mismatch =
     reconcile && (reconcile.stats.missing > 0 || reconcile.stats.unlisted > 0)
