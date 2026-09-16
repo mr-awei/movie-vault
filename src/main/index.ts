@@ -75,7 +75,10 @@ function killOldProcess(): void {
 }
 
 const lastVersion = readLastVersion()
-if (lastVersion && lastVersion !== app.getVersion()) {
+// 升级检测仅在打包（生产）环境生效。
+// dev 模式下 app.getVersion() 返回 electron 自身版本（如 31.7.7）而非 package.json 版本，
+// 会与 .last-version 记录的真实版本（如 2.9.2）不一致，导致误判升级并强制杀进程、应用退出。
+if (app.isPackaged && lastVersion && lastVersion !== app.getVersion()) {
   console.log(`[main] 检测到版本升级 ${lastVersion} -> ${app.getVersion()} → 强制结束旧进程后再启动`)
   killOldProcess()
 }
