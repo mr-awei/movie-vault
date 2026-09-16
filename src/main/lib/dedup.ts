@@ -6,10 +6,12 @@ import { listVideos } from './repo'
  * 三级检测：
  * 1. exact：contentHash（文件大小 + 前 64KB sha1）完全相同 —— 同一文件的精确副本
  * 2. title：归一化标题 + 年份匹配 —— 不同编码/压制的同一电影
- * 3. feature：时长（±5%）+ 分辨率 + 文件大小（±10%）特征匹配 —— 标题不同但内容可能相同
+ * 3. feature：标题相似 + 时长（±1%，绝对差≤90s）+ 分辨率 + 文件大小（±2%）特征匹配 —— 同内容不同命名的兜底
  *
  * 性能优化：先按标题+年份快速分组（O(n log n)），再在组内做精确匹配和特征匹配，
  * 避免全量两两比较（O(n²)）。
+ * 注：v2.11.1 收紧特征匹配阈值并增加标题相似度门槛（编辑距离 ≥0.75），
+ * 防止片长/体积分布接近但内容完全不同的影片被误判为重复（防误删优先）。
  */
 
 /** 标题归一化：去除特殊字符、统一大小写、去除多余空格 */
@@ -20,6 +22,39 @@ function normalizeTitle(title: string): string {
     .replace(/[^\w\u4e00-\u9fa5\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+/** 编辑距离（Levenshtein），滚动数组省内存 */
+function editDistance(a: string, b: string): number {
+  const m = a.length
+  const n = b.length
+  if (m === 0) return n
+  if (n === 0) return m
+  let prev = new Array(n + 1).fill(0).map((_, i) => i)
+  for (let i = 1; i <= m; i++) {
+    const cur = new Array(n + 1).fill(0)
+    cur[0] = i
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+    }
+    prev = cur
+  }
+  return prev[n]
+}
+
+/**
+ * 标题相似度校验：归一化编辑距离相似度 ≥ 0.75 才视为「可能同内容」。
+ * 特征匹配只对标题相近的候选生效，防止片长/体积分布接近但完全不同的作品被误判为重复。
+ */
+function isTitleSimilar(a: string, b: string): boolean {
+  const na = normalizeTitle(a)
+  const nb = normalizeTitle(b)
+  if (!na || !nb) return false
+  if (na === nb) return true
+  const maxLen = Math.max(na.length, nb.length)
+  if (maxLen < 3) return false
+  return 1 - editDistance(na, nb) / maxLen >= 0.75
 }
 
 /** 从 techInfo 中提取分辨率字符串 */
@@ -37,29 +72,38 @@ function getResolution(v: Video): string | undefined {
   return 'SD'
 }
 
-/** 判断两个视频是否特征匹配（时长±5% + 分辨率相同 + 大小±10%） */
+/**
+ * 判断两个视频是否特征匹配。
+ * 收紧策略（v2.11.1 防误判）：标题相似 + 时长±1%（绝对差≤90s）+ 分辨率双方必须相同 + 大小±2%。
+ * 三级检测里特征匹配是最低置信度信号，宁可漏检不可误报（误报会引导用户删错文件）。
+ */
 function isFeatureMatch(a: Video, b: Video): boolean {
-  // 时长匹配（±5%，至少 60 秒）
+  // 标题相似：不同作品的片长/体积经常分布相近（尤其同类型影片），必须有标题依据
+  if (!isTitleSimilar(a.title ?? '', b.title ?? '')) return false
+
+  // 时长匹配（±1%，且绝对差 ≤ 90 秒）
   const durA = a.durationSec ?? a.techInfo?.durationSec
   const durB = b.durationSec ?? b.techInfo?.durationSec
   if (durA && durB && durA > 60 && durB > 60) {
     const diff = Math.abs(durA - durB) / Math.max(durA, durB)
-    if (diff > 0.05) return false
+    if (diff > 0.01 || Math.abs(durA - durB) > 90) return false
   } else {
     return false // 没有时长信息不做特征匹配
   }
 
-  // 分辨率匹配
+  // 分辨率匹配：双方都必须有分辨率且相同（同内容不同压制分辨率一致）
   const resA = getResolution(a)
   const resB = getResolution(b)
-  if (resA && resB && resA !== resB) return false
+  if (!resA || !resB || resA !== resB) return false
 
-  // 文件大小匹配（±10%）
+  // 文件大小匹配（±2%）：同内容的不同码率/封装体积差应在小范围
   const sizeA = a.fileSize
   const sizeB = b.fileSize
   if (sizeA && sizeB && sizeA > 0 && sizeB > 0) {
     const diff = Math.abs(sizeA - sizeB) / Math.max(sizeA, sizeB)
-    if (diff > 0.1) return false
+    if (diff > 0.02) return false
+  } else {
+    return false
   }
 
   return true

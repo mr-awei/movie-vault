@@ -24,7 +24,7 @@ const MATCH_TYPE_CONFIG: Record<DuplicateMatchType, { label: string; color: stri
   feature: {
     label: '特征匹配',
     color: 'text-blue-400',
-    desc: '时长（±5%）+ 分辨率 + 文件大小（±10%）特征相似，标题可能不同但内容可能相同'
+    desc: '标题相似 + 时长（±1%）+ 分辨率 + 文件大小（±2%）特征相似，仅作同内容不同命名的兜底'
   }
 }
 
@@ -178,7 +178,7 @@ export default function DuplicateModal({ onClose, libraryId }: Props) {
         {!loading && groups.length > 0 && (
           <div className="px-5 py-3 border-t border-white/10 bg-white/5">
             <p className="text-white/40 text-xs">
-              三级检测：①精确匹配（内容指纹）②标题匹配（归一化标题+年份）③特征匹配（时长±5%+分辨率+大小±10%）。
+              三级检测：①精确匹配（内容指纹）②标题匹配（归一化标题+年份）③特征匹配（标题相似+时长±1%+分辨率+大小±2%）。
               推荐保留版本为文件最大的一份，请手动确认后删除多余副本，删除操作走系统回收站可恢复。
             </p>
           </div>
