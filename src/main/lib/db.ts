@@ -158,6 +158,37 @@ function initSchema(): void {
       value TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     );
+
+    -- preview_tasks 表：预览图生成任务
+    CREATE TABLE IF NOT EXISTS preview_tasks (
+      id TEXT PRIMARY KEY,
+      media_id TEXT NOT NULL,
+      task_type TEXT NOT NULL,
+      priority INTEGER NOT NULL DEFAULT 3,
+      status TEXT NOT NULL,
+      progress REAL NOT NULL DEFAULT 0,
+      requested_count INTEGER NOT NULL DEFAULT 20,
+      generated_count INTEGER NOT NULL DEFAULT 0,
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      algorithm_version TEXT,
+      quality_mode TEXT,
+      created_at INTEGER NOT NULL,
+      started_at INTEGER,
+      finished_at INTEGER,
+      last_error TEXT,
+      error_code TEXT,
+      extra TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_preview_tasks_media ON preview_tasks(media_id);
+    CREATE INDEX IF NOT EXISTS idx_preview_tasks_status ON preview_tasks(status);
+
+    -- preview_manifests 表：预览图清单（mediaId → manifest JSON）
+    CREATE TABLE IF NOT EXISTS preview_manifests (
+      media_id TEXT PRIMARY KEY,
+      manifest TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `)
 
   console.log('[db] 表结构初始化完成')

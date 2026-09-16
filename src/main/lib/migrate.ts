@@ -2,17 +2,17 @@ import { app } from 'electron'
 import path from 'node:path'
 import { promises as fs } from 'node:fs'
 import { getDb } from './db'
-import type { Library, Video, Playlist, Settings } from '../../shared/types'
+import type { Library, Video, Playlist, Settings, PreviewTask, PreviewManifest } from '../../shared/types'
 
 /**
  * 数据迁移模块：从 JSON (data.json) 迁移到 SQLite。
  *
  * 迁移策略：
  * 1. 备份 data.json 为 data.json.bak-<timestamp>
- * 2. 清空 SQLite 表（libraries/videos/playlists/playlist_items/settings）
+ * 2. 清空 SQLite 表（libraries/videos/playlists/playlist_items/settings/preview_tasks/preview_manifests）
  * 3. 批量插入数据
- * 4. 记录迁移状态到 migration_status 表
- * 5. 迁移完成后，应用可以选择使用 SQLite 存储（通过设置开关）
+ * 4. 记录迁移状态到 settings 表（_migration_status 键）
+ * 5. 启动时自动检测：SQLite 无视频数据但 data.json 存在 → 自动迁移
  *
  * 回滚方案：删除 SQLite 数据库文件，恢复 data.json 备份。
  */
@@ -22,6 +22,8 @@ interface DBShape {
   videos: Video[]
   settings: Settings
   playlists: Playlist[]
+  previewTasks?: PreviewTask[]
+  previewManifests?: Record<string, PreviewManifest>
 }
 
 /** 迁移状态 */
@@ -71,6 +73,8 @@ function clearTables(): void {
     DELETE FROM videos;
     DELETE FROM libraries;
     DELETE FROM settings;
+    DELETE FROM preview_tasks;
+    DELETE FROM preview_manifests;
   `)
   console.log('[migrate] SQLite 表已清空')
 }
@@ -250,6 +254,55 @@ function migrateSettings(settings: Settings): void {
   console.log(`[migrate] settings 迁移完成: ${entries.length} 个键`)
 }
 
+/** 迁移 preview_tasks / preview_manifests */
+function migratePreview(
+  tasks: PreviewTask[] | undefined,
+  manifests: Record<string, PreviewManifest> | undefined
+): void {
+  const db = getDb()
+  if (tasks?.length) {
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO preview_tasks (
+        id, media_id, task_type, priority, status, progress,
+        requested_count, generated_count, retry_count, algorithm_version, quality_mode,
+        created_at, started_at, finished_at, last_error, error_code, extra
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    const insertMany = db.transaction((items: PreviewTask[]) => {
+      for (const t of items) {
+        stmt.run(
+          t.id,
+          t.mediaId,
+          t.taskType,
+          t.priority,
+          t.status,
+          t.progress,
+          t.requestedCount,
+          t.generatedCount,
+          t.retryCount,
+          t.algorithmVersion,
+          t.qualityMode,
+          t.createdAt,
+          t.startedAt ?? null,
+          t.finishedAt ?? null,
+          t.lastError ?? null,
+          (t as { errorCode?: string }).errorCode ?? null,
+          JSON.stringify({})
+        )
+      }
+    })
+    insertMany(tasks)
+  }
+  if (manifests) {
+    const stmt = db.prepare('INSERT OR REPLACE INTO preview_manifests (media_id, manifest, updated_at) VALUES (?, ?, ?)')
+    const insertMany = db.transaction((items: Array<[string, PreviewManifest]>) => {
+      for (const [mediaId, m] of items) stmt.run(mediaId, JSON.stringify(m), m.generatedAt ?? Date.now())
+    })
+    insertMany(Object.entries(manifests))
+  }
+  console.log(`[migrate] preview 迁移完成: tasks=${tasks?.length ?? 0}, manifests=${manifests ? Object.keys(manifests).length : 0}`)
+}
+
 /** 执行完整迁移 */
 export async function migrateFromJsonToSqlite(): Promise<MigrationStatus> {
   console.log('[migrate] 开始从 JSON 迁移到 SQLite...')
@@ -271,6 +324,7 @@ export async function migrateFromJsonToSqlite(): Promise<MigrationStatus> {
   const videoCount = migrateVideos(data.videos ?? [])
   const playlistCount = migratePlaylists(data.playlists ?? [])
   migrateSettings(data.settings)
+  migratePreview(data.previewTasks, data.previewManifests)
 
   // 5. 记录迁移状态
   const status: MigrationStatus = {
@@ -283,11 +337,36 @@ export async function migrateFromJsonToSqlite(): Promise<MigrationStatus> {
       playlists: playlistCount
     }
   }
+  getDb()
+    .prepare("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('_migration_status', ?, ?)")
+    .run(JSON.stringify(status), Date.now())
 
   console.log('[migrate] 迁移完成！', status)
   console.log(`[migrate] 备份文件: ${backupPath}`)
 
   return status
+}
+
+/** 启动时自动迁移：SQLite 尚无视频数据且 data.json 存在 → 备份 JSON 并全量迁移。
+ *  已迁移（videos 表有数据）则直接返回，幂等安全。 */
+export async function ensureSqliteMigrated(): Promise<MigrationStatus> {
+  const db = getDb()
+  try {
+    const row = db.prepare('SELECT COUNT(*) AS c FROM videos').get() as { c: number }
+    if (row.c > 0) {
+      console.log(`[migrate] SQLite 已有数据（videos=${row.c}），跳过迁移`)
+      return { migrated: true }
+    }
+  } catch (e) {
+    console.warn('[migrate] 检查 SQLite 失败:', (e as Error).message)
+  }
+  const data = await readDataJson()
+  if (!data || !data.videos || data.videos.length === 0) {
+    console.log('[migrate] data.json 无视频数据，无需迁移')
+    return { migrated: false }
+  }
+  console.log(`[migrate] SQLite 为空，data.json 有 ${data.videos.length} 部视频，开始自动迁移...`)
+  return migrateFromJsonToSqlite()
 }
 
 /** 检查迁移状态 */

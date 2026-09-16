@@ -374,7 +374,7 @@ app.on('before-quit', () => {
   void stopPreviewTaskQueue()
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // 隐藏默认应用菜单（打包后才出现 File/Edit/View/Window/Help，应用内无窗口菜单，无需保留）
   Menu.setApplicationMenu(null)
 
@@ -383,9 +383,12 @@ app.whenReady().then(() => {
   attachMainLog()
 
   registerLocalMedia()
-  registerIpc()
   // 初始化 SQLite 数据库
   getDb()
+  // 数据存储迁移：首次启动 SQLite 为空时，从 data.json 自动全量迁移（含备份）
+  // 必须在 registerIpc / createWindow 之前完成，避免 UI 启动后读到空库
+  await import('./lib/migrate').then((m) => m.ensureSqliteMigrated())
+  registerIpc()
   void startPreviewTaskQueue()
 
   // 启动时应用界面语言：安装器首次安装的语言选择 > settings.language > 默认中文
