@@ -37,6 +37,9 @@ import PasswordPromptModal from './components/PasswordPromptModal'
 import ConfirmDeleteModal from './components/ConfirmDeleteModal'
 import UserNoticeModal from './components/UserNoticeModal'
 import OnboardSheetModal from './components/OnboardSheetModal'
+import ActiveFilterBar from './components/ActiveFilterBar'
+import BatchLockBar from './components/BatchLockBar'
+import SkippedFilesModal from './components/SkippedFilesModal'
 import { useDataStore, useFilterStore } from './store'
 
 /** Fisher-Yates 洗牌（默认用 Math.random，保证每次重建队列都不同；可传入 rand 做可复现） */
@@ -193,7 +196,6 @@ export default function App() {
   const retryingFailures = useUIStore((s) => s.retryingFailures)
   const setRetryingFailures = useUIStore((s) => s.setRetryingFailures)
   /** v2.7.x：本次批量补齐自动跳过的文件明细（已锁定 / 文件不存在），结束后弹窗告知用户 */
-  const skippedFiles = useDataStore((s) => s.skippedFiles)
   const setSkippedFiles = useDataStore((s) => s.setSkippedFiles)
 
   // === 批量抓取失败明细：打开详情时藏弹窗，关详情时自动恢复 ===
@@ -824,38 +826,7 @@ export default function App() {
     setSelectedIds((prev) => new Set(visibleIds.filter((id) => !prev.has(id))))
   }, [filtered])
 
-  /** 对当前选中项批量设置锁定状态 */
-  const applyLockToSelection = useCallback(
-    async (locked: boolean) => {
-      const ids = [...selectedIds]
-      if (ids.length === 0) {
-        toast({ text: t('lock.selectedNone'), tone: 'warn' })
-        return
-      }
-      const now = Date.now()
-      await api.videoLockMany(ids, locked)
-      setReconcile((prev) =>
-        prev
-          ? {
-              ...prev,
-              entries: prev.entries.map((e) =>
-                e.video && ids.includes(e.video.id)
-                  ? { ...e, video: { ...e.video, locked, lockedAt: locked ? now : undefined } }
-                  : e
-              )
-            }
-          : prev
-      )
-      setSelectedIds(new Set())
-      setSelectMode(false)
-      toast({
-        text: locked ? t('lock.batchLockedToast', { count: ids.length }) : t('lock.batchUnlockedToast', { count: ids.length }),
-        tone: locked ? 'warn' : 'ok'
-      })
-    },
-    [selectedIds]
-  )
-
+  /** 对当前选中项批量设置锁定状态（实现在 BatchLockBar 组件内） */
 
   // ---------- 播放列表 ----------
   const handleCreatePlaylist = useCallback(async (name: string) => {
@@ -1733,27 +1704,6 @@ export default function App() {
   )
 
   /** v2.7.x：批量补齐结束后弹窗里「全部解锁」——解锁本次因锁定被跳过的所有影片 */
-  const unlockSkippedAll = useCallback(async () => {
-    const lockedItems = (skippedFiles ?? []).filter((x) => x.reason === 'locked')
-    if (lockedItems.length === 0) return
-    const ids = lockedItems.map((x) => x.id)
-    await api.videoLockMany(ids, false)
-    setReconcile((prev) =>
-      prev
-        ? {
-            ...prev,
-            entries: prev.entries.map((e) =>
-              e.video && ids.includes(e.video.id)
-                ? { ...e, video: { ...e.video, locked: false, lockedAt: undefined } }
-                : e
-            )
-          }
-        : prev
-    )
-    setSkippedFiles(null)
-    toast({ text: t('lock.unlockedAll'), tone: 'ok' })
-  }, [skippedFiles])
-
   // ---------- 导航 ----------
 
   const clearAllFilters = useCallback(() => {
@@ -2146,88 +2096,7 @@ export default function App() {
                 onDeletePlaylist={handleDeletePlaylist}
               />
 
-              {/* 活跃筛选条：多维筛选可视化，可单独移除 */}
-              {(metaSelectedCount + techSelectedCount) > 0 ? (
-                <div className="mb-3 flex flex-wrap items-center gap-2 animate-fadeIn-fast">
-                  <span className="text-white/40 text-xs">{t('app.filterLabel')}</span>
-                  {[...selectedActors].map((a) => (
-                    <button
-                      key={`a-${a}`}
-                      onClick={() => toggleActor(a)}
-                      className="h-6 px-2 rounded-md text-[11px] flex items-center gap-1 bg-brand/15 text-brand ring-1 ring-brand/30 hover:bg-brand/25 transition-colors"
-                    >
-                      {t('app.cast')}{a}
-                      <Icon name="x" size={11} className="opacity-70" />
-                    </button>
-                  ))}
-                  {[...selectedStudios].map((s) => (
-                    <button
-                      key={`s-${s}`}
-                      onClick={() => toggleStudio(s)}
-                      className="h-6 px-2 rounded-md text-[11px] flex items-center gap-1 bg-brand/15 text-brand ring-1 ring-brand/30 hover:bg-brand/25 transition-colors"
-                    >
-                      {t('app.studioLabel')}{s}
-                      <Icon name="x" size={11} className="opacity-70" />
-                    </button>
-                  ))}
-                  {[...selectedSeries].map((s) => (
-                    <button
-                      key={`se-${s}`}
-                      onClick={() => toggleSeries(s)}
-                      className="h-6 px-2 rounded-md text-[11px] flex items-center gap-1 bg-brand/15 text-brand ring-1 ring-brand/30 hover:bg-brand/25 transition-colors"
-                    >
-                      {t('app.seriesLabel')}{s}
-                      <Icon name="x" size={11} className="opacity-70" />
-                    </button>
-                  ))}
-                  {[...selectedResolutions].map((r) => (
-                    <button
-                      key={`r-${r}`}
-                      onClick={() => toggleResolution(r)}
-                      className="h-6 px-2 rounded-md text-[11px] flex items-center gap-1 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
-                    >
-                      {t('app.resolutionLabel')}{r}
-                      <Icon name="x" size={11} className="opacity-70" />
-                    </button>
-                  ))}
-                  {[...selectedDurations].map((d) => (
-                    <button
-                      key={`d-${d}`}
-                      onClick={() => toggleDuration(d)}
-                      className="h-6 px-2 rounded-md text-[11px] flex items-center gap-1 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
-                    >
-                      {t('app.durationLabel')}{d}
-                      <Icon name="x" size={11} className="opacity-70" />
-                    </button>
-                  ))}
-                  {[...selectedScores].map((s) => (
-                    <button
-                      key={`sc-${s}`}
-                      onClick={() => toggleScore(s)}
-                      className="h-6 px-2 rounded-md text-[11px] flex items-center gap-1 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
-                    >
-                      {t('app.scoreLabel')}{s}
-                      <Icon name="x" size={11} className="opacity-70" />
-                    </button>
-                  ))}
-                  {[...selectedYears].map((y) => (
-                    <button
-                      key={`y-${y}`}
-                      onClick={() => toggleYear(y)}
-                      className="h-6 px-2 rounded-md text-[11px] flex items-center gap-1 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
-                    >
-                      {t('app.yearLabel')}{y}
-                      <Icon name="x" size={11} className="opacity-70" />
-                    </button>
-                  ))}
-                  <button
-                    onClick={clearAllFilters}
-                    className="h-6 px-2 rounded-md text-[11px] text-white/50 hover:text-white hover:bg-ink-700 transition-colors"
-                  >
-                    {t('app.clearAll')}
-                  </button>
-                </div>
-              ) : null}
+      <ActiveFilterBar />
 
               <div className="flex-1 min-h-0">
                 {viewMode === 'list-filename' ? (
@@ -2592,157 +2461,11 @@ export default function App() {
         </div>
       )}
 
-      {/* v2.7.x：多选批量锁定操作条 */}
       {selectMode && !activePlaylistId && !pendingPlaylistId && view === 'browse' ? (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[65] flex items-center gap-2 px-3 py-2 rounded-2xl bg-ink-850/95 ring-1 ring-white/15 shadow-2xl shadow-black/60 backdrop-blur-sm animate-fadeIn-fast">
-          <span className="text-sm text-white/80 px-1 whitespace-nowrap">{t('lock.selectedCount', { count: selectedIds.size })}</span>
-          <button
-            type="button"
-            className="h-8 px-2.5 rounded-lg text-xs font-medium bg-white/8 hover:bg-white/15 text-white/80 transition-colors whitespace-nowrap"
-            onClick={selectAllVisible}
-          >
-            {t('lock.selectAll')}
-          </button>
-          <button
-            type="button"
-            className="h-8 px-2.5 rounded-lg text-xs font-medium bg-white/8 hover:bg-white/15 text-white/80 transition-colors whitespace-nowrap"
-            onClick={invertSelection}
-          >
-            {t('lock.invertSelection')}
-          </button>
-          <button
-            type="button"
-            className="h-8 px-2.5 rounded-lg text-xs font-medium bg-white/8 hover:bg-white/15 text-white/80 transition-colors disabled:opacity-40 whitespace-nowrap"
-            onClick={() => setSelectedIds(new Set())}
-            disabled={selectedIds.size === 0}
-          >
-            {t('lock.clearSelection')}
-          </button>
-          <div className="w-px h-5 bg-white/10 mx-0.5" />
-          <button
-            type="button"
-            className="h-8 px-3 rounded-lg text-xs font-medium bg-amber-500 hover:bg-amber-400 text-black transition-colors flex items-center gap-1.5 disabled:opacity-40 whitespace-nowrap"
-            onClick={() => void applyLockToSelection(true)}
-            disabled={selectedIds.size === 0}
-          >
-            <Icon name="lock" size={13} />
-            {t('lock.batchLock')}
-          </button>
-          <button
-            type="button"
-            className="h-8 px-3 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center gap-1.5 disabled:opacity-40 whitespace-nowrap"
-            onClick={() => void applyLockToSelection(false)}
-            disabled={selectedIds.size === 0}
-          >
-            <Icon name="unlock" size={13} />
-            {t('lock.batchUnlock')}
-          </button>
-          <button
-            type="button"
-            className="h-8 w-8 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center"
-            onClick={toggleSelectMode}
-            title={t('lock.exitSelect')}
-          >
-            <Icon name="x" size={14} />
-          </button>
-        </div>
+        <BatchLockBar onSelectAll={selectAllVisible} onInvert={invertSelection} />
       ) : null}
 
-      {/* v2.7.x：批量补齐结束后，告知哪些文件被自动跳过（已锁定 / 文件不存在） */}
-      {skippedFiles && skippedFiles.length > 0 && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-modal-backdrop"
-          onClick={() => setSkippedFiles(null)}
-        >
-          <div
-            className="relative w-full max-w-xl max-h-[80vh] overflow-hidden rounded-2xl bg-ink-850 ring-1 ring-white/10 shadow-2xl shadow-black/50 animate-modal-panel"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {(() => {
-              const lockedItems = skippedFiles.filter((x) => x.reason === 'locked')
-              const missingItems = skippedFiles.filter((x) => x.reason === 'missing')
-              return (
-                <>
-                  <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                      <h3 className="text-base font-medium text-white truncate">{t('lock.skippedTitle')}</h3>
-                      <span className="text-xs text-white/40 ml-2 shrink-0">{t('lock.skippedCount', { count: skippedFiles.length })}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSkippedFiles(null)}
-                      className="w-7 h-7 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center shrink-0"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="px-5 pt-3 text-xs text-white/50 leading-relaxed">
-                    {t('lock.skippedHintGeneric', { locked: lockedItems.length, missing: missingItems.length })}
-                  </div>
-                  <div className="p-5 overflow-y-auto max-h-[50vh] space-y-1.5">
-                    {skippedFiles.map((item) => {
-                      const entry = reconcile?.entries.find((e) => e.video?.id === item.id)
-                      return (
-                        <div
-                          key={`${item.reason}-${item.id}`}
-                          className="w-full flex items-center gap-2.5 rounded-lg bg-white/5 px-3 py-2"
-                        >
-                          <Icon
-                            name={item.reason === 'locked' ? 'lock' : 'alert'}
-                            size={13}
-                            className={`shrink-0 ${item.reason === 'locked' ? 'text-amber-400' : 'text-red-400'}`}
-                          />
-                          <span className="text-sm text-white/90 truncate flex-1 min-w-0" title={item.title}>
-                            {item.title}
-                          </span>
-                          <span
-                            className={`text-[10px] shrink-0 px-1.5 py-0.5 rounded ${
-                              item.reason === 'locked' ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/15 text-red-300'
-                            }`}
-                          >
-                            {item.reason === 'locked' ? t('lock.reasonLocked') : t('lock.reasonMissing')}
-                          </span>
-                          {entry?.video ? (
-                            <button
-                              type="button"
-                              className="text-[10px] text-white/40 hover:text-brand shrink-0"
-                              onClick={() => {
-                                setSkippedFiles(null)
-                                setDetail(entry.video!)
-                              }}
-                            >
-                              {t('app.batchFailuresDetail')}
-                            </button>
-                          ) : null}
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <div className="flex justify-end items-center gap-3 px-5 py-4 border-t border-white/5">
-                    <button
-                      type="button"
-                      onClick={() => void unlockSkippedAll()}
-                      disabled={lockedItems.length === 0}
-                      className="px-4 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Icon name="unlock" size={13} />
-                      {t('lock.unlockAll')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSkippedFiles(null)}
-                      className="px-4 h-9 rounded-lg bg-brand hover:bg-brand/90 text-white text-sm transition-colors"
-                    >
-                      {t('lock.skippedClose')}
-                    </button>
-                  </div>
-                </>
-              )
-            })()}
-          </div>
-        </div>
-      )}
+      <SkippedFilesModal />
 
     </div>
       {showDuplicates && libraryId ? (
