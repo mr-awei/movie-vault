@@ -1,8 +1,9 @@
-import sys, io
+import sqlite3, io, sys
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-p = r'E:\Movie Vault\src\renderer\src\components\settings\NetworkSection.tsx'
-s = open(p, 'rb').read()
-print('CRLF' if b'\r\n' in s else 'LF', '| size', len(s))
-lines = s.decode('utf-8').splitlines()
-for i in range(23, 32):
-    print(i + 1, repr(lines[i]))
+p = r'C:\Users\19218\AppData\Roaming\yinghai\yinghai.db'
+db = sqlite3.connect(p)
+cols = [r[1] for r in db.execute('PRAGMA table_info(videos)')]
+print('phash in videos:', 'phash' in cols)
+n = db.execute('SELECT COUNT(*) FROM videos').fetchone()[0]
+print('videos:', n)
+db.close()
