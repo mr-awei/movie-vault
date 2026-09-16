@@ -920,6 +920,7 @@ export default {
   'settings.confidencePartial': "Partial (version newer but no installer found)",
   'settings.confidenceUnknown': "Cannot determine",
   'settings.confirmClearPosterCache': "Clear all poster cache? Will re-download on next open.",
+  'settings.confirmClearPosterCacheHint': 'Poster images will be regenerated after clearing (video files are not affected).',
   'settings.confirmPassword': "Re-enter to confirm",
   'settings.confirmUninstallFirst': "Uninstall yinghai? The uninstaller will then ask whether to keep app data.",
   'settings.confirmUninstallSecond': "Confirm again: the uninstaller removes the app and asks whether to keep local data (poster cache, library configs).",

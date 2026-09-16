@@ -10,6 +10,7 @@ import Icon from './Icon'
 import DuplicateModal from './DuplicateModal'
 import UninstallConfirmModal from './UninstallConfirmModal'
 import { t, setLocale } from '../../../shared/i18n'
+import { toast } from './Toast'
 import type { IconName } from './Icon'
 import {
   GeneralSection,
@@ -187,7 +188,7 @@ export default function SettingsModal({ open, settings, onClose, onSave, onSaved
               setUninstallBusy(false)
               setShowUninstall(false)
               if (!r.ok) {
-                window.alert(r.error ?? t('settings.uninstallFailed'))
+                toast({ text: r.error ?? t('settings.uninstallFailed'), tone: 'err' })
               }
             }}
           />

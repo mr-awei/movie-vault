@@ -44,7 +44,7 @@ const api: AppApi = {
   ffmpegStatus: () => ipcRenderer.invoke(IPC.ffmpegStatus),
   appUninstall: (keepUser: boolean) => ipcRenderer.invoke(IPC.appUninstall, keepUser),
   onPosterFetched: (cb) => {
-    const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as never)
+    const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as Parameters<typeof cb>[0])
     ipcRenderer.on(IPC.posterFetched, handler)
     return () => ipcRenderer.removeListener(IPC.posterFetched, handler)
   },
@@ -69,14 +69,14 @@ const api: AppApi = {
   previewTaskCancel: (taskId) => ipcRenderer.invoke(IPC.previewTaskCancel, taskId),
   previewTaskRetry: (taskId) => ipcRenderer.invoke(IPC.previewTaskRetry, taskId),
   onPreviewTaskEvent: (cb) => {
-    const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as never)
+    const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as Parameters<typeof cb>[0])
     ipcRenderer.on(IPC.previewTaskEvent, handler)
     return () => ipcRenderer.removeListener(IPC.previewTaskEvent, handler)
   },
   videoFrameFallback: (id) => ipcRenderer.invoke(IPC.videoFrameFallback, id),
   videoSetPreviewAsCover: (id, previewPath) => ipcRenderer.invoke(IPC.videoSetPreviewAsCover, id, previewPath),
   onScanProgress: (cb) => {
-    const handler = (_e: Electron.IpcRendererEvent, p: unknown) => cb(p as never)
+    const handler = (_e: Electron.IpcRendererEvent, p: unknown) => cb(p as Parameters<typeof cb>[0])
     ipcRenderer.on(IPC.scanProgress, handler)
     return () => ipcRenderer.removeListener(IPC.scanProgress, handler)
   },
@@ -99,7 +99,7 @@ const api: AppApi = {
   watchHistoryStats: () => ipcRenderer.invoke(IPC.watchHistoryStats),
   watchHistoryClear: () => ipcRenderer.invoke(IPC.watchHistoryClear),
   onWatcherEvent: (cb) => {
-    const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as never)
+    const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as Parameters<typeof cb>[0])
     ipcRenderer.on(IPC.watcherEvent, handler)
     return () => ipcRenderer.removeListener(IPC.watcherEvent, handler)
   }

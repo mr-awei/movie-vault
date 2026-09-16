@@ -917,6 +917,7 @@ export default {
   'settings.confidencePartial': "部分（版本较新但未找到安装包）",
   'settings.confidenceUnknown': "无法判定",
   'settings.confirmClearPosterCache': "确定要清理所有海报缓存吗？下次打开时会重新下载。",
+  'settings.confirmClearPosterCacheHint': '清除后封面图片将重新生成（不影响视频文件）',
   'settings.confirmPassword': "再次输入确认",
   'settings.confirmUninstallFirst': "确定要卸载「影海」吗？卸载程序随后会询问是否保留应用数据。",
   'settings.confirmUninstallSecond': "再次确认：卸载程序会删除应用，并询问是否保留本地数据（海报缓存、媒体库配置）。",

@@ -33,6 +33,7 @@ import BrowseBar from './components/BrowseBar'
 import ListView from './components/ListView'
 import Icon from './components/Icon'
 import { ToastProvider, toast } from './components/Toast'
+import PasswordPromptModal from './components/PasswordPromptModal'
 import ConfirmDeleteModal from './components/ConfirmDeleteModal'
 import UserNoticeModal from './components/UserNoticeModal'
 import OnboardSheetModal from './components/OnboardSheetModal'
@@ -149,6 +150,7 @@ export default function App() {
   const setDetail = useUIStore((s) => s.setDetail)
   const deletePreview = useUIStore((s) => s.deletePreview)
   const setDeletePreview = useUIStore((s) => s.setDeletePreview)
+  const [pwdPrompt, setPwdPrompt] = useState<{ title: string; onOk: () => void } | null>(null)
   const deleting = useUIStore((s) => s.deleting)
   const setDeleting = useUIStore((s) => s.setDeleting)
   const scanning = useUIStore((s) => s.scanning)
@@ -1204,7 +1206,7 @@ export default function App() {
   const openDeleteConfirm = useCallback(
     async (v: Video) => {
       if (!v.path) {
-        window.alert(t('app.noFilePathCannotDelete'))
+        toast({ text: t('app.noFilePathCannotDelete'), tone: 'err' })
         return
       }
       const fileName = v.path.split(/[\\/]/).pop() || v.path
@@ -1212,7 +1214,7 @@ export default function App() {
   // 预检：让用户在确认前看到准确的删除范围（不删任何文件）
       const inspect = await api.videoInspectForDelete(v.id).catch((e) => ({ ok: false as const, error: String(e) }))
       if (!inspect.ok) {
-        window.alert(t('app.deletePrecheckFailed') + inspect.error)
+        toast({ text: t('app.deletePrecheckFailed') + inspect.error, tone: 'err' })
         return
       }
       const otherVideoCount = inspect.otherVideoCount ?? 0
@@ -1234,23 +1236,14 @@ export default function App() {
   )
 
   /** 弹窗确认后：把文件/目录挪到回收站 → 关详情页 → 全库扫描 */
-  const confirmDelete = useCallback(async () => {
+  const doDelete = useCallback(async () => {
     if (!deletePreview || deleting) return
-    if (settings.lockHash) {
-      const pwd = window.prompt(t('app.privacyLockPrompt'))
-      if (pwd == null) return
-      const ok = await api.lockVerify(pwd)
-      if (!ok) {
-        window.alert(t('app.wrongPasswordDelete'))
-        return
-      }
-    }
     const fileName = deletePreview.fileName
     setDeleting(true)
     try {
       const r = await api.videoDeleteFile(deletePreview.id)
       if (!r.ok) {
-        window.alert(t('app.deleteFailed') + (r.error ?? t('app.unknownError')))
+        toast({ text: t('app.deleteFailed') + (r.error ?? t('app.unknownError')), tone: 'err' })
         setDeletePreview(null)
         return
       }
@@ -1268,11 +1261,20 @@ export default function App() {
         await runReconcile(libraryId)
       }
     } catch (e) {
-      window.alert(t('app.deleteFailed') + ((e as Error)?.message ?? String(e)))
+      toast({ text: t('app.deleteFailed') + ((e as Error)?.message ?? String(e)), tone: 'err' })
     } finally {
       setDeleting(false)
     }
   }, [deletePreview, deleting, libraryId])
+
+  const confirmDelete = useCallback(async () => {
+    if (!deletePreview || deleting) return
+    if (settings.lockHash) {
+      setPwdPrompt({ title: t('app.privacyLockPrompt'), onOk: () => void doDelete() })
+      return
+    }
+    await doDelete()
+  }, [deletePreview, deleting, settings.lockHash, doDelete])
 
   const handleDetailFetched = useCallback((videoId: string, detail: Video['meta']) => {
     setReconcile((prev) =>
@@ -1352,17 +1354,8 @@ export default function App() {
     [addingLibrary, currentLibrary, runReconcile]
   )
 
-  const handleRemoveLibrary = useCallback(async () => {
+  const doRemoveLibrary = useCallback(async () => {
     if (!currentLibrary) return
-    if (settings.lockHash) {
-      const pwd = window.prompt(t('app.privacyLockDeleteLib'))
-      if (pwd == null) return
-      const ok = await api.lockVerify(pwd)
-      if (!ok) {
-        window.alert(t('app.wrongPasswordDelete'))
-        return
-      }
-    }
     await api.libraryRemove(currentLibrary.id)
     setLibraries((prev) => prev.filter((l) => l.id !== currentLibrary.id))
     setLibraryOpen(false)
@@ -1371,6 +1364,15 @@ export default function App() {
     const rest = libraries.filter((l) => l.id !== currentLibrary.id)
     setLibraryId(rest[0]?.id ?? '')
   }, [currentLibrary, libraries])
+
+  const handleRemoveLibrary = useCallback(async () => {
+    if (!currentLibrary) return
+    if (settings.lockHash) {
+      setPwdPrompt({ title: t('app.privacyLockDeleteLib'), onOk: () => void doRemoveLibrary() })
+      return
+    }
+    await doRemoveLibrary()
+  }, [currentLibrary, settings.lockHash, doRemoveLibrary])
 
   const handleSaveMeta = useCallback(async (id: string, patch: Partial<Video>) => {
     const updated = await api.videoUpdate(id, patch)
@@ -2428,6 +2430,21 @@ export default function App() {
       ) : null}
 
       {/* 删除文件二次确认（Impeccable 设计：琥珀=仅删文件 / 红=整目录删） */}
+      {pwdPrompt ? (
+        <PasswordPromptModal
+          title={pwdPrompt.title}
+          onSubmit={async (pwd) => {
+            const ok = await api.lockVerify(pwd)
+            if (!ok) toast({ text: t('app.wrongPasswordDelete'), tone: 'err' })
+            else {
+              setPwdPrompt(null)
+              pwdPrompt.onOk()
+            }
+            return ok
+          }}
+          onCancel={() => setPwdPrompt(null)}
+        />
+      ) : null}
       <ConfirmDeleteModal
         open={!!deletePreview}
         preview={deletePreview}

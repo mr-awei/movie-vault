@@ -8,6 +8,7 @@ import type { Settings, ProxyMode, SortKey, SourceId, PreviewQualityMode, Backgr
 import type { UpdateCheckResult } from '../../../shared/api-types'
 import { api } from '../lib/api'
 import Icon from './Icon'
+import ConfirmModal from './ConfirmModal'
 import { t, SUPPORTED_LOCALES, type Locale } from '../../../shared/i18n'
 import type { IconName } from './Icon'
 
@@ -1078,8 +1079,8 @@ export function PrivacySection({ draft, setDraft, inputCls, settings, onSaved }:
 
 export function StorageSection({ draft, setDraft, inputCls, dataDir }: SettingsSectionProps & { dataDir: string }) {
   const [clearMsg, setClearMsg] = useState('')
-  const clearCache = async () => {
-    if (!window.confirm(t('settings.confirmClearPosterCache'))) return
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const doClearCache = async () => {
     const r = await api.cacheClear()
     setClearMsg(r.ok ? t('settings.clearedPosterCache', { count: r.removed }) : t('settings.clearFailed'))
   }
@@ -1127,13 +1128,25 @@ export function StorageSection({ draft, setDraft, inputCls, dataDir }: SettingsS
           </button>
           <button
             className="px-3 py-1.5 rounded-lg bg-ink-700 hover:bg-ink-600 text-white text-sm cursor-pointer transition-colors"
-            onClick={clearCache}
+            onClick={() => setConfirmOpen(true)}
           >
             {t('settings.clearPosterCache')}
           </button>
         </div>
         {clearMsg ? <div className="text-white/60 text-xs mt-2">{clearMsg}</div> : null}
       </Card>
+      <ConfirmModal
+        title={t('settings.confirmClearPosterCache')}
+        message={t('settings.confirmClearPosterCacheHint')}
+        confirmText={t('app.confirm')}
+        danger
+        onConfirm={() => {
+          setConfirmOpen(false)
+          void doClearCache()
+        }}
+        onCancel={() => setConfirmOpen(false)}
+        open={confirmOpen}
+      />
     </section>
   )
 }
