@@ -64,10 +64,18 @@ export default function WatchStatsModal({ onClose }: Props) {
           return `${p.name}<br/>观看时长: ${formatDuration(p.value)}<br/>观看次数: ${params[1]?.value ?? 0}次`
         }
       },
+      legend: {
+        top: 2,
+        right: 30,
+        textStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
+        itemWidth: 14,
+        itemHeight: 8
+      },
       grid: { left: 60, right: 50, top: 20, bottom: 30 },
       xAxis: {
         type: 'category',
         name: '月份',
+        nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
         data: stats.monthlyTrend.map((m) => m.month),
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
         axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, rotate: 30 }
@@ -76,7 +84,7 @@ export default function WatchStatsModal({ onClose }: Props) {
         {
           type: 'value',
           name: '观看时长',
-          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
           axisLine: { show: false },
           axisLabel: {
             color: 'rgba(255,255,255,0.5)',
@@ -88,7 +96,7 @@ export default function WatchStatsModal({ onClose }: Props) {
         {
           type: 'value',
           name: '观看次数',
-          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
           axisLine: { show: false },
           axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
           splitLine: { show: false }
@@ -142,10 +150,18 @@ export default function WatchStatsModal({ onClose }: Props) {
           return p.name + '<br/>观看时长: ' + formatDuration(p.value) + '<br/>观看次数: ' + (params[1]?.value ?? 0) + '次'
         }
       },
+      legend: {
+        top: 2,
+        right: 30,
+        textStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
+        itemWidth: 14,
+        itemHeight: 8
+      },
       grid: { left: 60, right: 50, top: 20, bottom: 30 },
       xAxis: {
         type: 'category',
         name: '周',
+        nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
         data: stats.weeklyTrend.map((m) => m.week),
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
         axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, rotate: 30 }
@@ -154,7 +170,7 @@ export default function WatchStatsModal({ onClose }: Props) {
         {
           type: 'value',
           name: '观看时长',
-          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
           axisLine: { show: false },
           axisLabel: {
             color: 'rgba(255,255,255,0.5)',
@@ -166,7 +182,7 @@ export default function WatchStatsModal({ onClose }: Props) {
         {
           type: 'value',
           name: '观看次数',
-          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
           axisLine: { show: false },
           axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
           splitLine: { show: false }
@@ -280,10 +296,18 @@ export default function WatchStatsModal({ onClose }: Props) {
           return `${p.name}时<br/>观看时长: ${formatDuration(p.value)}<br/>观看次数: ${params[1]?.value ?? 0}次`
         }
       },
+      legend: {
+        top: 2,
+        right: 30,
+        textStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
+        itemWidth: 14,
+        itemHeight: 8
+      },
       grid: { left: 60, right: 50, top: 20, bottom: 30 },
       xAxis: {
         type: 'category',
         name: '小时',
+        nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
         data: stats.hourlyDistribution.map((h) => `${h.hour}时`),
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
         axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, interval: 2 }
@@ -292,7 +316,7 @@ export default function WatchStatsModal({ onClose }: Props) {
         {
           type: 'value',
           name: '观看时长',
-          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
           axisLine: { show: false },
           axisLabel: {
             color: 'rgba(255,255,255,0.5)',
@@ -304,7 +328,7 @@ export default function WatchStatsModal({ onClose }: Props) {
         {
           type: 'value',
           name: '观看次数',
-          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
           axisLine: { show: false },
           axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
           splitLine: { show: false }
