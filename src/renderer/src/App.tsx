@@ -27,6 +27,7 @@ import StatsPanel from './components/StatsPanel'
 import AboutModal from './components/AboutModal'
 import LicenseModal from './components/LicenseModal'
 import HomeView from './components/HomeView'
+import { PlaylistToolbar } from './components/PlaylistToolbar'
 import HomeSkeleton from './components/HomeSkeleton'
 import BrowseBar from './components/BrowseBar'
 import ListView from './components/ListView'
@@ -2122,68 +2123,16 @@ export default function App() {
                 onShowReconcile={() => setReconcileOpen(true)}
               />
 
-              {/* 播放列表：添加影片模式操作栏 */}
-              {pendingPlaylistId ? (
-                <div className="mb-3 flex items-center justify-between px-4 py-2.5 rounded-xl bg-brand/10 ring-1 ring-brand/30">
-                  <span className="text-sm text-brand font-medium">
-                    选择要添加到「{playlists.find((p) => p.id === pendingPlaylistId)?.name ?? ''}」的影片
-                    <span className="ml-2 text-brand/60">已选 {selectedIds.size} 部</span>
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={selectAllVisible}>全选</button>
-                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => setSelectedIds(new Set())}>取消全选</button>
-                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={invertSelection}>反选</button>
-                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => { setPendingPlaylistId(null); setSelectMode(false); setSelectedIds(new Set()) }}>取消</button>
-                    <button className="h-8 px-3 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand/90 disabled:opacity-40" disabled={selectedIds.size === 0} onClick={() => void handleAddSelectedToPlaylist()}>添加选中 ({selectedIds.size})</button>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* 播放列表：管理模式（批量移除）操作栏 */}
-              {activePlaylistId && selectMode && !pendingPlaylistId ? (
-                <div className="mb-3 flex items-center justify-between px-4 py-2.5 rounded-xl bg-red-500/10 ring-1 ring-red-500/30">
-                  <span className="text-sm text-red-300 font-medium">
-                    选择要从「{playlists.find((p) => p.id === activePlaylistId)?.name ?? ''}」移除的影片
-                    <span className="ml-2 text-red-300/60">已选 {selectedIds.size} 部</span>
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={selectAllVisible}>全选</button>
-                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => setSelectedIds(new Set())}>取消全选</button>
-                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={invertSelection}>反选</button>
-                    <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => { setSelectMode(false); setSelectedIds(new Set()) }}>取消</button>
-                    <button className="h-8 px-3 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 disabled:opacity-40" disabled={selectedIds.size === 0} onClick={() => void handleRemoveSelectedFromPlaylist()}>移除选中 ({selectedIds.size})</button>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* 播放列表：普通视图操作栏 */}
-              {activePlaylistId && !selectMode && !pendingPlaylistId ? (
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-white/60 text-sm">
-                    <Icon name="list" size={16} />
-                    <span className="font-medium text-white/80">{playlists.find((p) => p.id === activePlaylistId)?.name ?? ''}</span>
-                    <span>{filtered.length} 部影片</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 text-sm transition-colors" onClick={() => { setSelectedIds(new Set()); setSelectMode(true) }}>
-                      <Icon name="trash" size={14} />
-                      删除影片
-                    </button>
-                    <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-white/8 hover:bg-white/15 text-white text-sm transition-colors" onClick={() => { setPendingPlaylistId(activePlaylistId); setSelectedIds(new Set()); setSelectMode(true) }}>
-                      <Icon name="plus" size={14} />
-                      添加影片
-                    </button>
-                    <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-brand hover:bg-brand/90 text-white text-sm font-medium transition-colors" onClick={() => void handlePlayPlaylist()}>
-                      <Icon name="play" size={14} />
-                      播放全部
-                    </button>
-                    <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 text-sm transition-colors" onClick={() => activePlaylistId && void handleDeletePlaylist(activePlaylistId)}>
-                      <Icon name="trash" size={14} />
-                      删除列表
-                    </button>
-                  </div>
-                </div>
-              ) : null}
+              {/* 播放列表：添加/管理/普通视图 三态操作栏（独立组件） */}
+              <PlaylistToolbar
+                filteredCount={filtered.length}
+                onSelectAll={selectAllVisible}
+                onInvert={invertSelection}
+                onAddSelected={handleAddSelectedToPlaylist}
+                onRemoveSelected={handleRemoveSelectedFromPlaylist}
+                onPlayAll={handlePlayPlaylist}
+                onDeletePlaylist={handleDeletePlaylist}
+              />
 
               {/* 活跃筛选条：多维筛选可视化，可单独移除 */}
               {(metaSelectedCount + techSelectedCount) > 0 ? (
