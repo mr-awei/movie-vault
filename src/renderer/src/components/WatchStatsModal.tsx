@@ -67,7 +67,7 @@ export default function WatchStatsModal({ onClose }: Props) {
       legend: {
         top: 2,
         right: 30,
-        textStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
+        textStyle: { color: '#374151', fontSize: 11 },
         itemWidth: 14,
         itemHeight: 8
       },
@@ -75,30 +75,30 @@ export default function WatchStatsModal({ onClose }: Props) {
       xAxis: {
         type: 'category',
         name: '月份',
-        nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
+        nameTextStyle: { color: '#374151', fontSize: 12 },
         data: stats.monthlyTrend.map((m) => m.month),
-        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
-        axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, rotate: 30 }
+        axisLine: { lineStyle: { color: '#d1d5db' } },
+        axisLabel: { color: '#6b7280', fontSize: 10, rotate: 30 }
       },
       yAxis: [
         {
           type: 'value',
           name: '观看时长',
-          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
+          nameTextStyle: { color: '#374151', fontSize: 12, align: 'left' },
           axisLine: { show: false },
           axisLabel: {
-            color: 'rgba(255,255,255,0.5)',
+            color: '#6b7280',
             fontSize: 11,
             formatter: (v: number) => `${Math.floor(v / 3600)}h`
           },
-          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
+          splitLine: { lineStyle: { color: '#e5e7eb' } }
         },
         {
           type: 'value',
           name: '观看次数',
-          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
+          nameTextStyle: { color: '#374151', fontSize: 12, align: 'left' },
           axisLine: { show: false },
-          axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          axisLabel: { color: '#6b7280', fontSize: 11 },
           splitLine: { show: false }
         }
       ],
@@ -153,7 +153,7 @@ export default function WatchStatsModal({ onClose }: Props) {
       legend: {
         top: 2,
         right: 30,
-        textStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
+        textStyle: { color: '#374151', fontSize: 11 },
         itemWidth: 14,
         itemHeight: 8
       },
@@ -161,30 +161,30 @@ export default function WatchStatsModal({ onClose }: Props) {
       xAxis: {
         type: 'category',
         name: '周',
-        nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
+        nameTextStyle: { color: '#374151', fontSize: 12 },
         data: stats.weeklyTrend.map((m) => m.week),
-        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
-        axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, rotate: 30 }
+        axisLine: { lineStyle: { color: '#d1d5db' } },
+        axisLabel: { color: '#6b7280', fontSize: 10, rotate: 30 }
       },
       yAxis: [
         {
           type: 'value',
           name: '观看时长',
-          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
+          nameTextStyle: { color: '#374151', fontSize: 12, align: 'left' },
           axisLine: { show: false },
           axisLabel: {
-            color: 'rgba(255,255,255,0.5)',
+            color: '#6b7280',
             fontSize: 11,
             formatter: (v: number) => Math.floor(v / 3600) + 'h'
           },
-          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
+          splitLine: { lineStyle: { color: '#e5e7eb' } }
         },
         {
           type: 'value',
           name: '观看次数',
-          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
+          nameTextStyle: { color: '#374151', fontSize: 12, align: 'left' },
           axisLine: { show: false },
-          axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          axisLabel: { color: '#6b7280', fontSize: 11 },
           splitLine: { show: false }
         }
       ],
@@ -241,14 +241,14 @@ export default function WatchStatsModal({ onClose }: Props) {
         left: '35%',
         top: 'center',
         textAlign: 'center',
-        textStyle: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-        subtextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 }
+        textStyle: { color: '#111827', fontSize: 16, fontWeight: 'bold' },
+        subtextStyle: { color: '#6b7280', fontSize: 11 }
       },
       legend: {
         orient: 'vertical',
         right: 10,
         top: 'center',
-        textStyle: { color: 'rgba(255,255,255,0.6)', fontSize: 11 }
+        textStyle: { color: '#4b5563', fontSize: 11 }
       },
       series: [
         {
@@ -299,7 +299,7 @@ export default function WatchStatsModal({ onClose }: Props) {
       legend: {
         top: 2,
         right: 30,
-        textStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
+        textStyle: { color: '#374151', fontSize: 11 },
         itemWidth: 14,
         itemHeight: 8
       },
@@ -307,30 +307,30 @@ export default function WatchStatsModal({ onClose }: Props) {
       xAxis: {
         type: 'category',
         name: '小时',
-        nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
+        nameTextStyle: { color: '#374151', fontSize: 12 },
         data: stats.hourlyDistribution.map((h) => `${h.hour}时`),
-        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
-        axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, interval: 2 }
+        axisLine: { lineStyle: { color: '#d1d5db' } },
+        axisLabel: { color: '#6b7280', fontSize: 10, interval: 2 }
       },
       yAxis: [
         {
           type: 'value',
           name: '观看时长',
-          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
+          nameTextStyle: { color: '#374151', fontSize: 12, align: 'left' },
           axisLine: { show: false },
           axisLabel: {
-            color: 'rgba(255,255,255,0.5)',
+            color: '#6b7280',
             fontSize: 11,
             formatter: (v: number) => `${Math.floor(v / 3600)}h`
           },
-          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
+          splitLine: { lineStyle: { color: '#e5e7eb' } }
         },
         {
           type: 'value',
           name: '观看次数',
-          nameTextStyle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, align: 'left' },
+          nameTextStyle: { color: '#374151', fontSize: 12, align: 'left' },
           axisLine: { show: false },
-          axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          axisLabel: { color: '#6b7280', fontSize: 11 },
           splitLine: { show: false }
         }
       ],
@@ -383,7 +383,7 @@ export default function WatchStatsModal({ onClose }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
         className="w-[900px] max-h-[85vh] bg-ink-850 rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden"
-        style={{ backgroundColor: '#0f1522' }}
+
         onClick={(e) => e.stopPropagation()}
       >
         {/* 标题栏 */}
@@ -438,25 +438,25 @@ export default function WatchStatsModal({ onClose }: Props) {
               {/* 月度趋势 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">月度趋势（最近 12 个月）</h3>
-                <div ref={monthlyChartRef} style={{ width: '100%', height: 220, backgroundColor: '#111827', borderRadius: 8 }} />
+                <div ref={monthlyChartRef} style={{ width: '100%', height: 220, backgroundColor: '#ffffff', borderRadius: 8 }} />
               </div>
 
               {/* 每周趋势 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">每周趋势（最近 12 周）</h3>
-                <div ref={weeklyChartRef} style={{ width: '100%', height: 220, backgroundColor: '#111827', borderRadius: 8 }} />
+                <div ref={weeklyChartRef} style={{ width: '100%', height: 220, backgroundColor: '#ffffff', borderRadius: 8 }} />
               </div>
 
               {/* 完成度分布 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">完成度分布</h3>
-                <div ref={completionChartRef} style={{ width: '100%', height: 200, backgroundColor: '#111827', borderRadius: 8 }} />
+                <div ref={completionChartRef} style={{ width: '100%', height: 200, backgroundColor: '#ffffff', borderRadius: 8 }} />
               </div>
 
               {/* 观看时间分布 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">观看时间分布（24 小时）</h3>
-                <div ref={hourlyChartRef} style={{ width: '100%', height: 200, backgroundColor: '#111827', borderRadius: 8 }} />
+                <div ref={hourlyChartRef} style={{ width: '100%', height: 200, backgroundColor: '#ffffff', borderRadius: 8 }} />
               </div>
 
               {/* Top 标签/演员/导演 */}
