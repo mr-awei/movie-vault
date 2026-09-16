@@ -53,7 +53,8 @@ export default function BatchLockBar({ onSelectAll, onInvert }: Props) {
   }
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[65] flex items-center gap-2 px-3 py-2 rounded-2xl bg-ink-850/95 ring-1 ring-white/15 shadow-2xl shadow-black/60 backdrop-blur-sm animate-fadeIn-fast">
+    <>
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[65] flex items-center gap-2 px-3 py-2 rounded-2xl bg-ink-850/95 ring-1 ring-white/15 shadow-2xl shadow-black/60 backdrop-blur-sm animate-fadeIn-fast">
       <span className="text-sm text-white/80 px-1 whitespace-nowrap">{t('lock.selectedCount', { count: selectedIds.size })}</span>
       <button
         type="button"
@@ -113,7 +114,9 @@ export default function BatchLockBar({ onSelectAll, onInvert }: Props) {
       >
         <Icon name="x" size={14} />
       </button>
-      {editOpen && <BatchEditModal onClose={() => setEditOpen(false)} />}
     </div>
+    {/* 弹窗必须渲染在浮条容器外：backdrop-blur 会创建 containing block，导致内部 fixed 弹窗相对浮条定位（贴底） */}
+    {editOpen && <BatchEditModal onClose={() => setEditOpen(false)} />}
+    </>
   )
 }
