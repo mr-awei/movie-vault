@@ -1,6 +1,8 @@
 import { shell } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { promises as fs } from 'node:fs'
+import { execFile } from 'node:child_process'
+import { existsSync, promises as fs } from 'node:fs'
+import { promisify } from 'node:util'
 import net from 'node:net'
 import http from 'node:http'
 import type { Settings, Video } from '../../shared/types'
@@ -290,6 +292,75 @@ function isMpv(playerPath: string): boolean {
   return name.includes('mpv')
 }
 
+/** 自动探测系统播放器（playerPath 未配置时使用） */
+let cachedPlayer: string | null | undefined
+
+const PLAYER_APP_PATHS = ['PotPlayerMini64.exe', 'PotPlayerMini.exe', 'mpv.exe', 'vlc.exe']
+const PLAYER_REL_PATHS = [
+  'DAUM\\PotPlayer\\PotPlayerMini64.exe',
+  'PotPlayer\\PotPlayerMini64.exe',
+  'DAUM\\PotPlayer\\PotPlayerMini.exe',
+  'PotPlayer\\PotPlayerMini.exe',
+  'mpv\\mpv.exe',
+  'VideoLAN\\VLC\\vlc.exe'
+]
+
+/**
+ * 检测系统中可用的播放器（优先 PotPlayer，其次 mpv/VLC）。
+ * 探测来源：注册表 App Paths → 各盘 Program Files 常见安装路径。
+ * 结果缓存，每次进程生命周期只探测一次。
+ */
+async function detectDefaultPlayer(): Promise<string | null> {
+  if (cachedPlayer !== undefined) return cachedPlayer
+  const execFileP = promisify(execFile)
+
+  // 1. 注册表 App Paths（HKCU + HKLM）
+  for (const root of ['HKCU', 'HKLM']) {
+    for (const name of PLAYER_APP_PATHS) {
+      try {
+        const { stdout } = await execFileP(
+          'reg',
+          ['query', `${root}\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${name}`, '/ve'],
+          { timeout: 3000, windowsHide: true }
+        )
+        const m = stdout.match(/REG_SZ\s+(.+)$/m)
+        if (m) {
+          const p = m[1].trim()
+          if (p && existsSync(p)) {
+            cachedPlayer = p
+            console.log(`[player] 自动检测到播放器(注册表): ${p}`)
+            return cachedPlayer
+          }
+        }
+      } catch {
+        // 未找到，继续
+      }
+    }
+  }
+
+  // 2. 常见安装路径（枚举 C-Z 盘）
+  for (let code = 67; code <= 90; code++) {
+    const drive = String.fromCharCode(code)
+    for (const base of ['Program Files', 'Program Files (x86)']) {
+      for (const rel of PLAYER_REL_PATHS) {
+        const p = `${drive}:\\${base}\\${rel}`
+        try {
+          if (existsSync(p)) {
+            cachedPlayer = p
+            console.log(`[player] 自动检测到播放器(常见路径): ${p}`)
+            return cachedPlayer
+          }
+        } catch {
+          // 跳过
+        }
+      }
+    }
+  }
+
+  cachedPlayer = null
+  return null
+}
+
 /** 判断是否为 PotPlayer（按路径文件名判断） */
 function isPotPlayer(playerPath: string): boolean {
   const name = playerPath.toLowerCase()
@@ -378,7 +449,8 @@ async function openWithPotPlayer(session: PlayerSession, startPositionSec?: numb
  * 如果视频有上次播放位置且播放器支持，则从断点续播。
  */
 export async function openVideo(video: Video, settings: Settings): Promise<{ ok: boolean; method: string; resumed?: boolean }> {
-  const player = settings.playerPath.trim()
+  const configured = settings.playerPath.trim()
+  const player = configured || (await detectDefaultPlayer()) || ''
   console.log(`[player] 打开视频: ${video.fileName}, 播放器: ${player || '系统默认'}, 断点: ${video.playbackPositionSec || 0}s`)
   const hasResume = !!(video.playbackPositionSec && video.playbackPositionSec > MIN_POSITION_TO_SAVE)
 
@@ -435,7 +507,8 @@ export async function openVideo(video: Video, settings: Settings): Promise<{ ok:
  */
 export async function openPlaylist(videos: Video[], settings: Settings): Promise<{ ok: boolean; method: string; count: number }> {
   if (videos.length === 0) return { ok: false, method: 'empty', count: 0 }
-  const player = settings.playerPath.trim()
+  const configured = settings.playerPath.trim()
+  const player = configured || (await detectDefaultPlayer()) || ''
   const paths = videos.map((v) => v.path)
 
   // 如果已有活跃会话，先关闭
