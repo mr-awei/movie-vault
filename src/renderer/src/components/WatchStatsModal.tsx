@@ -64,27 +64,41 @@ export default function WatchStatsModal({ onClose }: Props) {
           return `${p.name}<br/>观看时长: ${formatDuration(p.value)}<br/>观看次数: ${params[1]?.value ?? 0}次`
         }
       },
-      grid: { left: 50, right: 20, top: 20, bottom: 30 },
+      grid: { left: 60, right: 50, top: 20, bottom: 30 },
       xAxis: {
         type: 'category',
+        name: '月份',
         data: stats.monthlyTrend.map((m) => m.month),
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
-        axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 }
+        axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, rotate: 30 }
       },
-      yAxis: {
-        type: 'value',
-        axisLine: { show: false },
-        axisLabel: {
-          color: 'rgba(255,255,255,0.5)',
-          fontSize: 11,
-          formatter: (v: number) => `${Math.floor(v / 3600)}h`
+      yAxis: [
+        {
+          type: 'value',
+          name: '观看时长',
+          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          axisLine: { show: false },
+          axisLabel: {
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: 11,
+            formatter: (v: number) => `${Math.floor(v / 3600)}h`
+          },
+          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
         },
-        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
-      },
+        {
+          type: 'value',
+          name: '观看次数',
+          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          axisLine: { show: false },
+          axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          splitLine: { show: false }
+        }
+      ],
       series: [
         {
           name: '观看时长',
           type: 'line',
+          yAxisIndex: 0,
           data: stats.monthlyTrend.map((m) => m.watchSec),
           smooth: true,
           symbol: 'circle',
@@ -101,6 +115,7 @@ export default function WatchStatsModal({ onClose }: Props) {
         {
           name: '观看次数',
           type: 'bar',
+          yAxisIndex: 1,
           data: stats.monthlyTrend.map((m) => m.count),
           barWidth: 8,
           itemStyle: { color: 'rgba(251, 191, 36, 0.6)', borderRadius: [4, 4, 0, 0] }
@@ -127,27 +142,41 @@ export default function WatchStatsModal({ onClose }: Props) {
           return p.name + '<br/>观看时长: ' + formatDuration(p.value) + '<br/>观看次数: ' + (params[1]?.value ?? 0) + '次'
         }
       },
-      grid: { left: 50, right: 20, top: 20, bottom: 30 },
+      grid: { left: 60, right: 50, top: 20, bottom: 30 },
       xAxis: {
         type: 'category',
+        name: '周',
         data: stats.weeklyTrend.map((m) => m.week),
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
         axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, rotate: 30 }
       },
-      yAxis: {
-        type: 'value',
-        axisLine: { show: false },
-        axisLabel: {
-          color: 'rgba(255,255,255,0.5)',
-          fontSize: 11,
-          formatter: (v: number) => Math.floor(v / 3600) + 'h'
+      yAxis: [
+        {
+          type: 'value',
+          name: '观看时长',
+          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          axisLine: { show: false },
+          axisLabel: {
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: 11,
+            formatter: (v: number) => Math.floor(v / 3600) + 'h'
+          },
+          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
         },
-        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
-      },
+        {
+          type: 'value',
+          name: '观看次数',
+          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          axisLine: { show: false },
+          axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          splitLine: { show: false }
+        }
+      ],
       series: [
         {
           name: '观看时长',
           type: 'line',
+          yAxisIndex: 0,
           data: stats.weeklyTrend.map((m) => m.watchSec),
           smooth: true,
           symbol: 'circle',
@@ -164,6 +193,7 @@ export default function WatchStatsModal({ onClose }: Props) {
         {
           name: '观看次数',
           type: 'bar',
+          yAxisIndex: 1,
           data: stats.weeklyTrend.map((m) => m.count),
           barWidth: 8,
           itemStyle: { color: 'rgba(251, 191, 36, 0.6)', borderRadius: [4, 4, 0, 0] }
@@ -188,6 +218,15 @@ export default function WatchStatsModal({ onClose }: Props) {
         formatter: (params: any) => {
           return params.name + '<br/>观看时长: ' + formatDuration(params.value) + '<br/>占比: ' + params.percent + '%'
         }
+      },
+      title: {
+        text: `共 ${stats.totalWatchCount} 次`,
+        subtext: '观看次数',
+        left: '35%',
+        top: 'center',
+        textAlign: 'center',
+        textStyle: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+        subtextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 }
       },
       legend: {
         orient: 'vertical',
@@ -241,23 +280,36 @@ export default function WatchStatsModal({ onClose }: Props) {
           return `${p.name}时<br/>观看时长: ${formatDuration(p.value)}<br/>观看次数: ${params[1]?.value ?? 0}次`
         }
       },
-      grid: { left: 50, right: 20, top: 20, bottom: 30 },
+      grid: { left: 60, right: 50, top: 20, bottom: 30 },
       xAxis: {
         type: 'category',
+        name: '小时',
         data: stats.hourlyDistribution.map((h) => `${h.hour}时`),
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
         axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, interval: 2 }
       },
-      yAxis: {
-        type: 'value',
-        axisLine: { show: false },
-        axisLabel: {
-          color: 'rgba(255,255,255,0.5)',
-          fontSize: 11,
-          formatter: (v: number) => `${Math.floor(v / 3600)}h`
+      yAxis: [
+        {
+          type: 'value',
+          name: '观看时长',
+          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          axisLine: { show: false },
+          axisLabel: {
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: 11,
+            formatter: (v: number) => `${Math.floor(v / 3600)}h`
+          },
+          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
         },
-        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
-      },
+        {
+          type: 'value',
+          name: '观看次数',
+          nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          axisLine: { show: false },
+          axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+          splitLine: { show: false }
+        }
+      ],
       series: [
         {
           name: '观看时长',
@@ -275,6 +327,7 @@ export default function WatchStatsModal({ onClose }: Props) {
         {
           name: '观看次数',
           type: 'line',
+          yAxisIndex: 1,
           data: stats.hourlyDistribution.map((h) => h.count),
           smooth: true,
           symbol: 'none',
