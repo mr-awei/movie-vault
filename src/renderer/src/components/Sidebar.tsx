@@ -149,9 +149,17 @@ function Section({
   })
   return (
     <div className={`border-b border-white/5 last:border-b-0 ${grow ? 'flex flex-col flex-1 min-h-0' : ''}`}>
-      <button
-        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-ink-800/40 transition-colors"
+      <div
+        role="button"
+        tabIndex={0}
+        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-ink-800/40 transition-colors cursor-pointer select-none"
         onClick={toggleOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            toggleOpen()
+          }
+        }}
         title={open ? t('sidebar.collapseSection') : t('sidebar.expandSection')}
       >
         <div className={`flex items-center gap-1.5 font-semibold text-[12px] ${active ? 'text-brand' : 'text-white/90'}`}>
@@ -180,7 +188,7 @@ function Section({
             className={`text-white/40 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
           />
         </div>
-      </button>
+      </div>
       {open ? <div className={`px-3 pb-3 ${grow ? 'flex flex-col flex-1 min-h-0' : ''}`}>{children}</div> : null}
     </div>
   )
