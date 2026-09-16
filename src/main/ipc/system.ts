@@ -1,6 +1,7 @@
 import { app, ipcMain, dialog, shell, clipboard } from 'electron'
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { IPC } from '../../shared/ipc'
+import type { Settings } from '../../shared/types'
 import * as repo from '../lib/repo'
 import * as watchHistory from '../lib/watch-history'
 import { testProxyConnectivity } from '../lib/proxy'
@@ -14,6 +15,17 @@ import { spawn } from 'node:child_process'
 import { isSafeExternalUrl, runUpdateCheck } from './helpers'
 import type { Library } from '../../shared/types'
 import type { UpdateCheckResult } from '../../shared/api-types'
+/** B-1: 隐私锁密码校验。v2 前缀 = scrypt（定长比较）；无前缀 = 旧 sha256 格式（兼容迁移）。 */
+function verifyLockPassword(lockHash: string, lockSalt: string, password: string): boolean {
+  if (lockHash.startsWith('v2:')) {
+    const expected = Buffer.from(lockHash.slice(3), 'hex')
+    const actual = scryptSync(password, lockSalt, 32)
+    return expected.length === actual.length && timingSafeEqual(actual, expected)
+  }
+  const old = createHash('sha256').update(lockSalt + password).digest()
+  return timingSafeEqual(old, Buffer.from(lockHash, 'hex'))
+}
+
 export function registerSystemIpc() {
   ipcMain.handle(IPC.appUninstall, async (_evt, keepUser: boolean) => {
     try {
@@ -241,8 +253,12 @@ export function registerSystemIpc() {
 
   // ---------- 代理测试连接 ----------
 
-  ipcMain.handle(IPC.proxyTest, async (_e, settings: any) => {
-    return testProxyConnectivity(settings ?? {})
+  ipcMain.handle(IPC.proxyTest, async (_e, cfg: { proxyMode?: string; proxyHost?: string; proxyPort?: string; proxyUser?: string; proxyPass?: string }) => {
+    // A-2: 收敛为显式字段，不再接受任意 settings 对象
+    return testProxyConnectivity({
+      ...(cfg ?? {}),
+      proxyMode: (cfg?.proxyMode ?? 'manual') as 'off' | 'manual' | 'system'
+    } as Settings)
   })
 
   // ---------- 清理海报缓存目录 ----------
@@ -280,7 +296,7 @@ export function registerSystemIpc() {
       return
     }
     const salt = randomBytes(16).toString('hex')
-    const hash = createHash('sha256').update(salt + password).digest('hex')
+    const hash = 'v2:' + scryptSync(password, salt, 32).toString('hex')
     await repo.saveSettings({ lockHash: hash, lockSalt: salt })
   })
 
@@ -288,8 +304,7 @@ export function registerSystemIpc() {
   ipcMain.handle(IPC.lockVerify, async (_e, password: string) => {
     const s = await repo.getSettings()
     if (!s.lockHash || !s.lockSalt) return false
-    const hash = createHash('sha256').update(s.lockSalt + password).digest('hex')
-    return hash === s.lockHash
+    return verifyLockPassword(s.lockHash, s.lockSalt, password)
   })
 
   // v2.3.12：清除锁前必须校验当前密码，防止误操作或他人直接清掉锁
@@ -297,8 +312,7 @@ export function registerSystemIpc() {
   ipcMain.handle(IPC.lockDelete, async (_e, password: string) => {
     const s = await repo.getSettings()
     if (!s.lockHash || !s.lockSalt) return { ok: true } // 本来就没锁
-    const hash = createHash('sha256').update(s.lockSalt + password).digest('hex')
-    if (hash !== s.lockHash) return { ok: false, error: '密码错误' }
+    if (!verifyLockPassword(s.lockHash, s.lockSalt, password)) return { ok: false, error: '密码错误' }
     await repo.saveSettings({ lockHash: undefined, lockSalt: undefined })
     return { ok: true }
   })

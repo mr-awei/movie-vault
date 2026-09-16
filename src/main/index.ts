@@ -8,6 +8,7 @@ import { startWatching, stopAllWatchers } from './lib/watcher'
 import { getDb, closeDb } from './lib/db'
 import { startPreviewTaskQueue, stopPreviewTaskQueue } from './lib/preview-task-queue'
 import { runtime, applyRuntimeSettings } from './lib/runtime'
+import { detectFfmpeg } from './lib/ffmpegEnv'
 import { tMain, setLocale as setMainLocale, subscribeLocale, type Locale } from '../shared/i18n'
 
 // 数据目录设置：开发模式与正式版使用相同目录名，共用一份数据（yinghai）
@@ -405,13 +406,12 @@ app.whenReady().then(async () => {
   void (async () => {
     try {
       const installerLang = readInstallerLanguage()
-      const { getSettings, saveSettings } = await import('./lib/repo')
-      const s = await getSettings()
+      const s = await repo.getSettings()
       const lang = installerLang ?? s.language ?? 'zh-CN'
       setMainLocale(lang as Locale)
       // 把安装器选择的语言持久化到 settings，并清理一次性注册表标记
       if (installerLang) {
-        await saveSettings({ language: installerLang })
+        await repo.saveSettings({ language: installerLang })
         clearInstallerLanguage()
       }
     } catch {
@@ -439,8 +439,7 @@ app.whenReady().then(async () => {
     }
     const maybeCheck = async () => {
       try {
-        const { getSettings } = await import('./lib/repo')
-        const s = await getSettings()
+        const s = await repo.getSettings()
         const freq = s.autoUpdateFrequency ?? 'off'
         if (freq === 'off') return
         const interval = FREQ_MS[freq]
@@ -459,12 +458,11 @@ app.whenReady().then(async () => {
   // 启动时应用运行时设置（开机自启 / 最小化到托盘 / 文件夹自动监控）
   void (async () => {
     try {
-      const { getSettings, listLibraries } = await import('./lib/repo')
-      const s = await getSettings()
+      const s = await repo.getSettings()
       applyRuntimeSettings(s)
       // 文件夹自动监控：开启后对所有媒体库根目录启动监控
       if (s.autoWatchFolders) {
-        const libs = await listLibraries()
+        const libs = await repo.listLibraries()
         for (const lib of libs) {
           startWatching(lib.id, lib.folderPath, s.watchDebounceMs ?? 3000)
         }
@@ -478,9 +476,7 @@ app.whenReady().then(async () => {
   // 失败/删除无权限时静默忽略，不阻塞启动（检测详情可在设置页查看）
   void (async () => {
     try {
-      const { getSettings } = await import('./lib/repo')
-      const { detectFfmpeg } = await import('./lib/ffmpegEnv')
-      await detectFfmpeg(await getSettings())
+      await detectFfmpeg(await repo.getSettings())
     } catch {
       /* 静默 */
     }

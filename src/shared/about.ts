@@ -2,7 +2,6 @@
  * About module static config (edit once, managed centrally)
  *
  * Link fields (website / github / gitee / feedback) — leave empty to skip rendering that button.
- * After deploying to your own repo, replace the TODO placeholder with the real URL.
  *
  * getAbout(language) returns the localized ABOUT object; ABOUT_ZH / ABOUT_EN are exported directly;
  * ABOUT is kept as a backward-compatible alias for ABOUT_ZH.
@@ -84,8 +83,7 @@ export const ABOUT_ZH: About = {
       key: 'feedback',
       label: '反馈问题',
       icon: 'info',
-      // TODO: 替换为 issue 页或邮箱（mailto:you@example.com）
-      url: ''
+            url: ''
     }
   ],
 
@@ -138,8 +136,7 @@ export const ABOUT_EN: About = {
       key: 'feedback',
       label: 'Report Issue',
       icon: 'info',
-      // TODO: replace with issue page or email (mailto:you@example.com)
-      url: ''
+            url: ''
     }
   ],
   techStack: [

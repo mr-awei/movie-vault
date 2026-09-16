@@ -369,20 +369,6 @@ export async function ensureSqliteMigrated(): Promise<MigrationStatus> {
   return migrateFromJsonToSqlite()
 }
 
-/** 检查迁移状态 */
-export function getMigrationStatus(): MigrationStatus {
-  try {
-    const db = getDb()
-    const row = db.prepare("SELECT value FROM settings WHERE key = '_migration_status'").get() as { value: string } | undefined
-    if (row) {
-      return JSON.parse(row.value) as MigrationStatus
-    }
-  } catch {
-    // 忽略
-  }
-  return { migrated: false }
-}
-
 /** 回滚：删除 SQLite 数据库，恢复 JSON */
 export async function rollbackToJson(): Promise<void> {
   const dbPath = path.join(app.getPath('userData'), 'yinghai.db')

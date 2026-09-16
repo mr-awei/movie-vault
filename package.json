@@ -15,16 +15,12 @@
     "pack": "npm run build && node scripts/pack.mjs"
   },
   "dependencies": {
-    "app-builder-bin": "^4.2.0",
     "better-sqlite3": "^11.10.0",
-    "builder-util": "^24.13.1",
     "chokidar": "^5.0.0",
     "echarts": "^6.1.0",
     "fast-xml-parser": "^5.11.1",
-    "socks": "^2.8.9",
     "socks-proxy-agent": "^8.0.5",
     "undici": "^6.28.0",
-    "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0",
     "zustand": "^5.0.15"
   },

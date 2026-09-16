@@ -301,7 +301,7 @@ export default function OnboardSheetModal({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => copy(codes!.join('、'), 'codes')}
+                    onClick={() => copy(codes.join('、'), 'codes')}
                     className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${
                       copied === 'codes'
                         ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40'

@@ -307,7 +307,7 @@ function topN<T>(arr: T[], key: (t: T) => number, n: number, dir: 1 | -1 = -1): 
                 {(hero?.score ?? heroV.rating) != null ? (
                   <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand/20 text-brand font-bold text-[13px] backdrop-blur-sm">
                     <Icon name="star" size={12} className="fill-brand" />
-                    {(hero?.score ?? heroV.rating)!.toFixed(2)}
+                    {(hero?.score ?? heroV.rating)?.toFixed(2)}
                   </span>
                 ) : null}
                 {heroV.meta?.studio ? (

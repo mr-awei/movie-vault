@@ -331,9 +331,32 @@ function migrateInPlace(db: DBShape): void {
   )
 }
 
+let jsonWriteChecked = false
+let jsonWriteEnabled = true
+/** A-1: SQLite 已承载数据后 data.json 降级为只读兼容层（不再全量写盘）。 */
+function isJsonWriteEnabled(): boolean {
+  if (!jsonWriteChecked) {
+    jsonWriteChecked = true
+    try {
+      const row = getDb().prepare('SELECT COUNT(*) AS c FROM videos').get() as { c: number } | undefined
+      jsonWriteEnabled = !row || row.c === 0
+    } catch {
+      jsonWriteEnabled = true
+    }
+  }
+  return jsonWriteEnabled
+}
+
 async function writeNow(): Promise<void> {
   const data = cache ?? (await ensureLoaded())
   if (!dbPath) dbPath = resolveDbPath()
+  if (!isJsonWriteEnabled()) {
+    // A-1: SQLite 为主，JSON 只读。不写盘但刷新 mtime 基准，避免外部修改检测把旧 JSON 当外部改动误触发重载。
+    const st = await fs.stat(dbPath).catch(() => null)
+    lastSelfWriteMs = st?.mtimeMs ?? Date.now()
+    lastLoadMs = lastSelfWriteMs
+    return
+  }
   const dir = path.dirname(dbPath)
   await fs.mkdir(dir, { recursive: true })
   // v2.2.13 原子写盘：先写临时文件再 rename 覆盖，避免写盘中途崩溃/断电导致
@@ -430,7 +453,7 @@ export async function mutate<T>(fn: (db: DBShape) => T): Promise<T> {
 
 // 进程退出前同步兜底落盘（debounce 未触发/进行中也能保住最新数据）
 app.on('before-quit', () => {
-  if (cache && dbPath) {
+  if (cache && dbPath && isJsonWriteEnabled()) {
     try {
       mkdirSync(path.dirname(dbPath), { recursive: true })
       const tmp = `${dbPath}.tmp`

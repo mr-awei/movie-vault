@@ -1,0 +1,8 @@
+const fs = require('fs')
+const read = (p) => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n')
+const write = (p, s, c) => fs.writeFileSync(p, c ? s.replace(/\n/g, '\r\n') : s)
+let sp = read('E:/Movie Vault/src/renderer/src/components/StatsPanel.tsx')
+const c = sp.includes('\r\n')
+sp = sp.replace(/e\.video\?\.\./g, 'e.video?.')
+write('E:/Movie Vault/src/renderer/src/components/StatsPanel.tsx', sp, c)
+console.log('fixed double dot:', sp.includes('e.video?..') ? 'STILL' : 'OK')

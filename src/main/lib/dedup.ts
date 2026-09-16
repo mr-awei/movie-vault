@@ -1,4 +1,4 @@
-import type { DuplicateGroup, DuplicateMatchType, Video } from '../../shared/types'
+import type { DuplicateGroup, Video } from '../../shared/types'
 import { listVideos } from './repo'
 
 /**
@@ -228,16 +228,3 @@ export async function findDuplicates(libraryId: string): Promise<DuplicateGroup[
 }
 
 /** 按匹配类型统计重复数量 */
-export function summarizeDuplicates(groups: DuplicateGroup[]): Record<DuplicateMatchType, { groups: number; videos: number; wastedBytes: number }> {
-  const summary: Record<DuplicateMatchType, { groups: number; videos: number; wastedBytes: number }> = {
-    exact: { groups: 0, videos: 0, wastedBytes: 0 },
-    title: { groups: 0, videos: 0, wastedBytes: 0 },
-    feature: { groups: 0, videos: 0, wastedBytes: 0 }
-  }
-  for (const g of groups) {
-    summary[g.matchType].groups++
-    summary[g.matchType].videos += g.videos.length
-    summary[g.matchType].wastedBytes += g.wastedBytes
-  }
-  return summary
-}

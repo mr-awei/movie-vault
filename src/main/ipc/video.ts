@@ -26,12 +26,31 @@ import {
   isSafeId,
   resolveDetailCover
 } from './helpers'
+const VIDEO_PATCH_KEYS = new Set([
+  'title', 'year', 'description', 'descriptionSource', 'rating', 'tags', 'tagCategories',
+  'backupTags', 'posterPath', 'posterSource', 'posterPathFfmpeg', 'durationSec', 'fileSize',
+  'techInfo', 'favorite', 'locked', 'lockedAt', 'meta', 'actors', 'previewPaths',
+  'previewVersion', 'mediaStatus', 'previewStatus', 'previewRequestedCount', 'previewGeneratedCount',
+  'previewAlgorithmVersion', 'previewUpdatedAt', 'previewLastError', 'lastMetaFetchAt',
+  'frameFailedAt', 'lastPlayedAt', 'introCategory', 'region', 'series',
+  'playbackPositionSec', 'playbackUpdatedAt', 'nfoPath', 'unrated', 'unlisted', 'nocover'
+])
+/** A-2: IPC 边界白名单——只允许用户可编辑字段写库，未知键直接丢弃（防注入覆盖系统字段）。 */
+function sanitizeVideoPatch(patch: unknown): Partial<Video> {
+  if (!patch || typeof patch !== 'object') return {}
+  const out: Record<string, unknown> = {}
+  for (const [k, vv] of Object.entries(patch as Record<string, unknown>)) {
+    if (VIDEO_PATCH_KEYS.has(k)) out[k] = vv
+  }
+  return out as Partial<Video>
+}
+
 export function registerVideoIpc() {
   ipcMain.handle(IPC.videoList, (_e, filter: any) => repo.listVideos(filter ?? {}))
 
   ipcMain.handle(IPC.videoGet, (_e, id: string) => repo.getVideo(id))
 
-  ipcMain.handle(IPC.videoUpdate, (_e, id: string, patch: any) => repo.updateVideo(id, patch))
+  ipcMain.handle(IPC.videoUpdate, (_e, id: string, patch: any) => repo.updateVideo(id, sanitizeVideoPatch(patch)))
   // v2.7.x：批量设置锁定状态 —— 一次 applyVideoChanges 落盘，避免逐条全量写 data.json
 
   ipcMain.handle(IPC.videoLockMany, async (_e, ids: string[], locked: boolean) => {

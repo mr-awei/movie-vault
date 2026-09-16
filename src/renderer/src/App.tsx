@@ -1131,7 +1131,7 @@ export default function App() {
           ((d.studio && e.video.meta?.studio === d.studio) ||
             (d.series && e.video.meta?.series === d.series) ||
             (d.cast &&
-              e.video.meta?.cast?.some((a) => d.cast!.includes(a))))
+              e.video.meta?.cast?.some((a) => (d.cast ?? []).includes(a))))
       )
       .slice(0, 12)
   }, [detail, reconcile])

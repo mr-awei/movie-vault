@@ -41,7 +41,7 @@ interface UIState {
   smart: SmartFilter
   viewMode: ViewMode
 
-  // ---------- 澶氶€夌姸鎬?----------
+  // ---------- 多选状态 ----------
   selectMode: boolean
   dragSelectMode: 'select' | 'deselect' | null
   selectedIds: Set<string>

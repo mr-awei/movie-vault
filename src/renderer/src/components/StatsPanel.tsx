@@ -188,7 +188,7 @@ export default function StatsPanel({ open, result, onClose, onOpen }: Props) {
 
     const actorCount = new Map<string, number>()
     for (const e of withVideo) {
-      for (const a of e.video!.meta?.actors ?? []) {
+      for (const a of e.video?.meta?.actors ?? []) {
         actorCount.set(a, (actorCount.get(a) ?? 0) + 1)
       }
     }
@@ -196,7 +196,7 @@ export default function StatsPanel({ open, result, onClose, onOpen }: Props) {
 
     const yearCount = new Map<number, number>()
     for (const e of withVideo) {
-      const y = e.video!.year
+      const y = e.video?.year
       if (y) yearCount.set(y, (yearCount.get(y) ?? 0) + 1)
     }
     const years = [...yearCount.entries()].sort((a, b) => a[0] - b[0])
@@ -219,22 +219,22 @@ export default function StatsPanel({ open, result, onClose, onOpen }: Props) {
     const topTags = [...tagCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
 
     // 文件大小统计
-    const sized = withVideo.filter((e) => e.video!.fileSize && e.video!.fileSize > 0)
-    const totalBytes = sized.reduce((sum, e) => sum + (e.video!.fileSize ?? 0), 0)
+    const sized = withVideo.filter((e) => e.video?.fileSize && e.video?.fileSize > 0)
+    const totalBytes = sized.reduce((sum, e) => sum + (e.video?.fileSize ?? 0), 0)
     const topFiles = [...sized]
       .sort((a, b) => (b.video!.fileSize ?? 0) - (a.video!.fileSize ?? 0))
       .slice(0, 10)
-      .map((e) => ({ entry: e, size: e.video!.fileSize ?? 0 }))
+      .map((e) => ({ entry: e, size: e.video?.fileSize ?? 0 }))
 
     // 磁盘占用：按分类 / 年份 聚合字节
     const diskByCatMap = new Map<string, number>()
     const diskByYearMap = new Map<string, number>()
     const resCountMap = new Map<string, number>()
     for (const e of withVideo) {
-      const sz = e.video!.fileSize ?? 0
+      const sz = e.video?.fileSize ?? 0
       if (sz > 0) {
         diskByCatMap.set(e.category, (diskByCatMap.get(e.category) ?? 0) + sz)
-        const y = e.video!.year
+        const y = e.video?.year
         if (y) diskByYearMap.set(String(y), (diskByYearMap.get(String(y)) ?? 0) + sz)
       }
       const rb = resolutionBucket(e.video)
