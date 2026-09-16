@@ -26,6 +26,14 @@ export function getDispatcher(settings: Settings): Dispatcher | undefined {
   const mode: ProxyMode = settings.proxyMode ?? 'none'
   const key = `${mode}|${settings.proxyHost ?? ''}|${settings.proxyPort ?? ''}|${settings.proxyUser ?? ''}|${settings.proxyPass ?? ''}`
   if (key === cacheKey) return cacheDispatcher
+  // P2-8：配置变化时先关闭旧 Agent，避免切换代理设置泄漏 socket 连接
+  if (cacheDispatcher) {
+    try {
+      void cacheDispatcher.close()
+    } catch {
+      /* 旧实例可能已被代理链路销毁，忽略 */
+    }
+  }
   cacheKey = key
   cacheDispatcher = buildDispatcher(mode, settings)
   return cacheDispatcher

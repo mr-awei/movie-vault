@@ -146,8 +146,8 @@ function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag
           className="absolute flex gap-4"
           style={{ top: y, left: 0, right: 0, height: colW * RATIO }}
         >
-          {row.items.map((e, ci) => (
-            <div key={`${e.code}-${ci}`} style={{ width: colW, height: colW * RATIO }} className="shrink-0">
+          {row.items.map((e) => (
+            <div key={e.video?.id ?? e.code} style={{ width: colW, height: colW * RATIO }} className="shrink-0">
               <EntryCard entry={e} onOpen={onOpen} onEdit={onEdit} onOpenMissing={onOpenMissing} onToggleFlag={onToggleFlag} onPickTag={onPickTag} onDelete={onDelete} aspect={aspect} selectable={selectable} selected={!!(e.video?.id && selectedIds?.has(e.video.id))} onToggleSelect={onToggleSelect} playlists={playlists} onAddToPlaylist={onAddToPlaylist} activePlaylistId={activePlaylistId} onRemoveFromPlaylist={onRemoveFromPlaylist} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragSelectStart={onDragSelectStart} onDragSelectEnter={onDragSelectEnter} dragSelectActive={dragSelectActive} inPlaylist={!!(inPlaylistIds && e.video?.id && inPlaylistIds.has(e.video.id))} />
             </div>
           ))}

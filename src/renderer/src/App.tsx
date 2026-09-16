@@ -78,9 +78,10 @@ function scoreBucketOf(e: DisplayEntry): string {
   if (s >= 6) return '6-7'
   return t('app.below6')
 }
-const RES_ORDER = ['4K', '2K', '1080p', '720p', '480p', 'SD', '未知']
-const DUR_ORDER = ['30分钟内', '30-60分', '1-2小时', '2-3小时', '3小时以上', '未知']
-const SCORE_ORDER = ['9-10', '8-9', '7-8', '6-7', '6以下', '未评分']
+// P2-8：Order 常量与 bucket() 的 t() 输出对齐（原先硬编码中文作 key，英文界面不翻译且语言切换后失配）
+const RES_ORDER = ['4K', '2K', '1080p', '720p', '480p', 'SD', t('app.unknown')]
+const DUR_ORDER = [t('app.within30min'), t('app.duration30to60'), t('app.duration1to2h'), t('app.duration2to3h'), t('app.over3h'), t('app.unknown')]
+const SCORE_ORDER = ['9-10', '8-9', '7-8', '6-7', t('app.below6'), t('app.unrated')]
 
 export default function App() {
   const libraries = useDataStore((s) => s.libraries)

@@ -15,6 +15,17 @@ import { cacheRemoteImage, cleanGenreName } from './image-util'
 const BASE = 'https://openlibrary.org'
 
 /**
+ * P2-8：OpenLibrary 以书籍为主，直接把书当电影抓会污染元数据（作者当导演、页数当片长）。
+ * 搜索路径只接受带影视特征的条目（标题/分类命中以下词），否则视为未命中交给下一数据源；
+ * 手动按 URL/作品 key 抓取（fetchOpenLibraryByKey）是用户明确指定，不受此限制。
+ */
+const FILM_HINTS = ['film', 'movie', 'cinema', 'motion picture', 'television', 'tv series', 'tv program', 'screenplay', 'screen adaptation', 'documentary', 'screen version']
+function isFilmLikeDoc(d: { title: string; subject?: string[] }): boolean {
+  const text = `${d.title} ${(d.subject ?? []).join(' ')}`.toLowerCase()
+  return FILM_HINTS.some((h) => text.includes(h))
+}
+
+/**
  * Open Library 完全免费，无需 API key 即可使用
  */
 export function hasOpenLibraryKey(_settings: Settings): boolean {
@@ -160,14 +171,14 @@ export async function fetchOpenLibraryDetail(
   const searchResult = await searchOpenLibrary(query, settings, onError, q.year)
   if (!searchResult) return null
   
-  // 选择第一个结果
-  const firstDoc = searchResult.docs[0]
+    // P2-8：只接受影视特征条目，避免“书当电影”（作者当导演/页数当片长）；全部是书则视为未命中
+  const firstDoc = searchResult.docs.find(isFilmLikeDoc)
   if (!firstDoc) {
-    onError?.('Open Library 未找到有效结果')
+    onError?.('Open Library 未匹配到电影条目（结果多为书籍，已跳过）')
     return null
   }
-  
-  const workKey = firstDoc.key
+
+const workKey = firstDoc.key
   const workDetails = await getWorkDetails(workKey, settings, onError)
   if (!workDetails) return null
   

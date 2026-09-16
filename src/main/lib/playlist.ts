@@ -125,9 +125,9 @@ export async function reorderPlaylist(id: string, videoIds: string[]): Promise<P
   const db = getDb()
   const pl = await getPlaylist(id)
   if (!pl) return null
-  // 只保留播放列表中已存在的视频 id，防止注入不存在的 id
+  // 只保留播放列表中已存在的视频 id，防止注入不存在的 id；同时去重（P2-8：UI 传入重复 id 会写重复 position）
   const existing = new Set(pl.videoIds)
-  const ordered = videoIds.filter((v) => existing.has(v))
+  const ordered = [...new Set(videoIds)].filter((v) => existing.has(v))
   const tx = db.transaction(() => {
     const upd = db.prepare('UPDATE playlist_items SET position = ? WHERE playlist_id = ? AND video_id = ?')
     ordered.forEach((vid, idx) => upd.run(idx, id, vid))

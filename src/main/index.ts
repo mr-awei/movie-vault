@@ -375,7 +375,10 @@ app.on('window-all-closed', () => {
   }
 })
 
+let updateTimer: ReturnType<typeof setInterval> | undefined
+
 app.on('before-quit', () => {
+  if (updateTimer) clearInterval(updateTimer)
   stopAllWatchers()
   closeDb()
   void stopPreviewTaskQueue()
@@ -450,7 +453,7 @@ app.whenReady().then(async () => {
       }
     }
     await maybeCheck()
-    setInterval(maybeCheck, 30 * 60 * 1000)
+    updateTimer = setInterval(maybeCheck, 30 * 60 * 1000)
   })()
 
   // 启动时应用运行时设置（开机自启 / 最小化到托盘 / 文件夹自动监控）
