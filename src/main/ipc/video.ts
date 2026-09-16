@@ -51,6 +51,17 @@ export function registerVideoIpc() {
   ipcMain.handle(IPC.videoGet, (_e, id: string) => repo.getVideo(id))
 
   ipcMain.handle(IPC.videoUpdate, (_e, id: string, patch: unknown) => repo.updateVideo(id, sanitizeVideoPatch(patch)))
+  // v2.12：批量编辑元数据 —— 白名单字段逐条落盘（复用 VIDEO_PATCH_KEYS，防注入）
+  ipcMain.handle(IPC.videoBatchUpdate, async (_e, ids: string[], patch: unknown) => {
+    if (!Array.isArray(ids) || ids.length === 0) return 0
+    const clean = sanitizeVideoPatch(patch)
+    if (Object.keys(clean).length === 0) return 0
+    let n = 0
+    for (const id of ids) {
+      if (repo.updateVideo(id, clean)) n++
+    }
+    return n
+  })
   // v2.7.x：批量设置锁定状态 —— 一次 applyVideoChanges 落盘，避免逐条全量写 data.json
 
   ipcMain.handle(IPC.videoLockMany, async (_e, ids: string[], locked: boolean) => {

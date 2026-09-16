@@ -18,6 +18,7 @@ export const IPC = {
   videoUpdate: 'video:update',
   // v2.7.x：批量设置锁定状态（一次落盘）
   videoLockMany: 'video:lockMany',
+  videoBatchUpdate: 'video:batchUpdate',
   videoScan: 'video:scan',
   videoOpen: 'video:open',
   videoOpenPlaylist: 'video:open-playlist',

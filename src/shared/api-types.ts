@@ -144,6 +144,8 @@ export interface AppApi {
   videoUpdate(id: string, patch: Partial<Video>): Promise<Video | null>
   /** v2.7.x：批量设置锁定状态（一次落盘），返回实际更新条数 */
   videoLockMany(ids: string[], locked: boolean): Promise<number>
+  /** v2.12：批量编辑元数据（白名单字段），返回实际更新条数 */
+  videoBatchUpdate(ids: string[], patch: Partial<Video>): Promise<number>
   videoScan(libraryId: string): Promise<Video[]>
   videoOpen(id: string): Promise<OpenResult>
   videoOpenPlaylist(videos: Video[]): Promise<{ ok: boolean; method: string; count: number }>

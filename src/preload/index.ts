@@ -17,6 +17,7 @@ const api: AppApi = {
   videoGet: (id) => ipcRenderer.invoke(IPC.videoGet, id),
   videoUpdate: (id, patch) => ipcRenderer.invoke(IPC.videoUpdate, id, patch),
   videoLockMany: (ids, locked) => ipcRenderer.invoke(IPC.videoLockMany, ids, locked),
+  videoBatchUpdate: (ids, patch) => ipcRenderer.invoke(IPC.videoBatchUpdate, ids, patch),
   videoScan: (libraryId) => ipcRenderer.invoke(IPC.videoScan, libraryId),
   videoOpen: (id) => ipcRenderer.invoke(IPC.videoOpen, id),
   videoOpenPlaylist: (videos) => ipcRenderer.invoke(IPC.videoOpenPlaylist, videos),

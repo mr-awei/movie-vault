@@ -3,6 +3,8 @@ import Icon from './Icon'
 import { toast } from './Toast'
 import { t } from '../../../shared/i18n'
 import { api } from '../lib/api'
+import { useState } from 'react'
+import BatchEditModal from './BatchEditModal'
 
 interface Props {
   onSelectAll: () => void
@@ -10,7 +12,7 @@ interface Props {
 }
 
 /**
- * 多选批量锁定操作条（原内联于 App.tsx v2.7.x；selectMode 下底部悬浮）
+ * 多选批量操作条（原内联于 App.tsx v2.7.x；selectMode 下底部悬浮）
  * selectAll / 反选依赖 App 的 filtered 计算，通过 props 传入
  */
 export default function BatchLockBar({ onSelectAll, onInvert }: Props) {
@@ -18,6 +20,7 @@ export default function BatchLockBar({ onSelectAll, onInvert }: Props) {
   const setSelectedIds = useUIStore((s) => s.setSelectedIds)
   const setSelectMode = useUIStore((s) => s.setSelectMode)
   const setReconcile = useDataStore((s) => s.setReconcile)
+  const [editOpen, setEditOpen] = useState(false)
 
   const toggleSelectMode = () => {
     setSelectMode((m) => {
@@ -95,12 +98,22 @@ export default function BatchLockBar({ onSelectAll, onInvert }: Props) {
       </button>
       <button
         type="button"
+        className="h-8 px-3 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center gap-1.5 disabled:opacity-40 whitespace-nowrap"
+        onClick={() => setEditOpen(true)}
+        disabled={selectedIds.size === 0}
+      >
+        <Icon name="pencil" size={13} />
+        {t('lock.batchEdit')}
+      </button>
+      <button
+        type="button"
         className="h-8 w-8 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center"
         onClick={toggleSelectMode}
         title={t('lock.exitSelect')}
       >
         <Icon name="x" size={14} />
       </button>
+      {editOpen && <BatchEditModal onClose={() => setEditOpen(false)} />}
     </div>
   )
 }
