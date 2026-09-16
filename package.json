@@ -19,6 +19,7 @@
     "better-sqlite3": "^13.0.3",
     "builder-util": "^24.13.1",
     "chokidar": "^5.0.0",
+    "echarts": "^6.1.0",
     "fast-xml-parser": "^5.11.1",
     "socks": "^2.8.9",
     "socks-proxy-agent": "^8.0.5",

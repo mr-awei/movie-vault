@@ -22,6 +22,7 @@ import ReconcileDialog from './components/ReconcileDialog'
 import LibraryModal from './components/LibraryModal'
 import SettingsModal from './components/SettingsModal'
 import DuplicateModal from './components/DuplicateModal'
+import WatchStatsModal from './components/WatchStatsModal'
 import EditMetaModal from './components/EditMetaModal'
 import VideoDetail from './components/VideoDetail'
 import StatsPanel from './components/StatsPanel'
@@ -152,6 +153,7 @@ export default function App() {
   const [pendingPlaylistId, setPendingPlaylistId] = useState<string | null>(null)
   const [dragSelectMode, setDragSelectMode] = useState<'select' | 'deselect' | null>(null)
   const [showDuplicates, setShowDuplicates] = useState(false)
+  const [showWatchStats, setShowWatchStats] = useState(false)
   // v2.2.10：实时抓取日志（"数据源失败 → 降级下一源" 这类过程，右下角浮层滚动展示）
   const [fetchLogs, setFetchLogs] = useState<
     Array<{ code: string; src: string; status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'; detail?: string }>
@@ -2003,6 +2005,7 @@ export default function App() {
           collapsed={sidebarCollapsed}
           onToggleCollapsed={toggleSidebar}
           onOpenStats={() => setStatsOpen(true)}
+          onOpenWatchStats={() => setShowWatchStats(true)}
           onOpenAbout={() => setAboutOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           playlists={playlists}
@@ -2742,6 +2745,7 @@ export default function App() {
       {showDuplicates && libraryId ? (
         <DuplicateModal onClose={() => setShowDuplicates(false)} libraryId={libraryId} />
       ) : null}
+      {showWatchStats && <WatchStatsModal onClose={() => setShowWatchStats(false)} />}
     </ToastProvider>
   )
 }

@@ -101,6 +101,7 @@ interface Props {
   onToggleCollapsed: () => void
 
   onOpenStats: () => void
+  onOpenWatchStats?: () => void
   onOpenAbout: () => void
   playlists: Playlist[]
   activePlaylistId: string | null
@@ -352,7 +353,7 @@ function SidebarInner(props: Props) {
     onClearResolutions, onClearDurations, onClearScores, onClearYears, onClearTechFilters,
     collapsed, onToggleCollapsed,
     playlists = [], activePlaylistId, onSelectPlaylist, onCreatePlaylist, onDeletePlaylist, onRenamePlaylist,
-    onOpenStats, onOpenAbout, onOpenSettings
+    onOpenStats, onOpenWatchStats, onOpenAbout, onOpenSettings
   } = props
 
   const [collapsedTagCats, setCollapsedTagCats] = useState<Record<string, boolean>>({})
@@ -874,6 +875,11 @@ function SidebarInner(props: Props) {
           <Icon name="chart" size={14} />
           {t('sidebar.stats')}
         </button>
+        {onOpenWatchStats && (
+          <button className="w-8 h-8 rounded-lg flex items-center justify-center bg-ink-700 hover:bg-ink-600 text-white/80 transition-colors" onClick={onOpenWatchStats} title="观看统计">
+            <Icon name="play" size={14} />
+          </button>
+        )}
         <button className="w-8 h-8 rounded-lg flex items-center justify-center bg-ink-700 hover:bg-ink-600 text-white/80 transition-colors" onClick={onOpenAbout} title={t('sidebar.about')}>
           <Icon name="info" size={14} />
         </button>
