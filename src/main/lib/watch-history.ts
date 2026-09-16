@@ -15,6 +15,52 @@ function genId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+/** 标签拆分分隔符（与 UI 展示口径一致）：斜杠 / 顿号 / 逗号 / 空白 */
+const TAG_SPLIT_RE = /[/\\、,，\s]+/
+
+/** 解析视频的标签源为独立标签列表：
+ *  - 优先结构化 tag_categories（跳过简介/评分等元数据分类），退化平铺 tags
+ *  - 对每个候选再做宽分隔拆分（"画中世界 妖异 爱情" → 3 个标签），去空去重
+ *  与 UI 侧栏筛选/详情展示的标签口径保持一致。 */
+function splitTagSource(tagsJson: string | null, tagCategoriesJson: string | null): string[] {
+  const set = new Set<string>()
+  const push = (list: string[] | undefined | null) => {
+    for (const raw of list ?? []) {
+      for (const t of String(raw).split(TAG_SPLIT_RE)) {
+        const trimmed = t.trim()
+        if (trimmed) set.add(trimmed)
+      }
+    }
+  }
+  if (tagCategoriesJson) {
+    try {
+      const cats = JSON.parse(tagCategoriesJson) as Record<string, string[]>
+      // 跳过简介/评分等非标签分类
+      const NON_TAG = new Set(['简介', '评分', '推荐', '描述', 'desc', 'description', 'summary', '介绍'])
+      const hasRealTag = Object.entries(cats).some(
+        ([name, list]) => !NON_TAG.has(name.trim()) && (list ?? []).some((t) => (t?.trim() ?? ''))
+      )
+      if (hasRealTag) {
+        for (const [name, list] of Object.entries(cats)) {
+          if (NON_TAG.has(name.trim())) continue
+          push(list)
+        }
+        return [...set]
+      }
+    } catch {
+      /* corrupted, fall through to tags */
+    }
+  }
+  if (tagsJson) {
+    try {
+      push(JSON.parse(tagsJson) as string[])
+    } catch {
+      /* corrupted, ignore */
+    }
+  }
+  return [...set]
+}
+
 /**
  * 记录一次观看开始。
  * 返回记录 ID，用于结束时更新。
@@ -232,9 +278,10 @@ export async function getWatchStats(): Promise<WatchStats> {
   // 最常观看的标签/演员/导演（需要关联视频信息，从 JSON store 读取）
   // 注意：这部分统计需要视频的元数据，暂时从 repo 读取
   // P1-11：只取聚合所需列（id/tags/actors/meta），不再 listVideos 全字段加载整库
-  const videoRows = getDb().prepare('SELECT id, tags, actors, meta FROM videos').all() as Array<{
+  const videoRows = getDb().prepare('SELECT id, tags, tag_categories, actors, meta FROM videos').all() as Array<{
     id: string
     tags: string | null
+    tag_categories: string | null
     actors: string | null
     meta: string | null
   }>
@@ -246,10 +293,13 @@ export async function getWatchStats(): Promise<WatchStats> {
     } catch {
       meta = null
     }
+    // 标签：优先结构化 tag_categories（与 UI 筛选/展示口径一致），退化平铺 tags；
+    // 同时把「合并串」（如 "画中世界 妖异 爱情" / "古装/欲望/夫妻"）按分隔符拆成独立标签，
+    // 避免统计面板把多个标签挤成一行。
     let tags: string[] = []
     let actors: string[] = []
     try {
-      tags = r.tags ? (JSON.parse(r.tags) as string[]) : []
+      tags = splitTagSource(r.tags, r.tag_categories)
       actors = r.actors ? (JSON.parse(r.actors) as string[]) : []
     } catch {
       /* ignore corrupted fields */
