@@ -148,14 +148,18 @@ export async function getWatchStats(): Promise<WatchStats> {
   const monthlyTrend = [...monthlyMap.entries()].map(([month, v]) => ({ month, ...v }))
 
   // 每周趋势（最近 12 周）
+  // 周key使用与SQLite strftime('%Y-W%W')一致的算法（周一为一周开始，00-53周）
+  const weekKeyOf = (d: Date): string => {
+    const startOfYear = new Date(d.getFullYear(), 0, 1)
+    const doy = Math.floor((d.getTime() - startOfYear.getTime()) / 86400000) + 1
+    const wd = d.getDay() // 0=周日 ... 6=周六
+    const week = Math.floor((doy + 6 - wd) / 7)
+    return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`
+  }
   const weeklyMap = new Map<string, { watchSec: number; count: number }>()
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i * 7)
-    // 计算周一日期
-    const day = d.getDay() || 7
-    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day + 1)
-    const key = `${monday.getFullYear()}-W${String(Math.ceil((monday.getDate() + new Date(monday.getFullYear(), monday.getMonth(), 0).getDate()) / 7)).padStart(2, '0')}`
-    weeklyMap.set(key, { watchSec: 0, count: 0 })
+    weeklyMap.set(weekKeyOf(d), { watchSec: 0, count: 0 })
   }
 
   const weeklyRows = db.prepare(`

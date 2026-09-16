@@ -323,7 +323,7 @@ export default function WatchStatsModal({ onClose }: Props) {
         <div className="flex-1 overflow-y-auto p-5">
           {loading ? (
             <div className="text-white/40 text-sm text-center py-16">正在加载观看统计...</div>
-          ) : !stats || stats.totalWatchCount === 0 ? (
+          ) : !stats ? (
             <div className="text-center py-16">
               <Icon name="chart" size={48} className="text-white/20 mx-auto mb-4" />
               <div className="text-white/50 text-sm">暂无观看记录</div>
@@ -331,6 +331,12 @@ export default function WatchStatsModal({ onClose }: Props) {
             </div>
           ) : (
             <div className="space-y-6">
+              {stats.totalWatchCount === 0 && (
+                <div className="text-center py-4 bg-white/5 rounded-xl">
+                  <div className="text-white/50 text-sm">暂无观看记录</div>
+                  <div className="text-white/30 text-xs mt-1">播放视频后会自动记录观看历史，下方图表将随数据更新</div>
+                </div>
+              )}
               {/* 基础统计卡片 */}
               <div className="grid grid-cols-4 gap-3">
                 <div className="bg-white/5 rounded-xl p-4 text-center">
