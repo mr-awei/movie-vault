@@ -383,6 +383,7 @@ export default function WatchStatsModal({ onClose }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
         className="w-[900px] max-h-[85vh] bg-ink-850 rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden"
+        style={{ backgroundColor: '#0f1522' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 标题栏 */}
@@ -437,25 +438,25 @@ export default function WatchStatsModal({ onClose }: Props) {
               {/* 月度趋势 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">月度趋势（最近 12 个月）</h3>
-                <div ref={monthlyChartRef} style={{ width: '100%', height: 220 }} />
+                <div ref={monthlyChartRef} style={{ width: '100%', height: 220, backgroundColor: '#111827', borderRadius: 8 }} />
               </div>
 
               {/* 每周趋势 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">每周趋势（最近 12 周）</h3>
-                <div ref={weeklyChartRef} style={{ width: '100%', height: 220 }} />
+                <div ref={weeklyChartRef} style={{ width: '100%', height: 220, backgroundColor: '#111827', borderRadius: 8 }} />
               </div>
 
               {/* 完成度分布 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">完成度分布</h3>
-                <div ref={completionChartRef} style={{ width: '100%', height: 200 }} />
+                <div ref={completionChartRef} style={{ width: '100%', height: 200, backgroundColor: '#111827', borderRadius: 8 }} />
               </div>
 
               {/* 观看时间分布 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">观看时间分布（24 小时）</h3>
-                <div ref={hourlyChartRef} style={{ width: '100%', height: 200 }} />
+                <div ref={hourlyChartRef} style={{ width: '100%', height: 200, backgroundColor: '#111827', borderRadius: 8 }} />
               </div>
 
               {/* Top 标签/演员/导演 */}
