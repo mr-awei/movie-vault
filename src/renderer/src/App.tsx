@@ -2752,7 +2752,30 @@ export default function App() {
       {showDuplicates && libraryId ? (
         <DuplicateModal onClose={() => setShowDuplicates(false)} libraryId={libraryId} />
       ) : null}
-      {showWatchStats && <WatchStatsModal onClose={() => setShowWatchStats(false)} />}
+      {showWatchStats && (
+        <WatchStatsModal
+          onClose={() => setShowWatchStats(false)}
+          onOpenVideo={(videoId) => {
+            const entry = reconcile?.entries.find((e) => e.video?.id === videoId)
+            if (entry?.video) {
+              setShowWatchStats(false)
+              setDetail(entry.video)
+            }
+          }}
+          onPickTag={(tag) => {
+            setShowWatchStats(false)
+            handlePickTag(tag)
+          }}
+          onPickActor={(actor) => {
+            setShowWatchStats(false)
+            handlePickFilter({ type: 'actor', value: actor })
+          }}
+          onPickDirector={(director) => {
+            setShowWatchStats(false)
+            handlePickFilter({ type: 'category', value: director })
+          }}
+        />
+      )}
     </ToastProvider>
   )
 }

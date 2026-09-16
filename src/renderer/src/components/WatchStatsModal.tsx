@@ -6,6 +6,14 @@ import Icon from './Icon'
 
 interface Props {
   onClose: () => void
+  /** 点击影片条目 → 打开详情 */
+  onOpenVideo: (videoId: string) => void
+  /** 点击标签 → 筛选 */
+  onPickTag: (tag: string) => void
+  /** 点击演员 → 筛选 */
+  onPickActor: (actor: string) => void
+  /** 点击导演 → 筛选 */
+  onPickDirector: (director: string) => void
 }
 
 /** 格式化秒数为可读时长 */
@@ -21,7 +29,7 @@ function formatDuration(sec: number): string {
  * 观看统计面板。
  * 展示总观看时长、月度趋势、时间分布、最常看标签/演员/导演、最近观看记录。
  */
-export default function WatchStatsModal({ onClose }: Props) {
+export default function WatchStatsModal({ onClose, onOpenVideo, onPickTag, onPickActor, onPickDirector }: Props) {
   const [stats, setStats] = useState<WatchStats | null>(null)
   const [loading, setLoading] = useState(true)
   const monthlyChartRef = useRef<HTMLDivElement>(null)
@@ -463,12 +471,23 @@ export default function WatchStatsModal({ onClose }: Props) {
                       <div className="text-white/30 text-xs">暂无数据</div>
                     ) : (
                       stats.topTags.map((item, idx) => (
-                        <div key={item.tag} className="flex items-center gap-2">
-                          <span className={`text-xs w-5 text-center ${idx < 3 ? 'text-yellow-400 font-bold' : 'text-white/40'}`}>
+                        <div key={item.tag} className="flex items-start gap-2 py-0.5">
+                          <span className={`text-xs w-5 text-center shrink-0 mt-0.5 ${idx < 3 ? 'text-yellow-400 font-bold' : 'text-white/40'}`}>
                             {idx + 1}
                           </span>
-                          <span className="text-white text-xs flex-1 truncate">{item.tag}</span>
-                          <span className="text-white/40 text-xs">{formatDuration(item.watchSec)}</span>
+                          <span className="flex-1 min-w-0 flex flex-wrap gap-1">
+                            {item.tag.split(/[\/、,，\s]+/).filter(Boolean).map((t) => (
+                              <button
+                                key={t}
+                                className="text-white/70 text-[11px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-brand/40 hover:text-white transition-colors cursor-pointer"
+                                onClick={() => onPickTag(t)}
+                                title={`筛选标签「${t}」`}
+                              >
+                                {t}
+                              </button>
+                            ))}
+                          </span>
+                          <span className="text-white/40 text-xs shrink-0">{formatDuration(item.watchSec)}</span>
                         </div>
                       ))
                     )}
@@ -483,11 +502,16 @@ export default function WatchStatsModal({ onClose }: Props) {
                       <div className="text-white/30 text-xs">暂无数据</div>
                     ) : (
                       stats.topActors.map((item, idx) => (
-                        <div key={item.actor} className="flex items-center gap-2">
+                        <div
+                          key={item.actor}
+                          className="flex items-center gap-2 cursor-pointer group"
+                          onClick={() => onPickActor(item.actor)}
+                          title={`筛选演员「${item.actor}」的影片`}
+                        >
                           <span className={`text-xs w-5 text-center ${idx < 3 ? 'text-yellow-400 font-bold' : 'text-white/40'}`}>
                             {idx + 1}
                           </span>
-                          <span className="text-white text-xs flex-1 truncate">{item.actor}</span>
+                          <span className="text-white text-xs flex-1 truncate group-hover:text-brand transition-colors">{item.actor}</span>
                           <span className="text-white/40 text-xs">{formatDuration(item.watchSec)}</span>
                         </div>
                       ))
@@ -503,11 +527,16 @@ export default function WatchStatsModal({ onClose }: Props) {
                       <div className="text-white/30 text-xs">暂无数据</div>
                     ) : (
                       stats.topDirectors.map((item, idx) => (
-                        <div key={item.director} className="flex items-center gap-2">
+                        <div
+                          key={item.director}
+                          className="flex items-center gap-2 cursor-pointer group"
+                          onClick={() => onPickDirector(item.director)}
+                          title={`筛选导演「${item.director}」的影片`}
+                        >
                           <span className={`text-xs w-5 text-center ${idx < 3 ? 'text-yellow-400 font-bold' : 'text-white/40'}`}>
                             {idx + 1}
                           </span>
-                          <span className="text-white text-xs flex-1 truncate">{item.director}</span>
+                          <span className="text-white text-xs flex-1 truncate group-hover:text-brand transition-colors">{item.director}</span>
                           <span className="text-white/40 text-xs">{formatDuration(item.watchSec)}</span>
                         </div>
                       ))
@@ -524,7 +553,7 @@ export default function WatchStatsModal({ onClose }: Props) {
                     <div className="text-white/30 text-xs">暂无数据</div>
                   ) : (
                     stats.topVideosByDuration.map((item, idx) => (
-                      <div key={item.videoId} className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                      <div key={item.videoId} className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer" onClick={() => onOpenVideo(item.videoId)} title="打开影片详情">
                         <span className={idx < 3 ? 'text-xs w-6 text-center shrink-0 text-yellow-400 font-bold' : 'text-xs w-6 text-center shrink-0 text-white/40'}>
                           {idx + 1}
                         </span>
@@ -545,7 +574,7 @@ export default function WatchStatsModal({ onClose }: Props) {
                     <div className="text-white/30 text-xs">暂无记录</div>
                   ) : (
                     stats.recentWatches.map((item) => (
-                      <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                      <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer" onClick={() => onOpenVideo(item.videoId)} title="打开影片详情">
                         <div className="flex-1 min-w-0">
                           <div className="text-white text-sm truncate">{item.title}</div>
                           <div className="text-white/40 text-xs">
