@@ -10,7 +10,10 @@ export default defineConfig({
         // 主进程依赖 Node 内置模块与 electron，保持外部化（electron-vite 默认已处理）
         // better-sqlite3 是原生模块，内部使用 CommonJS require，必须 external，
         // 否则打包进 ESM 产物后会报 "require is not defined in ES module scope"
-        external: ['electron', 'better-sqlite3']
+        external: ['electron', 'better-sqlite3'],
+        // 主进程输出 CJS 格式（与 preload 一致），避免 ESM/CJS 混合导致
+        // better-sqlite3 等原生模块加载失败、electron 进程启动后立即退出
+        output: { format: 'cjs', entryFileNames: '[name].js' }
       }
     }
   },
