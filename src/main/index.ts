@@ -3,6 +3,7 @@ import path from 'node:path'
 import { promises as fs, appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { registerIpc, runUpdateCheck } from './lib/ipc'
+import * as repo from './lib/repo'
 import { startWatching, stopAllWatchers } from './lib/watcher'
 import { getDb, closeDb } from './lib/db'
 import { startPreviewTaskQueue, stopPreviewTaskQueue } from './lib/preview-task-queue'
@@ -103,18 +104,6 @@ function clearInstallerLanguage(): void {
   }
 }
 
-if (!app.requestSingleInstanceLock()) {
-  app.quit()
-} else {
-  app.on('second-instance', () => {
-    const win = BrowserWindow.getAllWindows()[0]
-    if (win) {
-      win.show()
-      win.focus()
-    }
-  })
-}
-
 const POSTER_MIME: Record<string, string> = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -182,6 +171,19 @@ function attachMainLog(): void {
 }
 
 
+/** lm:// 协议路径白名单：只允许加载 userData 图片目录 + 媒体库目录内的图片 */
+async function isLmAllowedPath(real: string): Promise<boolean> {
+  const libs = await repo.listLibraries().catch(() => [])
+  const roots = [
+    path.join(app.getPath('userData'), 'posters'),
+    path.join(app.getPath('userData'), 'preview-frames'),
+    path.join(app.getPath('userData'), 'images'),
+    ...libs.map((l) => l.folderPath)
+  ].map((rp) => path.normalize(rp).toLowerCase())
+  const norm = path.normalize(real).toLowerCase()
+  return roots.some((root) => norm === root || norm.startsWith(root + path.sep))
+}
+
 /** 注册 lm:// 协议，让渲染进程安全加载本地图片（海报/侧车图/手动图） */
 function registerLocalMedia(): void {
   protocol.handle('lm', async (request) => {
@@ -196,6 +198,11 @@ function registerLocalMedia(): void {
       const ext = path.extname(real).toLowerCase()
       if (!POSTER_MIME[ext]) {
         console.warn('[lm] 不支持的扩展名, ext=' + JSON.stringify(ext) + ' path=' + real)
+        return new Response('forbidden', { status: 403 })
+      }
+      // v2.10.x 安全加固：路径白名单，防止渲染进程被注入后经 lm:// 读取任意本地文件
+      if (!(await isLmAllowedPath(real))) {
+        console.warn('[lm] 路径不在白名单, path=' + real)
         return new Response('forbidden', { status: 403 })
       }
       const data = await fs.readFile(real)

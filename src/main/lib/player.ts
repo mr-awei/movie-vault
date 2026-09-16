@@ -38,6 +38,8 @@ class PlayerSession {
   method: string
   startTime: number = Date.now()
   lastPosition: number = 0
+  /** 上次落盘时间戳（断点按时间间隔保存，避免 %10 取模丢帧） */
+  lastSaveAt: number = 0
   pollTimer: NodeJS.Timeout | null = null
   mpvSocket: net.Socket | null = null
   mpvRequestId: number = 0
@@ -93,8 +95,11 @@ class PlayerSession {
 
     if (position !== undefined && position > MIN_POSITION_TO_SAVE) {
       this.lastPosition = position
-      // 每 10 秒保存一次（避免频繁写盘）
-      if (Math.floor(position) % 10 === 0) {
+      // 每 10 秒保存一次断点（按时间间隔而非位置取模，位置值几乎不会恰好落在整 10 秒上，
+      // 旧逻辑 Math.floor(position) % 10 === 0 导致断点几乎从不落盘，退出时丢进度）
+      const now = Date.now()
+      if (now - this.lastSaveAt >= 10_000) {
+        this.lastSaveAt = now
         await this.savePosition(position)
       }
     }
