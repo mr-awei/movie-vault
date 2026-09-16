@@ -1,4 +1,5 @@
 import type { WatchHistoryEntry, WatchStats, Video } from '../../shared/types'
+import { NON_TAG_CATEGORY_NAMES } from '../../shared/types'
 import { getDb } from './db'
 
 /**
@@ -35,14 +36,13 @@ function splitTagSource(tagsJson: string | null, tagCategoriesJson: string | nul
   if (tagCategoriesJson) {
     try {
       const cats = JSON.parse(tagCategoriesJson) as Record<string, string[]>
-      // 跳过简介/评分等非标签分类
-      const NON_TAG = new Set(['简介', '评分', '推荐', '描述', 'desc', 'description', 'summary', '介绍'])
+      // 跳过简介/评分等非标签分类（共享常量，与 UI 筛选口径一致）
       const hasRealTag = Object.entries(cats).some(
-        ([name, list]) => !NON_TAG.has(name.trim()) && (list ?? []).some((t) => (t?.trim() ?? ''))
+        ([name, list]) => !NON_TAG_CATEGORY_NAMES.has(name.trim()) && (list ?? []).some((t) => (t?.trim() ?? ''))
       )
       if (hasRealTag) {
         for (const [name, list] of Object.entries(cats)) {
-          if (NON_TAG.has(name.trim())) continue
+          if (NON_TAG_CATEGORY_NAMES.has(name.trim())) continue
           push(list)
         }
         return [...set]

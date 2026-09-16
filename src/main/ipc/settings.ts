@@ -27,7 +27,7 @@ function sanitizeSettingsPatch(patch: unknown): Record<string, unknown> {
 export function registerSettingsIpc() {
   ipcMain.handle(IPC.settingsGet, () => repo.getSettings())
 
-  ipcMain.handle(IPC.settingsSet, async (_e, patch: any) => {
+  ipcMain.handle(IPC.settingsSet, async (_e, patch: unknown) => {
     const clean = sanitizeSettingsPatch(patch)
     if (Object.keys(clean).length === 0) return repo.getSettings()
     const saved = await repo.saveSettings(clean)

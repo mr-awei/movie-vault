@@ -15,7 +15,7 @@ import { readNfoForVideo, writeNfoForVideo } from '../lib/nfo'
 import { localCanonicalName } from '../../shared/code'
 import path from 'node:path'
 import { promises as fs } from 'node:fs'
-import type { Library, Video } from '../../shared/types'
+import type { Library, Video, VideoFilter } from '../../shared/types'
 import {
   backfillFromDetail,
   cleanVideoCacheFiles,
@@ -46,11 +46,11 @@ function sanitizeVideoPatch(patch: unknown): Partial<Video> {
 }
 
 export function registerVideoIpc() {
-  ipcMain.handle(IPC.videoList, (_e, filter: any) => repo.listVideos(filter ?? {}))
+  ipcMain.handle(IPC.videoList, (_e, filter: VideoFilter) => repo.listVideos(filter ?? {}))
 
   ipcMain.handle(IPC.videoGet, (_e, id: string) => repo.getVideo(id))
 
-  ipcMain.handle(IPC.videoUpdate, (_e, id: string, patch: any) => repo.updateVideo(id, sanitizeVideoPatch(patch)))
+  ipcMain.handle(IPC.videoUpdate, (_e, id: string, patch: unknown) => repo.updateVideo(id, sanitizeVideoPatch(patch)))
   // v2.7.x：批量设置锁定状态 —— 一次 applyVideoChanges 落盘，避免逐条全量写 data.json
 
   ipcMain.handle(IPC.videoLockMany, async (_e, ids: string[], locked: boolean) => {
