@@ -8,8 +8,7 @@ import type {
   Settings,
   SortKey,
   SourceId,
-  Video,
-  ViewMode
+  Video
 } from '../../shared/types'
 import { DEFAULT_IMAGE_PRIORITY, DEFAULT_SETTINGS, entryPrimaryTags, flattenAllTags, hasDocTags, splitHierarchicalTag } from '../../shared/types'
 import { displayTitle } from './lib/util'
@@ -161,8 +160,9 @@ export default function App() {
   /** true = 「{t('app.addLibrary')}」新建表单；false = 库设置编辑模式 */
   /** 删除二次确认弹窗：非空时显示；保存预检结果与删除范围 */
   /** 删除执行中（防重复点击） */
-  // 隐私护盾：一键模糊所有预览图（防截图泄露敏感内容），持久化到 localStorage
-  const [privacy, setPrivacy] = useState<boolean>(() => localStorage.getItem('vm-privacy') === '1')
+  // 隐私护盾：一键模糊所有预览图（防截图泄露敏感内容），持久化到 localStorage（store 初始化）
+  const privacy = useUIStore((s) => s.privacy)
+  const setPrivacy = useUIStore((s) => s.setPrivacy)
   const [progress, setProgress] = useState<{ total: number; done: number; current?: string } | null>(null)
   const [fetchPaused, setFetchPaused] = useState(false)
   // v2.7.x：多选批量锁定（浏览页）
@@ -171,7 +171,8 @@ export default function App() {
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null)
   const [pendingPlaylistId, setPendingPlaylistId] = useState<string | null>(null)
-  const [showWatchStats, setShowWatchStats] = useState(false)
+  const showWatchStats = useUIStore((s) => s.showWatchStats)
+  const setShowWatchStats = useUIStore((s) => s.setShowWatchStats)
   // v2.2.10：实时抓取日志（"数据源失败 → 降级下一源" 这类过程，右下角浮层滚动展示）
   const [fetchLogs, setFetchLogs] = useState<
     Array<{ code: string; src: string; status: 'trying' | 'hit' | 'skipped' | 'no-result' | 'network-failed'; detail?: string }>
@@ -198,20 +199,20 @@ export default function App() {
 
   // ---- 新增：导航 / 视图状态 ----
   /** 主导航：home 首页概览 / browse 浏览 */
-  const [view, setView] = useState<ViewName>('home')
+  const view = useUIStore((s) => s.view)
+  const setView = useUIStore((s) => s.setView)
   /** 智能筛选（我的清单 / 快捷过滤） */
-  const [smart, setSmart] = useState<SmartFilter>('all')
-  /** 浏览视图模式：竖屏预览墙 / 横屏预览墙 / 纯文件名列表 */
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem('vm-viewmode')
-    if (saved === 'list') return 'list-filename'
-    if (saved === 'grid') return 'grid-portrait'
-    return (saved as ViewMode) || 'grid-landscape'
-  })
+  const smart = useUIStore((s) => s.smart)
+  const setSmart = useUIStore((s) => s.setSmart)
+  /** 浏览视图模式：竖屏预览墙 / 横屏预览墙 / 纯文件名列表（store 已持久化） */
+  const viewMode = useUIStore((s) => s.viewMode)
+  const setViewMode = useUIStore((s) => s.setViewMode)
   /** 是否已加载完基础设置（未加载前显示启动遮罩，避免锁界面闪烁泄露内容） */
-  const [loaded, setLoaded] = useState(false)
+  const loaded = useUIStore((s) => s.loaded)
+  const setLoaded = useUIStore((s) => s.setLoaded)
   /** 隐私锁是否已{t('app.unlock')}（未上锁时恒为 true） */
-  const [unlocked, setUnlocked] = useState(false)
+  const unlocked = useUIStore((s) => s.unlocked)
+  const setUnlocked = useUIStore((s) => s.setUnlocked)
   /** 命令面板 ⌘K */
   /** 随机推荐：手动刷新 nonce（每日刷新由种子里的日期自动驱动） */
   const [recommendNonce, setRecommendNonce] = useState(0)
@@ -234,7 +235,8 @@ export default function App() {
   // 队列只存 video.id 列表（ref）；渲染时按最新 reconcile 实时映射 → 收藏/详情等 reconcile 更新不重建队列、顺序稳定
   const heroQueueRef = useRef<string[]>([])
   const heroBuiltLibRef = useRef<string | null>(null)
-  const [heroIdx, setHeroIdx] = useState(0)
+  const heroIdx = useUIStore((s) => s.heroIdx)
+  const setHeroIdx = useUIStore((s) => s.setHeroIdx)
   const heroIdxRef = useRef(0)
   heroIdxRef.current = heroIdx
 
