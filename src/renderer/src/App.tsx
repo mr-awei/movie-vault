@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useUIStore } from './store'
 import type {
   DisplayEntry,
   ImageSource,
@@ -96,6 +97,8 @@ const SCORE_ORDER = ['9-10', '8-9', '7-8', '6-7', '6以下', '未评分']
 
 export default function App() {
   const [libraries, setLibraries] = useState<Library[]>([])
+  const licenseOpen = useUIStore((s) => s.licenseOpen)
+  const setLicenseOpen = useUIStore((s) => s.setLicenseOpen)
   const [settings, setSettings] = useState<Settings>({ ...DEFAULT_SETTINGS })
   const [libraryId, setLibraryId] = useState('')
   const [reconcile, setReconcile] = useState<ReconcileResult | null>(null)
@@ -125,7 +128,6 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
-  const [licenseOpen, setLicenseOpen] = useState(false)
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
   const [libraryOpen, setLibraryOpen] = useState(false)
   /** 用户须知弹窗：首次启动（noticeDismissed 未设置/为 false）时强制弹出 */
