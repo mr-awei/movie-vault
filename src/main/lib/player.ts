@@ -5,6 +5,7 @@ import net from 'node:net'
 import http from 'node:http'
 import type { Settings, Video } from '../../shared/types'
 import { updateVideo } from './repo'
+import { startWatch, endWatch } from './watch-history'
 
 /**
  * 播放器模块：打开视频 + 播放进度记录 + 断点续播。
@@ -41,12 +42,20 @@ class PlayerSession {
   potplayerPort: number = POTPLAYER_DEFAULT_PORT
   potplayerAvailable: boolean = false
   closed: boolean = false
+  /** 观看历史记录 ID（用于结束时更新） */
+  watchEntryId: string | null = null
 
   constructor(video: Video, settings: Settings, playerPath: string, method: string) {
     this.video = video
     this.settings = settings
     this.playerPath = playerPath
     this.method = method
+    // 记录观看开始
+    startWatch(video).then((id) => {
+      this.watchEntryId = id
+    }).catch((err) => {
+      console.warn('[player] 记录观看开始失败:', err.message)
+    })
   }
 
   /** 启动播放器进程 */
@@ -239,6 +248,13 @@ class PlayerSession {
         await this.savePosition(finalPosition)
         console.log(`[player] 保存最终播放位置: ${this.video.title} @ ${Math.round(finalPosition)}s`)
       }
+    }
+
+    // 记录观看结束
+    if (this.watchEntryId) {
+      endWatch(this.video.id, this.watchEntryId, finalPosition, elapsedSec).catch((err) => {
+        console.warn('[player] 记录观看结束失败:', err.message)
+      })
     }
 
     // 更新最后播放时间
