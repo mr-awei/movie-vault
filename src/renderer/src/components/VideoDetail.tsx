@@ -2,7 +2,6 @@
 import type { DisplayEntry, MovieMeta, Playlist, Video } from '../../../shared/types'
 import { hasDocTags, primaryTags, NON_TAG_CATEGORY_NAMES, splitHierarchicalTag } from '../../../shared/types'
 import { posterUrl, placeholderGradient, titleInitial, formatSize, formatDuration, resolveEntryPoster, pureTitle, stringToMutedColor } from '../lib/util'
-import { useFrameFallback } from '../lib/frameFallback'
 import { api } from '../lib/api'
 import Icon from './Icon'
 import { toast } from './Toast'
@@ -256,10 +255,13 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
   const [zoomUrl, setZoomUrl] = useState<string | null>(null)
   /** 备用来源标签（backupTags）默认折叠为一行；点开才展开全部 */
   const [showBackupTags, setShowBackupTags] = useState(false)
-  /** ESC：放大图打开时先关放大图，否则关闭详情页（非组合键，用户要求保留） */
+  /** ESC：放大图打开时先关放大图，否则关闭详情页（非组合键，用户要求保留）。
+   *  P1-13：输入框/文本域聚焦时按 ESC 不关详情页，避免误关。 */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      const ae = document.activeElement
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return
       if (zoomUrl) setZoomUrl(null)
       else onClose()
     }
@@ -385,23 +387,10 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
     void handleGenerateFrames()
   }, [video.id, localVideo.previewPaths, fetching, framing, handleGenerateFrames])
 
-  // 自动截帧计划中：预览帧为空且元数据补齐已结束。此期间屏蔽单帧兜底，
-  // 避免单帧兜底与完整截帧两个 ffmpeg 进程同时截同一文件
-  const autoFramePlanned =
-    !autoFramedRef.current &&
-    (localVideo.previewPaths?.length ?? 0) === 0 &&
-    !fetching &&
-    !framing
-  // 无封面/封面加载失败 → ffmpeg 截帧兜底（懒加载；自动截帧规划中/进行中时暂不触发单帧兜底）
-  const { fallbackPoster, isFrameFallback } = useFrameFallback(
-    localVideo,
-    originalCover && !coverImgError
-      ? originalCover
-      : autoFramePlanned || (autoFramedRef.current && framing)
-        ? '__auto_frame_planned__'
-        : null
-  )
-  const coverSrc = (originalCover && !coverImgError ? originalCover : null) ?? fallbackPoster
+  // P1-7：useFrameFallback 自动截帧逻辑已废弃（preview-task-queue 统一处理），
+  // 删除死 hook；截帧标识改为直接判断持久化记录来源
+  const isFrameFallback = localVideo?.posterSource === 'ffmpeg'
+  const coverSrc = originalCover && !coverImgError ? originalCover : null
 
   return (
     <div

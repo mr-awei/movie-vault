@@ -2,7 +2,6 @@ import { memo, useEffect, useRef, useState } from 'react'
 import type { DisplayEntry, Video } from '../../../shared/types'
 import { entryPrimaryTags, hasDocTags } from '../../../shared/types'
 import { posterUrl, placeholderGradient, titleInitial, formatDuration, formatSize, displayTitle } from '../lib/util'
-import { useFrameFallback } from '../lib/frameFallback'
 import { api } from '../lib/api'
 import { t } from '../../../shared/i18n'
 import Icon from './Icon'
@@ -399,11 +398,8 @@ function ListThumb({ video, code, isMissing }: { video?: Video | null; code: str
   // coverVersion：手动设为封面后文件内容变了但路径可能不变，用它让 lm:// URL 带 ?v= 强制立即刷新
   const original = poster ? posterUrl(poster, video?.coverVersion) : null
   const hasValidSrc = original && !imgError ? original : null
-  const { fallbackPoster } = useFrameFallback(video ?? undefined, hasValidSrc)
-  const src = hasValidSrc ?? fallbackPoster
-  const isFrameFallback = src
-    ? src === fallbackPoster || (!manualPoster && !detailCover && !realPoster && video?.posterSource === 'ffmpeg')
-    : false
+  const src = hasValidSrc
+  const isFrameFallback = src ? !manualPoster && !detailCover && !realPoster && video?.posterSource === 'ffmpeg' : false
 
   // 自动补齐元信息后 posterPath/coverVersion 变化时重置错误状态，否则旧错误会挡住真实海报
   useEffect(() => {

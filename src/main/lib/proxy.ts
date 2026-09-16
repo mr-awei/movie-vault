@@ -2,7 +2,7 @@ import { EnvHttpProxyAgent, ProxyAgent, type Dispatcher } from 'undici'
 import http from 'node:http'
 import https from 'node:https'
 import { SocksProxyAgent } from 'socks-proxy-agent'
-import { session } from 'electron'
+import { app, session } from 'electron'
 import type { ProxyMode, Settings } from '../../shared/types'
 
 const UA =
@@ -189,22 +189,28 @@ export function applyProxyToSession(settings: Settings): void {
     }
     if (mode === 'http' || mode === 'https') {
       const proto = mode === 'https' ? 'https' : 'http'
-      let auth = ''
-      if (settings.proxyUser) {
-        auth = `${encodeURIComponent(settings.proxyUser)}:${encodeURIComponent(settings.proxyPass)}@`
-      }
-      const url = `${proto}://${auth}${settings.proxyHost}:${settings.proxyPort}`
+      // P1-10：Chromium 忽略 proxyRules 内嵌的 user:pass，认证改由 app.on('login') 提供
+      proxyCredentials = settings.proxyUser ? { user: settings.proxyUser, pass: settings.proxyPass ?? '' } : null
+      const url = `${proto}://${settings.proxyHost}:${settings.proxyPort}`
       session.defaultSession.setProxy({ proxyRules: url })
       return
     }
     // socks4 / socks5：Chromium 只支持 socks5（socks5 同样由代理端解析域名）
-    let auth = ''
-    if (settings.proxyUser) {
-      auth = `${encodeURIComponent(settings.proxyUser)}:${encodeURIComponent(settings.proxyPass)}@`
-    }
-    const url = `socks5://${auth}${settings.proxyHost}:${settings.proxyPort}`
+    proxyCredentials = settings.proxyUser ? { user: settings.proxyUser, pass: settings.proxyPass ?? '' } : null
+    const url = `socks5://${settings.proxyHost}:${settings.proxyPort}`
     session.defaultSession.setProxy({ proxyRules: url })
   } catch {
     /* session 可能尚未 ready，静默跳过；下次 applyRuntimeSettings 会再试 */
   }
+}
+
+/** P1-10：Chromium 代理认证——登录事件里回填凭据，修复带账号密码代理下渲染端图片 407 裂图 */
+let proxyCredentials: { user: string; pass: string } | null = null
+
+export function registerProxyAuth(): void {
+  app.on('login', (event, _webContents, details, _authInfo, callback) => {
+    if (!(details as { isProxy?: boolean }).isProxy || !proxyCredentials) return
+    event.preventDefault()
+    callback(proxyCredentials.user, proxyCredentials.pass)
+  })
 }

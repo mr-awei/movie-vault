@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import type { DisplayEntry, Playlist, Video } from '../../../shared/types'
 import { hasDocTags, primaryTags } from '../../../shared/types'
 import { posterUrl, placeholderGradient, titleInitial, titleSecondary, formatDuration, displayTitle } from '../lib/util'
-import { useFrameFallback } from '../lib/frameFallback'
 import { api } from '../lib/api'
 import HoverDetail from './HoverDetail'
 import Icon from './Icon'
@@ -92,13 +91,10 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
   // coverVersion：手动{t('entry.setAsCover')}后文件内容变了但路径可能不变，用它让 lm:// URL 带 ?v= 强制立即刷新
   const originalSrc = poster ? posterUrl(poster, v0?.coverVersion) : null
   const hasValidSrc = originalSrc && !imgError ? originalSrc : null
-  const { fallbackPoster } = useFrameFallback(entry.video, hasValidSrc)
-  const src = hasValidSrc ?? fallbackPoster
+  const src = hasValidSrc
   const showPoster = !!src
   // 「{t('entry.reframe')}」标识：仅当实际展示的是视频画面一帧（新{t('entry.reframe')}兜底，或 posterPath 为 ffmpeg {t('entry.reframe')}且无真实封面）
-  const isFrameFallback = src
-    ? src === fallbackPoster || (!manualPoster && !detailCover && !realPoster && v0?.posterSource === 'ffmpeg')
-    : false
+  const isFrameFallback = src ? !manualPoster && !detailCover && !realPoster && v0?.posterSource === 'ffmpeg' : false
   const score = entry.score ?? entry.video?.rating
   const v = hoverVideo(entry)
   const isFavorite = !!entry.video?.favorite
@@ -257,7 +253,7 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
         {inPlaylist ? (
           <div className="absolute top-1.5 right-1.5 z-10 px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-medium shadow-md flex items-center gap-1">
             <Icon name="check" size={10} />
-            已添加
+            {t('entry.addedToPlaylist')}
           </div>
         ) : null}
         {showPoster ? (

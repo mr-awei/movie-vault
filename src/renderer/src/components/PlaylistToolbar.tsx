@@ -1,5 +1,6 @@
 import { useDataStore, useUIStore } from '../store'
 import Icon from './Icon'
+import { t } from '../../../shared/i18n'
 
 /**
  * 播放列表操作栏（浏览页工具栏下方）。
@@ -39,15 +40,15 @@ export function PlaylistToolbar(props: {
       {pendingPlaylistId ? (
         <div className="mb-3 flex items-center justify-between px-4 py-2.5 rounded-xl bg-brand/10 ring-1 ring-brand/30">
           <span className="text-sm text-brand font-medium">
-            选择要添加到「{playlistName(pendingPlaylistId)}」的影片
-            <span className="ml-2 text-brand/60">已选 {selectedIds.size} 部</span>
+            {t('playlist.selectToAdd', { name: playlistName(pendingPlaylistId) })}
+            <span className="ml-2 text-brand/60">{t('playlist.selectedCount', { n: selectedIds.size })}</span>
           </span>
           <div className="flex items-center gap-2">
-            <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={props.onSelectAll}>全选</button>
-            <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => setSelectedIds(new Set())}>取消全选</button>
-            <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={props.onInvert}>反选</button>
-            <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => { setPendingPlaylistId(null); setSelectMode(false); setSelectedIds(new Set()) }}>取消</button>
-            <button className="h-8 px-3 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand/90 disabled:opacity-40" disabled={selectedIds.size === 0} onClick={() => void props.onAddSelected()}>添加选中 ({selectedIds.size})</button>
+            <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={props.onSelectAll}>{t('playlist.selectAll')}</button>
+            <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => setSelectedIds(new Set())}>{t('playlist.deselectAll')}</button>
+            <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={props.onInvert}>{t('playlist.invert')}</button>
+            <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => { setPendingPlaylistId(null); setSelectMode(false); setSelectedIds(new Set()) }}>{t('playlist.cancel')}</button>
+            <button className="h-8 px-3 rounded-lg text-xs font-medium bg-brand text-white hover:bg-brand/90 disabled:opacity-40" disabled={selectedIds.size === 0} onClick={() => void props.onAddSelected()}>{t('playlist.addSelected', { n: selectedIds.size })}</button>
           </div>
         </div>
       ) : null}
@@ -56,7 +57,7 @@ export function PlaylistToolbar(props: {
       {activePlaylistId && selectMode && !pendingPlaylistId ? (
         <div className="mb-3 flex items-center justify-between px-4 py-2.5 rounded-xl bg-red-500/10 ring-1 ring-red-500/30">
           <span className="text-sm text-red-300 font-medium">
-            选择要从「{playlistName(activePlaylistId)}」移除的影片
+            {t('playlist.selectToRemove', { name: playlistName(activePlaylistId) })}
             <span className="ml-2 text-red-300/60">已选 {selectedIds.size} 部</span>
           </span>
           <div className="flex items-center gap-2">
@@ -64,7 +65,7 @@ export function PlaylistToolbar(props: {
             <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={() => setSelectedIds(new Set())}>取消全选</button>
             <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={props.onInvert}>反选</button>
             <button className="h-8 px-2.5 rounded-lg text-xs bg-white/8 hover:bg-white/15 text-white/80" onClick={cancelSelection}>取消</button>
-            <button className="h-8 px-3 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 disabled:opacity-40" disabled={selectedIds.size === 0} onClick={() => void props.onRemoveSelected()}>移除选中 ({selectedIds.size})</button>
+            <button className="h-8 px-3 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 disabled:opacity-40" disabled={selectedIds.size === 0} onClick={() => void props.onRemoveSelected()}>{t('playlist.removeSelected', { n: selectedIds.size })}</button>
           </div>
         </div>
       ) : null}
@@ -75,24 +76,24 @@ export function PlaylistToolbar(props: {
           <div className="flex items-center gap-2 text-white/60 text-sm">
             <Icon name="list" size={16} />
             <span className="font-medium text-white/80">{playlistName(activePlaylistId)}</span>
-            <span>{props.filteredCount} 部影片</span>
+            <span>{props.filteredCount} {t('playlist.videos')}</span>
           </div>
           <div className="flex items-center gap-2">
             <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 text-sm transition-colors" onClick={() => { setSelectedIds(new Set()); setSelectMode(true) }}>
               <Icon name="trash" size={14} />
-              删除影片
+              {t('playlist.removeVideos')}
             </button>
             <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-white/8 hover:bg-white/15 text-white text-sm transition-colors" onClick={() => { setPendingPlaylistId(activePlaylistId); setSelectedIds(new Set()); setSelectMode(true) }}>
               <Icon name="plus" size={14} />
-              添加影片
+              {t('playlist.addVideos')}
             </button>
             <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-brand hover:bg-brand/90 text-white text-sm font-medium transition-colors" onClick={() => void props.onPlayAll()}>
               <Icon name="play" size={14} />
-              播放全部
+              {t('playlist.playAll')}
             </button>
             <button className="h-9 px-3 rounded-lg flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 text-sm transition-colors" onClick={() => void props.onDeletePlaylist(activePlaylistId)}>
               <Icon name="trash" size={14} />
-              删除列表
+              {t('playlist.delete')}
             </button>
           </div>
         </div>

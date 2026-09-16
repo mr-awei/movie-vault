@@ -7,7 +7,7 @@ import net from 'node:net'
 import http from 'node:http'
 import type { Settings, Video } from '../../shared/types'
 import { updateVideo } from './repo'
-import { startWatch, endWatch } from './watch-history'
+import { startWatch, endWatch, deleteWatch } from './watch-history'
 
 /**
  * 播放器模块：打开视频 + 播放进度记录 + 断点续播。
@@ -48,18 +48,22 @@ class PlayerSession {
   closed: boolean = false
   /** 观看历史记录 ID（用于结束时更新） */
   watchEntryId: string | null = null
+  /** startWatch 的 Promise：进程秒退（PotPlayer 单实例委托）时 close 事件可能早于其 resolve */
+  watchStartPromise: Promise<void> | null = null
 
   constructor(video: Video, settings: Settings, playerPath: string, method: string) {
     this.video = video
     this.settings = settings
     this.playerPath = playerPath
     this.method = method
-    // 记录观看开始
-    startWatch(video).then((id) => {
-      this.watchEntryId = id
-    }).catch((err) => {
-      console.warn('[player] 记录观看开始失败:', err.message)
-    })
+    // 记录观看开始（P1-3：存 Promise 供 onProcessClose await，避免孤儿记录）
+    this.watchStartPromise = startWatch(video)
+      .then((id) => {
+        this.watchEntryId = id
+      })
+      .catch((err) => {
+        console.warn('[player] 记录观看开始失败:', err.message)
+      })
   }
 
   /** 启动播放器进程 */
@@ -211,6 +215,15 @@ class PlayerSession {
     if (this.closed) return
     this.closed = true
 
+    // P1-3：等 startWatch 落定（PotPlayer 单实例委托时进程几百 ms 就 close，可能早于其 resolve）
+    if (this.watchStartPromise) {
+      try {
+        await this.watchStartPromise
+      } catch {
+        /* startWatch 失败时 watchEntryId 保持 null */
+      }
+    }
+
     // 停止轮询
     if (this.pollTimer) {
       clearInterval(this.pollTimer)
@@ -225,6 +238,24 @@ class PlayerSession {
 
     // 保存最终位置
     const elapsedSec = (Date.now() - this.startTime) / 1000
+
+    // P1-3：运行 < 2 秒 = 委托给已有 PotPlayer 实例（新进程转发参数后秒退），
+    // 不是真实观看，清理已建的观看记录并跳过 endWatch，防止垃圾记录堆积
+    if (elapsedSec < 2) {
+      console.log(`[player] 播放器进程秒退(${Math.round(elapsedSec * 1000)}ms)，判定为单实例委托，清理观看记录`)
+      if (this.watchEntryId) {
+        try {
+          await deleteWatch(this.watchEntryId)
+        } catch (err) {
+          console.warn(`[player] 清理观看记录失败: ${(err as Error).message}`)
+        }
+        this.watchEntryId = null
+      }
+      // 秒退场景：新实例不接管，进度不落盘（原实例继续播放）
+      activeSessions.delete(this.video.id)
+      return
+    }
+
     let finalPosition = this.lastPosition
 
     // 如果没有实时位置（非 mpv 或 PotPlayer 网络接口不可用），用运行时长估算

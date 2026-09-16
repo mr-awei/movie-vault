@@ -2,9 +2,12 @@
  * 运行时设置（不持久化，跟随 Settings 变化即时生效）。
  * 独立模块避免 ipc.ts ↔ index.ts 循环依赖。
  */
-import { applyProxyToSession } from './proxy'
+import { applyProxyToSession, registerProxyAuth } from './proxy'
 import { app } from 'electron'
 import type { Settings } from '../../shared/types'
+
+// P1-10：Chromium 代理认证监听，模块加载即注册（app.on 任意阶段可用）
+registerProxyAuth()
 
 export const runtime = {
   /** 最小化到托盘（关窗隐藏不退出） */

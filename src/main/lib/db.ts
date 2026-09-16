@@ -129,6 +129,7 @@ function initSchema(): void {
     CREATE INDEX IF NOT EXISTS idx_videos_title ON videos(title);
     CREATE INDEX IF NOT EXISTS idx_videos_content_hash ON videos(content_hash);
     CREATE INDEX IF NOT EXISTS idx_videos_added_at ON videos(added_at);
+    CREATE INDEX IF NOT EXISTS idx_videos_path ON videos(path);
 
     -- playlists 表：播放列表
     CREATE TABLE IF NOT EXISTS playlists (

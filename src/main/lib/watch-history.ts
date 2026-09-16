@@ -1,6 +1,5 @@
 import type { WatchHistoryEntry, WatchStats, Video } from '../../shared/types'
 import { getDb } from './db'
-import { listVideos } from './repo'
 
 /**
  * 观看历史管理模块（SQLite 版本）。
@@ -58,6 +57,14 @@ export async function endWatch(
     WHERE id = ? AND video_id = ?
   `)
   stmt.run(endedAt, durationSec, endPositionSec, completion, entryId, videoId)
+}
+
+/**
+ * 删除一条观看记录（P1-3：PotPlayer 单实例委托场景，进程秒退时清理孤儿记录）。
+ */
+export async function deleteWatch(entryId: string): Promise<void> {
+  const db = getDb()
+  db.prepare('DELETE FROM watch_history WHERE id = ?').run(entryId)
 }
 
 /**
@@ -224,8 +231,31 @@ export async function getWatchStats(): Promise<WatchStats> {
 
   // 最常观看的标签/演员/导演（需要关联视频信息，从 JSON store 读取）
   // 注意：这部分统计需要视频的元数据，暂时从 repo 读取
-  const allVideos: Video[] = await listVideos({})
-  const videoMap = new Map(allVideos.map((v: Video) => [v.id, v]))
+  // P1-11：只取聚合所需列（id/tags/actors/meta），不再 listVideos 全字段加载整库
+  const videoRows = getDb().prepare('SELECT id, tags, actors, meta FROM videos').all() as Array<{
+    id: string
+    tags: string | null
+    actors: string | null
+    meta: string | null
+  }>
+  const videoMap = new Map<string, { tags?: string[]; actors?: string[]; meta?: { director?: string } }>()
+  for (const r of videoRows) {
+    let meta: { director?: string } | null = null
+    try {
+      meta = r.meta ? (JSON.parse(r.meta) as { director?: string }) : null
+    } catch {
+      meta = null
+    }
+    let tags: string[] = []
+    let actors: string[] = []
+    try {
+      tags = r.tags ? (JSON.parse(r.tags) as string[]) : []
+      actors = r.actors ? (JSON.parse(r.actors) as string[]) : []
+    } catch {
+      /* ignore corrupted fields */
+    }
+    videoMap.set(r.id, { tags, actors, meta: meta ?? undefined })
+  }
 
   const tagMap = new Map<string, { watchSec: number; count: number }>()
   const actorMap = new Map<string, { watchSec: number; count: number }>()

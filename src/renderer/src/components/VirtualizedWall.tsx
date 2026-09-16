@@ -78,16 +78,15 @@ function VirtualizedWall({ sections, onOpen, onEdit, onOpenMissing, onToggleFlag
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
-    // theme-* / density-* 是 class 切换，不会触发 ResizeObserver —— 用 MutationObserver 兜底
+    // P1-5：只观察容器自身 class（此前遍历到 body 的所有祖先，Toast/滚动条/隐私切换
+    // 都会触发整墙重算）。theme/density 变化由 App 层 dispatch 'wall-remeasure' 通知。
     const mo = new MutationObserver(measure)
-    let node: HTMLElement | null = el
-    while (node && node !== document.body) {
-      mo.observe(node, { attributes: true, attributeFilter: ['class'] })
-      node = node.parentElement
-    }
+    mo.observe(el, { attributes: true, attributeFilter: ['class'] })
+    window.addEventListener('wall-remeasure', measure)
     return () => {
       ro.disconnect()
       mo.disconnect()
+      window.removeEventListener('wall-remeasure', measure)
       cancelAnimationFrame(rafRef.current)
       cancelAnimationFrame(resizeRafRef.current)
     }

@@ -81,10 +81,10 @@ export default function Toolbar(props: Props) {
           <button
             className="h-9 px-3.5 rounded-xl flex items-center gap-2 text-sm font-medium bg-ink-700 hover:bg-ink-600 text-white/80 transition-colors"
             onClick={onShowDuplicates}
-            title="查找内容相同的重复视频，释放磁盘空间"
+            title={t('toolbar.duplicatesTitle')}
           >
             <Icon name="copy" size={15} />
-            重复检测
+            {t('toolbar.duplicates')}
           </button>
         ) : null}
 

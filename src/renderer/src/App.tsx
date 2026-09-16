@@ -499,13 +499,15 @@ export default function App() {
       root.classList.remove('theme-cinema', 'theme-light')
       root.classList.add(`theme-${effective}`)
       root.style.colorScheme = effective === 'light' ? 'light' : 'dark'
+      // P1-5：主题/密度 class 变化不在 VirtualizedWall 观察范围内，广播重测事件
+      window.dispatchEvent(new Event('wall-remeasure'))
     }
     apply()
     if (settings.theme === 'system') {
       mq.addEventListener('change', apply)
       return () => mq.removeEventListener('change', apply)
     }
-  }, [settings.theme])
+  }, [settings.theme, settings.posterDensity])
 
 
   // 第一层：仅应用搜索 + 多选 tag（不含 category 过滤）—— 用于驱动侧栏所有计数
