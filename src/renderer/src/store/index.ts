@@ -8,3 +8,4 @@
  */
 
 export { useUIStore } from './ui'
+export { useFilterStore, type FilterState } from './filter'

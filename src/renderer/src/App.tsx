@@ -6,7 +6,6 @@ import type {
   Library,
   ReconcileResult,
   Settings,
-  SortKey,
   SourceId,
   Video
 } from '../../shared/types'
@@ -39,16 +38,7 @@ import UserNoticeModal from './components/UserNoticeModal'
 import OnboardSheetModal from './components/OnboardSheetModal'
 import type { AppInfo } from '../../shared/api-types'
 import type { Playlist } from '../../shared/types'
-
-interface FilterState {
-  search: string
-  sort: SortKey
-  desc: boolean
-  /** 分组模式：grouped 按 Excel 分类分组 / flat 全库单网格（适用于所有排序） */
-  groupMode: 'grouped' | 'flat'
-  /** 当前选中的分类（点击侧栏分类切换；null = 全部） */
-  category: string | null
-}
+import { useFilterStore } from './store'
 
 /** Fisher-Yates 洗牌（默认用 Math.random，保证每次重建队列都不同；可传入 rand 做可复现） */
 function shuffleEntries<T>(arr: T[], rand: () => number = Math.random): T[] {
@@ -111,28 +101,33 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>({ ...DEFAULT_SETTINGS })
   const [libraryId, setLibraryId] = useState('')
   const [reconcile, setReconcile] = useState<ReconcileResult | null>(null)
-  const [filter, setFilter] = useState<FilterState>({
-    search: '',
-    sort: 'title',
-    desc: false,
-    groupMode: 'flat' as 'grouped' | 'flat',
-    category: null
-  })
+  const filter = useFilterStore((s) => s.filter)
+  const setFilter = useFilterStore((s) => s.setFilter)
   /** 搜索输入框的值（立即更新 UI）；实际过滤用防抖后的 filter.search */
-  const [searchInput, setSearchInput] = useState('')
+  const searchInput = useFilterStore((s) => s.searchInput)
+  const setSearchInput = useFilterStore((s) => s.setSearchInput)
   /** 多选标签 AND 过滤（侧栏交互） */
-  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
+  const selectedTags = useFilterStore((s) => s.selectedTags)
+  const setSelectedTags = useFilterStore((s) => s.setSelectedTags)
   // v2.3.2 类别（genre）筛选：从 meta.genres 提取单标签，独立于「分类」
-  const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set())
+  const selectedGenres = useFilterStore((s) => s.selectedGenres)
+  const setSelectedGenres = useFilterStore((s) => s.setSelectedGenres)
   /** 演员 / 制片公司 / 系列 维度筛选（各维度内 OR，跨维度 AND；点击详情页字段触发） */
-  const [selectedActors, setSelectedActors] = useState<Set<string>>(new Set())
-  const [selectedStudios, setSelectedStudios] = useState<Set<string>>(new Set())
-  const [selectedSeries, setSelectedSeries] = useState<Set<string>>(new Set())
+  const selectedActors = useFilterStore((s) => s.selectedActors)
+  const setSelectedActors = useFilterStore((s) => s.setSelectedActors)
+  const selectedStudios = useFilterStore((s) => s.selectedStudios)
+  const setSelectedStudios = useFilterStore((s) => s.setSelectedStudios)
+  const selectedSeries = useFilterStore((s) => s.selectedSeries)
+  const setSelectedSeries = useFilterStore((s) => s.setSelectedSeries)
   /** 技术规格 / 时间 维度筛选（分辨率 / 时长 / 评分 / 年份），各维度内 OR、跨维度 AND */
-  const [selectedResolutions, setSelectedResolutions] = useState<Set<string>>(new Set())
-  const [selectedDurations, setSelectedDurations] = useState<Set<string>>(new Set())
-  const [selectedScores, setSelectedScores] = useState<Set<string>>(new Set())
-  const [selectedYears, setSelectedYears] = useState<Set<string>>(new Set())
+  const selectedResolutions = useFilterStore((s) => s.selectedResolutions)
+  const setSelectedResolutions = useFilterStore((s) => s.setSelectedResolutions)
+  const selectedDurations = useFilterStore((s) => s.selectedDurations)
+  const setSelectedDurations = useFilterStore((s) => s.setSelectedDurations)
+  const selectedScores = useFilterStore((s) => s.selectedScores)
+  const setSelectedScores = useFilterStore((s) => s.setSelectedScores)
+  const selectedYears = useFilterStore((s) => s.selectedYears)
+  const setSelectedYears = useFilterStore((s) => s.setSelectedYears)
   const statsOpen = useUIStore((s) => s.statsOpen)
   const setStatsOpen = useUIStore((s) => s.setStatsOpen)
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
