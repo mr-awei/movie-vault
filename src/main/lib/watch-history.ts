@@ -146,6 +146,37 @@ export async function getWatchStats(): Promise<WatchStats> {
 
   const monthlyTrend = [...monthlyMap.entries()].map(([month, v]) => ({ month, ...v }))
 
+  // 每周趋势（最近 12 周）
+  const weeklyMap = new Map<string, { watchSec: number; count: number }>()
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i * 7)
+    // 计算周一日期
+    const day = d.getDay() || 7
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day + 1)
+    const key = `${monday.getFullYear()}-W${String(Math.ceil((monday.getDate() + new Date(monday.getFullYear(), monday.getMonth(), 0).getDate()) / 7)).padStart(2, '0')}`
+    weeklyMap.set(key, { watchSec: 0, count: 0 })
+  }
+
+  const weeklyRows = db.prepare(`
+    SELECT
+      strftime('%Y-W%W', datetime(started_at / 1000, 'unixepoch')) as week,
+      SUM(duration_sec) as watch_sec,
+      COUNT(*) as count
+    FROM watch_history
+    WHERE ended_at > 0 AND duration_sec > 0
+    GROUP BY week
+    ORDER BY week DESC
+    LIMIT 12
+  `).all() as Array<{ week: string; watch_sec: number; count: number }>
+
+  for (const row of weeklyRows) {
+    if (weeklyMap.has(row.week)) {
+      weeklyMap.set(row.week, { watchSec: row.watch_sec, count: row.count })
+    }
+  }
+
+  const weeklyTrend = [...weeklyMap.entries()].map(([week, v]) => ({ week, ...v }))
+
   // 观看时间分布（24 小时）
   const hourlyDistribution: WatchStats['hourlyDistribution'] = []
   for (let h = 0; h < 24; h++) {
@@ -167,6 +198,24 @@ export async function getWatchStats(): Promise<WatchStats> {
       hourlyDistribution[row.hour] = { hour: row.hour, watchSec: row.watch_sec, count: row.count }
     }
   }
+
+
+  // 完成度分布（0-25%, 25-50%, 50-75%, 75-100%）
+  const completionRanges = [
+    { range: '0-25%', min: 0, max: 0.25 },
+    { range: '25-50%', min: 0.25, max: 0.5 },
+    { range: '50-75%', min: 0.5, max: 0.75 },
+    { range: '75-100%', min: 0.75, max: 1.01 }
+  ]
+  const completionDistribution = completionRanges.map((r) => {
+    const row = db.prepare(`
+      SELECT COALESCE(SUM(duration_sec), 0) as watch_sec, COUNT(*) as count
+      FROM watch_history
+      WHERE ended_at > 0 AND duration_sec > 0 AND completion IS NOT NULL
+        AND completion >= ? AND completion < ?
+    `).get(r.min, r.max) as { watch_sec: number; count: number }
+    return { range: r.range, watchSec: row.watch_sec, count: row.count }
+  })
 
   // 最常观看的标签/演员/导演（需要关联视频信息，从 JSON store 读取）
   // 注意：这部分统计需要视频的元数据，暂时从 repo 读取
@@ -228,6 +277,24 @@ export async function getWatchStats(): Promise<WatchStats> {
     .slice(0, 10)
     .map(([director, v]) => ({ director, ...v }))
 
+
+  // 观看时长排行榜（Top 20 视频）
+  const topVideosRows = db.prepare(`
+    SELECT video_id, title, SUM(duration_sec) as watch_sec, COUNT(*) as count
+    FROM watch_history
+    WHERE ended_at > 0 AND duration_sec > 0
+    GROUP BY video_id
+    ORDER BY watch_sec DESC
+    LIMIT 20
+  `).all() as Array<{ video_id: string; title: string; watch_sec: number; count: number }>
+
+  const topVideosByDuration = topVideosRows.map((r) => ({
+    videoId: r.video_id,
+    title: r.title,
+    watchSec: r.watch_sec,
+    count: r.count
+  }))
+
   // 最近观看记录
   const recentWatches = await getWatchHistory(20)
 
@@ -237,10 +304,13 @@ export async function getWatchStats(): Promise<WatchStats> {
     avgWatchSec,
     uniqueVideos,
     monthlyTrend,
+    weeklyTrend,
     hourlyDistribution,
+    completionDistribution,
     topTags,
     topActors,
     topDirectors,
+    topVideosByDuration,
     recentWatches
   }
 }

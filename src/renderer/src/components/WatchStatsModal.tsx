@@ -26,8 +26,12 @@ export default function WatchStatsModal({ onClose }: Props) {
   const [loading, setLoading] = useState(true)
   const monthlyChartRef = useRef<HTMLDivElement>(null)
   const hourlyChartRef = useRef<HTMLDivElement>(null)
+  const weeklyChartRef = useRef<HTMLDivElement>(null)
+  const completionChartRef = useRef<HTMLDivElement>(null)
   const monthlyChartInstance = useRef<echarts.ECharts | null>(null)
   const hourlyChartInstance = useRef<echarts.ECharts | null>(null)
+  const weeklyChartInstance = useRef<echarts.ECharts | null>(null)
+  const completionChartInstance = useRef<echarts.ECharts | null>(null)
 
   useEffect(() => {
     void (async () => {
@@ -105,6 +109,120 @@ export default function WatchStatsModal({ onClose }: Props) {
     })
   }, [stats])
 
+  // 渲染每周趋势图表
+  useEffect(() => {
+    if (!stats || !weeklyChartRef.current) return
+    if (!weeklyChartInstance.current) {
+      weeklyChartInstance.current = echarts.init(weeklyChartRef.current)
+    }
+    weeklyChartInstance.current.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(30, 30, 40, 0.95)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        textStyle: { color: '#fff', fontSize: 12 },
+        formatter: (params: any) => {
+          const p = params[0]
+          return p.name + '<br/>观看时长: ' + formatDuration(p.value) + '<br/>观看次数: ' + (params[1]?.value ?? 0) + '次'
+        }
+      },
+      grid: { left: 50, right: 20, top: 20, bottom: 30 },
+      xAxis: {
+        type: 'category',
+        data: stats.weeklyTrend.map((m) => m.week),
+        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
+        axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, rotate: 30 }
+      },
+      yAxis: {
+        type: 'value',
+        axisLine: { show: false },
+        axisLabel: {
+          color: 'rgba(255,255,255,0.5)',
+          fontSize: 11,
+          formatter: (v: number) => Math.floor(v / 3600) + 'h'
+        },
+        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
+      },
+      series: [
+        {
+          name: '观看时长',
+          type: 'line',
+          data: stats.weeklyTrend.map((m) => m.watchSec),
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 6,
+          lineStyle: { color: '#10b981', width: 2 },
+          itemStyle: { color: '#10b981' },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
+              { offset: 1, color: 'rgba(16, 185, 129, 0)' }
+            ])
+          }
+        },
+        {
+          name: '观看次数',
+          type: 'bar',
+          data: stats.weeklyTrend.map((m) => m.count),
+          barWidth: 8,
+          itemStyle: { color: 'rgba(251, 191, 36, 0.6)', borderRadius: [4, 4, 0, 0] }
+        }
+      ]
+    })
+  }, [stats])
+
+  // 渲染完成度分布图表
+  useEffect(() => {
+    if (!stats || !completionChartRef.current) return
+    if (!completionChartInstance.current) {
+      completionChartInstance.current = echarts.init(completionChartRef.current)
+    }
+    completionChartInstance.current.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(30, 30, 40, 0.95)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        textStyle: { color: '#fff', fontSize: 12 },
+        formatter: (params: any) => {
+          return params.name + '<br/>观看时长: ' + formatDuration(params.value) + '<br/>占比: ' + params.percent + '%'
+        }
+      },
+      legend: {
+        orient: 'vertical',
+        right: 10,
+        top: 'center',
+        textStyle: { color: 'rgba(255,255,255,0.6)', fontSize: 11 }
+      },
+      series: [
+        {
+          name: '完成度分布',
+          type: 'pie',
+          radius: ['40%', '70%'],
+          center: ['35%', '50%'],
+          avoidLabelOverlap: false,
+          itemStyle: {
+            borderRadius: 8,
+            borderColor: 'rgba(0,0,0,0.3)',
+            borderWidth: 2
+          },
+          label: { show: false },
+          emphasis: {
+            label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#fff' }
+          },
+          data: stats.completionDistribution.map((c, idx) => ({
+            value: c.watchSec,
+            name: c.range,
+            itemStyle: {
+              color: ['#ef4444', '#f59e0b', '#3b82f6', '#10b981'][idx]
+            }
+          }))
+        }
+      ]
+    })
+  }, [stats])
+
   // 渲染观看时间分布图表
   useEffect(() => {
     if (!stats || !hourlyChartRef.current) return
@@ -171,12 +289,16 @@ export default function WatchStatsModal({ onClose }: Props) {
     const handleResize = () => {
       monthlyChartInstance.current?.resize()
       hourlyChartInstance.current?.resize()
+      weeklyChartInstance.current?.resize()
+      completionChartInstance.current?.resize()
     }
     window.addEventListener('resize', handleResize)
     return () => {
       window.removeEventListener('resize', handleResize)
       monthlyChartInstance.current?.dispose()
       hourlyChartInstance.current?.dispose()
+      weeklyChartInstance.current?.dispose()
+      completionChartInstance.current?.dispose()
     }
   }, [])
 
@@ -233,6 +355,18 @@ export default function WatchStatsModal({ onClose }: Props) {
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">月度趋势（最近 12 个月）</h3>
                 <div ref={monthlyChartRef} style={{ width: '100%', height: 220 }} />
+              </div>
+
+              {/* 每周趋势 */}
+              <div className="bg-white/5 rounded-xl p-4">
+                <h3 className="text-white font-medium text-sm mb-3">每周趋势（最近 12 周）</h3>
+                <div ref={weeklyChartRef} style={{ width: '100%', height: 220 }} />
+              </div>
+
+              {/* 完成度分布 */}
+              <div className="bg-white/5 rounded-xl p-4">
+                <h3 className="text-white font-medium text-sm mb-3">完成度分布</h3>
+                <div ref={completionChartRef} style={{ width: '100%', height: 200 }} />
               </div>
 
               {/* 观看时间分布 */}
@@ -301,6 +435,27 @@ export default function WatchStatsModal({ onClose }: Props) {
                       ))
                     )}
                   </div>
+                </div>
+              </div>
+
+              {/* 观看时长排行榜 */}
+              <div className="bg-white/5 rounded-xl p-4">
+                <h3 className="text-white font-medium text-sm mb-3">观看时长排行榜 Top 20</h3>
+                <div className="space-y-1.5">
+                  {stats.topVideosByDuration.length === 0 ? (
+                    <div className="text-white/30 text-xs">暂无数据</div>
+                  ) : (
+                    stats.topVideosByDuration.map((item, idx) => (
+                      <div key={item.videoId} className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                        <span className={idx < 3 ? 'text-xs w-6 text-center shrink-0 text-yellow-400 font-bold' : 'text-xs w-6 text-center shrink-0 text-white/40'}>
+                          {idx + 1}
+                        </span>
+                        <span className="text-white text-xs flex-1 truncate">{item.title}</span>
+                        <span className="text-white/40 text-xs shrink-0">{item.count}次</span>
+                        <span className="text-brand text-xs shrink-0 font-medium">{formatDuration(item.watchSec)}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 

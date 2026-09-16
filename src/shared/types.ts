@@ -680,8 +680,14 @@ export interface WatchStats {
   uniqueVideos: number
   /** 月度趋势（最近 12 个月） */
   monthlyTrend: Array<{ month: string; watchSec: number; count: number }>
+  /** 每周趋势（最近 12 周） */
+  weeklyTrend: Array<{ week: string; watchSec: number; count: number }>
   /** 观看时间分布（24 小时） */
   hourlyDistribution: Array<{ hour: number; watchSec: number; count: number }>
+  /** 完成度分布（0-25%, 25-50%, 50-75%, 75-100%） */
+  completionDistribution: Array<{ range: string; watchSec: number; count: number }>
+  /** 观看时长排行榜（Top 20 视频） */
+  topVideosByDuration: Array<{ videoId: string; title: string; watchSec: number; count: number }>
   /** 最常观看的标签（Top 10） */
   topTags: Array<{ tag: string; watchSec: number; count: number }>
   /** 最常观看的演员（Top 10） */
