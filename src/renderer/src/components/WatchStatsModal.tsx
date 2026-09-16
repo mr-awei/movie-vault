@@ -166,7 +166,7 @@ export default function WatchStatsModal({ onClose, onOpenVideo, onPickTag, onPic
       grid: { left: 60, right: 50, top: 20, bottom: 30 },
       xAxis: {
         type: 'category',
-        data: stats.weeklyTrend.map((m) => m.week),
+        data: stats.weeklyTrend.map((m) => weekLabel(m.week)),
         axisLine: { lineStyle: { color: '#d1d5db' } },
         axisLabel: { color: '#6b7280', fontSize: 10, rotate: 30 }
       },
@@ -447,7 +447,7 @@ export default function WatchStatsModal({ onClose, onOpenVideo, onPickTag, onPic
               {/* 每周趋势 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">每周趋势（最近 12 周）</h3>
-                <p className="text-white/40 text-[11px] mb-3 leading-relaxed">横轴为周（周一开始计算）；左侧绿色折线 = 该周观看时长，右侧黄色柱 = 该周观看次数。</p>
+                <p className="text-white/40 text-[11px] mb-3 leading-relaxed">横轴为周（周一开始计算，显示该周起止日期）；左侧绿色折线 = 该周观看时长，右侧黄色柱 = 该周观看次数。</p>
                 <div ref={weeklyChartRef} style={{ width: '100%', height: 220, backgroundColor: '#ffffff', borderRadius: 8 }} />
               </div>
 
