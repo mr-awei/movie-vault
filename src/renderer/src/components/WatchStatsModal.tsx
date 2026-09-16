@@ -65,8 +65,8 @@ export default function WatchStatsModal({ onClose }: Props) {
         }
       },
       legend: {
-        top: 2,
-        right: 30,
+        top: 0,
+        left: 'center',
         textStyle: { color: '#374151', fontSize: 11 },
         itemWidth: 14,
         itemHeight: 8
@@ -149,8 +149,8 @@ export default function WatchStatsModal({ onClose }: Props) {
         }
       },
       legend: {
-        top: 2,
-        right: 30,
+        top: 0,
+        left: 'center',
         textStyle: { color: '#374151', fontSize: 11 },
         itemWidth: 14,
         itemHeight: 8
@@ -293,8 +293,8 @@ export default function WatchStatsModal({ onClose }: Props) {
         }
       },
       legend: {
-        top: 2,
-        right: 30,
+        top: 0,
+        left: 'center',
         textStyle: { color: '#374151', fontSize: 11 },
         itemWidth: 14,
         itemHeight: 8
