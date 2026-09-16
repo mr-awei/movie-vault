@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.11.0] - 2026-09-16
+
+**P2 optimization batch: native dialog replacement / backup & restore / data convergence / type safety**
+
+### New features
+- **Built-in Backup / Restore (P2-7)**: Settings → Data & Storage now has "Export backup / Import backup".
+  Zero-dependency hand-written zip (Node zlib), exports SQLite DB + data.json + manifest;
+  import backs up the current DB to `.pre-restore` first, validates schema, prompts restart.
+- **Native dialog replacement (P2-4)**: delete-video / delete-library password prompts now use the
+  theme-consistent PasswordPromptModal (Esc/backdrop cancel, Enter submit, inline error);
+  clear-poster-cache window.confirm replaced by ConfirmModal; 7 window.alert calls unified to toasts.
+
+### Architecture / types
+- **preload event typing (P2-3)**: 4 `payload as never` casts replaced with callback-signature-linked
+  assertions, so a changed payload shape fails compilation in the renderer.
+- **previewTasks out of data.json (P2-5)**: preview tasks/manifests live in SQLite tables;
+  data.json no longer double-writes them (stripped on load once migration is done).
+
+### Fixes / cleanup (P2-8)
+- proxy dispatcher closed on config change (socket leak)
+- playlist reorder dedupes with `new Set` and filters removed videos
+- Open Library result validation (FILM_HINTS) — book-only results no longer scraped
+- dead code removal: generatePreviewSet chain in images.ts
+- sort constants aligned with bucket() i18n output (language-switch fix)
+- VirtualizedWall row key now uses video.id (no forced remount on sort)
+- update timer cleared on before-quit
+
 All notable changes to Yinghai (Movie Vault) are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
