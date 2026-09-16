@@ -175,11 +175,10 @@ export async function backupImport(): Promise<BackupResult> {
       return { ok: false, error: '备份清单解析失败' }
     }
     const dbPath = getDbPath()
-    const dataPath = path.join(app.getPath('userData'), 'data.json')
     // 覆盖前先备份现有数据库，出问题可手动恢复
     if (existsSync(dbPath)) await fs.copyFile(dbPath, dbPath + '.pre-restore')
     if (entries.has('yinghai.db')) await fs.writeFile(dbPath, entries.get('yinghai.db')!)
-    if (entries.has('data.json')) await fs.writeFile(dataPath, entries.get('data.json')!)
+    // v2.12.1：data.json 已废弃（SQLite 唯一数据源），导入不再写回 JSON，避免双写
     return {
       ok: true,
       needsRestart: true,

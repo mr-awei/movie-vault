@@ -6,7 +6,6 @@ import { openVideo, openPlaylist, updatePlaybackPosition } from '../lib/player'
 import { frameLog, postersCacheDir } from '../lib/images'
 import { generateQuickCover, generatePreviewV2, previewRoot } from '../lib/preview-v2'
 import { wakePreviewTaskQueue } from '../lib/preview-task-queue'
-import { flushSave } from '../lib/store'
 import { fetchPosterSmart } from '../lib/fetch-meta'
 import { fetchDetailByUrl } from '../lib/fetch-by-url'
 import { probeVideo } from '../lib/ffprobe'
@@ -484,8 +483,6 @@ export function registerVideoIpc() {
           previewStatus: 'COMPLETED',
           previewRequestedCount: settings.previewFrameCount
         })
-        // 关键：updateVideo 内部是 debounce 写盘，这里强制 flush 确保落盘
-        await flushSave()
         const verify = await repo.getVideo(id)
         const ppCount = verify?.previewPaths?.length ?? 0
         const posterStr = (verify?.posterPath ?? 'null').slice(0, 60)
@@ -502,7 +499,6 @@ export function registerVideoIpc() {
             posterPath: coverPath,
             posterPathFfmpeg: coverPath
           })
-          await flushSave()
           return fallbackUpdated
         }
         return null
