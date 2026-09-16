@@ -691,17 +691,6 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
                   </button>
                 ) : undefined}
               </MetaRow>
-              <MetaRow label={t('detail.series')}>
-                {(localVideo.series || d?.series) ? (
-                  <button
-                    type="button"
-                    onClick={() => onPickFilter?.({ type: 'series', value: (localVideo.series || d?.series)! })}
-                    className="text-brand hover:underline underline-offset-2"
-                  >
-                    {localVideo.series || d?.series}
-                  </button>
-                ) : undefined}
-              </MetaRow>
               {/* Excel 片单「分类」列的单值（如"剧情"、"科幻"），独立于 tagCategories */}
               {localVideo.introCategory ? (
                 <MetaRow label={t('detail.category')}>
