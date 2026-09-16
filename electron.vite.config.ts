@@ -8,7 +8,9 @@ export default defineConfig({
       emptyOutDir: true,
       rollupOptions: {
         // 主进程依赖 Node 内置模块与 electron，保持外部化（electron-vite 默认已处理）
-        external: ['electron']
+        // better-sqlite3 是原生模块，内部使用 CommonJS require，必须 external，
+        // 否则打包进 ESM 产物后会报 "require is not defined in ES module scope"
+        external: ['electron', 'better-sqlite3']
       }
     }
   },
