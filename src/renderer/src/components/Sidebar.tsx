@@ -873,11 +873,12 @@ function SidebarInner(props: Props) {
       <div className="shrink-0 border-t border-white/5 px-2 py-2 flex items-center gap-1.5">
         <button className="flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 bg-ink-700 hover:bg-ink-600 text-white/80 text-xs font-medium transition-colors" onClick={onOpenStats} title={t('sidebar.statsPanel')}>
           <Icon name="chart" size={14} />
-          {t('sidebar.stats')}
+          <span>磁盘统计</span>
         </button>
         {onOpenWatchStats && (
-          <button className="w-8 h-8 rounded-lg flex items-center justify-center bg-ink-700 hover:bg-ink-600 text-white/80 transition-colors" onClick={onOpenWatchStats} title="观看统计">
+          <button className="flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 bg-ink-700 hover:bg-ink-600 text-white/80 text-xs font-medium transition-colors" onClick={onOpenWatchStats} title="观看统计：观看时长/趋势/排行榜">
             <Icon name="play" size={14} />
+            <span>观看统计</span>
           </button>
         )}
         <button className="w-8 h-8 rounded-lg flex items-center justify-center bg-ink-700 hover:bg-ink-600 text-white/80 transition-colors" onClick={onOpenAbout} title={t('sidebar.about')}>
