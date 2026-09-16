@@ -63,6 +63,100 @@ function initSchema(): void {
 
     CREATE INDEX IF NOT EXISTS idx_watch_history_video_id ON watch_history(video_id);
     CREATE INDEX IF NOT EXISTS idx_watch_history_started_at ON watch_history(started_at);
+
+    -- libraries 表：媒体库
+    CREATE TABLE IF NOT EXISTS libraries (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      folder_path TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      scan_config TEXT,
+      extra TEXT
+    );
+
+    -- videos 表：视频记录（复杂字段用 JSON 存储）
+    CREATE TABLE IF NOT EXISTS videos (
+      id TEXT PRIMARY KEY,
+      library_id TEXT NOT NULL,
+      path TEXT NOT NULL UNIQUE,
+      file_name TEXT NOT NULL,
+      folder_name TEXT,
+      title TEXT NOT NULL,
+      year INTEGER,
+      description TEXT,
+      rating REAL,
+      duration_sec REAL,
+      file_size INTEGER,
+      content_hash TEXT,
+      poster_path TEXT,
+      poster_source TEXT,
+      poster_path_ffmpeg TEXT,
+      added_at INTEGER NOT NULL,
+      last_played_at INTEGER,
+      favorite INTEGER DEFAULT 0,
+      locked INTEGER DEFAULT 0,
+      locked_at INTEGER,
+      playback_position_sec REAL,
+      playback_updated_at INTEGER,
+      nfo_path TEXT,
+      intro_category TEXT,
+      region TEXT,
+      series TEXT,
+      tags TEXT,
+      tag_categories TEXT,
+      backup_tags TEXT,
+      actors TEXT,
+      tech_info TEXT,
+      meta TEXT,
+      preview_paths TEXT,
+      media_status TEXT,
+      preview_status TEXT,
+      preview_requested_count INTEGER,
+      preview_generated_count INTEGER,
+      preview_algorithm_version TEXT,
+      preview_updated_at INTEGER,
+      preview_last_error TEXT,
+      last_meta_fetch_at INTEGER,
+      frame_failed_at INTEGER,
+      cover_version INTEGER DEFAULT 0,
+      preview_version INTEGER DEFAULT 0,
+      extra TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_videos_library_id ON videos(library_id);
+    CREATE INDEX IF NOT EXISTS idx_videos_title ON videos(title);
+    CREATE INDEX IF NOT EXISTS idx_videos_content_hash ON videos(content_hash);
+    CREATE INDEX IF NOT EXISTS idx_videos_added_at ON videos(added_at);
+
+    -- playlists 表：播放列表
+    CREATE TABLE IF NOT EXISTS playlists (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      extra TEXT
+    );
+
+    -- playlist_items 表：播放列表项
+    CREATE TABLE IF NOT EXISTS playlist_items (
+      id TEXT PRIMARY KEY,
+      playlist_id TEXT NOT NULL,
+      video_id TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      UNIQUE(playlist_id, video_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_id ON playlist_items(playlist_id);
+    CREATE INDEX IF NOT EXISTS idx_playlist_items_video_id ON playlist_items(video_id);
+
+    -- settings 表：设置（键值对）
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `)
 
   console.log('[db] 表结构初始化完成')
