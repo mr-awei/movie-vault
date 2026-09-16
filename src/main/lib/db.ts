@@ -191,6 +191,17 @@ function initSchema(): void {
       manifest TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     );
+
+    -- scene_markers 表：场景标记（v2.12，对标 Stash scene markers）
+    CREATE TABLE IF NOT EXISTS scene_markers (
+      id TEXT PRIMARY KEY,
+      video_id TEXT NOT NULL,
+      position_sec REAL NOT NULL,
+      name TEXT,
+      tags TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_scene_markers_video_id ON scene_markers(video_id);
   `)
 
   ensureColumns()

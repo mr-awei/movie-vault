@@ -58,7 +58,7 @@ export function registerVideoIpc() {
     if (Object.keys(clean).length === 0) return 0
     let n = 0
     for (const id of ids) {
-      if (repo.updateVideo(id, clean)) n++
+      if (await repo.updateVideo(id, clean)) n++
     }
     return n
   })
@@ -86,11 +86,11 @@ export function registerVideoIpc() {
     return scanLibrary(lib, settings, emitProgress)
   })
 
-  ipcMain.handle(IPC.videoOpen, async (_e, id: string) => {
+  ipcMain.handle(IPC.videoOpen, async (_e, id: string, startSec?: number) => {
     const v = await repo.getVideo(id)
     if (!v) throw new Error('视频不存在')
     const settings = await repo.getSettings()
-    return openVideo(v, settings)
+    return openVideo(v, settings, startSec)
   })
 
   ipcMain.handle(IPC.videoOpenPlaylist, async (_e, videos: Video[]) => openPlaylist(videos, await repo.getSettings()))

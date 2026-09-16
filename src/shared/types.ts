@@ -620,6 +620,17 @@ export interface Playlist {
   updatedAt: number
 }
 
+/** 场景标记（v2.12，对标 Stash scene markers） */
+export interface SceneMarker {
+  id: string
+  videoId: string
+  /** 标记时间点（秒） */
+  positionSec: number
+  name?: string
+  tags?: string[]
+  createdAt: number
+}
+
 /** 重复视频匹配类型 */
 export type DuplicateMatchType = 'exact' | 'title' | 'feature' | 'phash'
 

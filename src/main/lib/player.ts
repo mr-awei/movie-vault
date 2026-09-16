@@ -484,11 +484,13 @@ async function openWithPotPlayer(session: PlayerSession, startPositionSec?: numb
  * 点击视频：用可配置播放器或系统默认程序打开，并记录播放时间。
  * 如果视频有上次播放位置且播放器支持，则从断点续播。
  */
-export async function openVideo(video: Video, settings: Settings): Promise<{ ok: boolean; method: string; resumed?: boolean }> {
+export async function openVideo(video: Video, settings: Settings, startSec?: number): Promise<{ ok: boolean; method: string; resumed?: boolean }> {
   const configured = settings.playerPath.trim()
   const player = configured || (await detectDefaultPlayer()) || ''
-  console.log(`[player] 打开视频: ${video.fileName}, 播放器: ${player || '系统默认'}, 断点: ${video.playbackPositionSec || 0}s`)
-  const hasResume = !!(video.playbackPositionSec && video.playbackPositionSec > MIN_POSITION_TO_SAVE)
+  // v2.12：startSec（场景标记跳转）优先于断点位置；否则用断点续播
+  const pos = startSec != null && startSec > 0 ? startSec : video.playbackPositionSec
+  console.log(`[player] 打开视频: ${video.fileName}, 播放器: ${player || '系统默认'}, 跳转: ${pos || 0}s`)
+  const hasResume = !!(pos && pos > MIN_POSITION_TO_SAVE)
 
   // 如果已有活跃会话，先关闭
   const existing = activeSessions.get(video.id)
@@ -504,14 +506,14 @@ export async function openVideo(video: Video, settings: Settings): Promise<{ ok:
 
       if (isMpv(player)) {
         session.method = 'mpv'
-        openWithMpv(session, video.playbackPositionSec)
+        openWithMpv(session, pos)
         activeSessions.set(video.id, session)
         return { ok: true, method: 'mpv', resumed: hasResume }
       }
 
       if (isPotPlayer(player)) {
         session.method = 'potplayer'
-        await openWithPotPlayer(session, video.playbackPositionSec)
+        await openWithPotPlayer(session, pos)
         activeSessions.set(video.id, session)
         return { ok: true, method: 'potplayer', resumed: hasResume }
       }

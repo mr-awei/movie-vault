@@ -127,6 +127,10 @@ export const IPC = {
   watchHistoryStats: 'watchHistory:stats',
   // 观看历史：清空
   watchHistoryClear: 'watchHistory:clear',
+  // 场景标记（v2.12）
+  markerList: 'marker:list',
+  markerCreate: 'marker:create',
+  markerDelete: 'marker:delete',
   // 文件夹监控事件（主进程 -> 渲染进程）：检测到文件变化
   watcherEvent: 'watcher:event',
   // P2-7 备份 / 还原（zip）

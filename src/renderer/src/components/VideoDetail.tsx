@@ -4,6 +4,7 @@ import { posterUrl } from '../lib/util'
 import { api } from '../lib/api'
 import { toast } from './Toast'
 import { t } from '../../../shared/i18n'
+import SceneMarkers from './SceneMarkers'
 import {
   DetailHeader,
   DetailCover,
@@ -414,6 +415,7 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
               />
               <DetailMetaBody d={d} localVideo={localVideo} video={video} yearText={yearText} loading={loading} error={error} onPickFilter={onPickFilter} onPickTag={onPickTag} />
               <CastGrid d={d} onPickFilter={onPickFilter} />
+              <SceneMarkers video={video} />
             </div>
           </div>
 

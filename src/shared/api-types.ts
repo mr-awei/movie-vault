@@ -15,7 +15,8 @@
   DuplicateGroup,
   NfoData,
   WatchHistoryEntry,
-  WatchStats
+  WatchStats,
+  SceneMarker
 } from './types'
 
 /** videoFetchDetail 返回：成功（含详情 + 来源）或失败（含原因） */
@@ -146,8 +147,12 @@ export interface AppApi {
   videoLockMany(ids: string[], locked: boolean): Promise<number>
   /** v2.12：批量编辑元数据（白名单字段），返回实际更新条数 */
   videoBatchUpdate(ids: string[], patch: Partial<Video>): Promise<number>
+  /** v2.12：场景标记 */
+  markerList(videoId: string): Promise<SceneMarker[]>
+  markerCreate(videoId: string, positionSec: number, name: string, tags: string[]): Promise<SceneMarker | null>
+  markerDelete(id: string): Promise<boolean>
   videoScan(libraryId: string): Promise<Video[]>
-  videoOpen(id: string): Promise<OpenResult>
+  videoOpen(id: string, startSec?: number): Promise<OpenResult>
   videoOpenPlaylist(videos: Video[]): Promise<{ ok: boolean; method: string; count: number }>
   videoRegeneratePoster(id: string): Promise<Video | null>
   /** 从数据源按检索词抓取封面并缓存到该视频 */
