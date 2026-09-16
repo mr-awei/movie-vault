@@ -618,12 +618,28 @@ export interface Playlist {
   updatedAt: number
 }
 
-/** 重复视频分组（按 contentHash 分组） */
+/** 重复视频匹配类型 */
+export type DuplicateMatchType = 'exact' | 'title' | 'feature'
+
+/** 重复视频分组 */
 export interface DuplicateGroup {
-  /** 分组 key（contentHash） */
+  /** 分组 key */
   key: string
+  /** 匹配类型：exact=内容指纹完全相同，title=标题+年份匹配，feature=时长+分辨率+大小特征匹配 */
+  matchType: DuplicateMatchType
   /** 组内视频列表 */
-  videos: Array<{ id: string; title: string; path: string; fileSize?: number; addedAt: number }>
+  videos: Array<{
+    id: string
+    title: string
+    path: string
+    fileSize?: number
+    addedAt: number
+    year?: number
+    durationSec?: number
+    resolution?: string
+    /** 是否为推荐保留的版本（分辨率最高/文件最大/最新添加） */
+    recommended?: boolean
+  }>
   /** 组内总大小（字节） */
   totalSizeBytes: number
   /** 可释放空间（保留一份后可删除的字节数） */
