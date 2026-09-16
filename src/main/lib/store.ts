@@ -4,12 +4,14 @@ import path from 'node:path'
 import { DEFAULT_SETTINGS, type Library, type Playlist, type PreviewManifest, type PreviewTask, type Settings, type Video, type WatchHistoryEntry } from '../../shared/types'
 import type { MovieMeta } from '../../shared/types'
 import { cleanGenreName } from './image-util'
+import { getDb } from './db'
 
 export interface DBShape {
   libraries: Library[]
   videos: Video[]
-  previewTasks: PreviewTask[]
-  previewManifests: Record<string, PreviewManifest>
+  /** P2-5: 迁移到 SQLite 后不再写回 data.json（旧字段仅一次性迁移用，可为空） */
+  previewTasks?: PreviewTask[]
+  previewManifests?: Record<string, PreviewManifest>
   settings: Settings
   playlists: Playlist[]
   /** 观看历史记录 */
@@ -109,6 +111,15 @@ async function ensureLoaded(): Promise<DBShape> {
       watchHistory: parsed.watchHistory ?? []
     }
     migrateInPlace(current)
+    // P2-5: previewTasks/previewManifests 主存储已迁移到 SQLite 表（preview_tasks/preview_manifests），
+    // data.json 中的旧字段仅一次性迁移用；SQLite 已有数据时不再写回 data.json（避免双写/膨胀）。
+    try {
+      const row = getDb().prepare('SELECT COUNT(*) AS c FROM videos').get() as { c: number } | undefined
+      if (row && row.c > 0) {
+        delete current.previewTasks
+        delete current.previewManifests
+      }
+    } catch { /* SQLite 未就绪时保留旧字段，不影响 JSON 侧读取 */ }
     cache = current
     const st = await fs.stat(dbPath).catch(() => null)
     lastLoadMs = st?.mtimeMs ?? 0

@@ -601,7 +601,7 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
                   {activePlaylistId && onRemoveFromPlaylist ? (
                     <MenuItem
                       icon="x"
-                      label="从当前列表移除"
+                      label={t('entry.removeFromList')}
                       danger
                       onClick={() => {
                         setMenu(null)
@@ -612,7 +612,7 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
                   {playlists && playlists.length > 0 && onAddToPlaylist ? (
                     <>
                       <div className="my-1 border-t border-white/5" />
-                      <div className="px-3 py-1 text-[10px] text-white/35 uppercase tracking-wide">添加到播放列表</div>
+                      <div className="px-3 py-1 text-[10px] text-white/35 uppercase tracking-wide">{t('entry.addToPlaylist')}</div>
                       {playlists.slice(0, 8).map((pl) => (
                         <MenuItem
                           key={pl.id}

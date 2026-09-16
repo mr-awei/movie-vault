@@ -814,14 +814,14 @@ function SidebarInner(props: Props) {
                   <button
                     className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white transition-all"
                     onClick={(e) => { e.stopPropagation(); setEditingPlaylistId(pl.id); setEditingName(pl.name) }}
-                    title="重命名"
+                    title={t('playlist.rename')}
                   >
                     <Icon name="pencil" size={13} />
                   </button>
                   <button
                     className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-red-400 transition-all"
                     onClick={(e) => { e.stopPropagation(); onDeletePlaylist(pl.id) }}
-                    title="删除列表"
+                    title={t('playlist.delete')}
                   >
                     <Icon name="x" size={13} />
                   </button>
@@ -834,7 +834,7 @@ function SidebarInner(props: Props) {
                   key={playlistInputKey}
                   ref={playlistInputRef}
                   className="flex-1 bg-ink-700 text-white text-sm rounded-md px-2 py-1.5 outline-none placeholder:text-white/30 ring-1 ring-brand/50"
-                  placeholder="播放列表名称，回车创建"
+                  placeholder={t('playlist.newNamePlaceholder')}
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => {
@@ -854,7 +854,7 @@ function SidebarInner(props: Props) {
                 onClick={(e) => { e.stopPropagation(); setPlaylistInputKey((k) => k + 1); setCreatingPlaylist(true) }}
               >
                 <Icon name="plus" size={15} />
-                <span>新建播放列表</span>
+                <span>{t('playlist.createNew')}</span>
               </button>
             )}
           </div>
@@ -881,12 +881,12 @@ function SidebarInner(props: Props) {
       <div className="shrink-0 border-t border-white/5 px-2 py-2 flex items-center gap-1.5">
         <button className="flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 bg-ink-700 hover:bg-ink-600 text-white/80 text-xs font-medium transition-colors" onClick={onOpenStats} title={t('sidebar.statsPanel')}>
           <Icon name="chart" size={14} />
-          <span>磁盘统计</span>
+          <span>{t('sidebar.diskStats')}</span>
         </button>
         {onOpenWatchStats && (
           <button className="flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 bg-ink-700 hover:bg-ink-600 text-white/80 text-xs font-medium transition-colors" onClick={onOpenWatchStats} title="观看统计：观看时长/趋势/排行榜">
             <Icon name="play" size={14} />
-            <span>观看统计</span>
+            <span>{t('sidebar.watchStats')}</span>
           </button>
         )}
         <button className="w-8 h-8 rounded-lg flex items-center justify-center bg-ink-700 hover:bg-ink-600 text-white/80 transition-colors" onClick={onOpenAbout} title={t('sidebar.about')}>

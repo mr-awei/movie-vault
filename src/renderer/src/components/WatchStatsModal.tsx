@@ -430,7 +430,7 @@ export default function WatchStatsModal({ onClose, onOpenVideo, onPickTag, onPic
             <div className="space-y-6">
               {stats.totalWatchCount === 0 && (
                 <div className="text-center py-4 bg-white/5 rounded-xl">
-                  <div className="text-white/50 text-sm">暂无观看记录</div>
+                  <div className="text-white/50 text-sm">{t('watchStats.empty')}</div>
                   <div className="text-white/30 text-xs mt-1">{t('watchStats.emptyHint2')}</div>
                 </div>
               )}

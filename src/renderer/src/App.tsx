@@ -860,7 +860,7 @@ export default function App() {
   // ---------- 播放列表 ----------
   const handleCreatePlaylist = useCallback(async (name: string) => {
     if (playlists.some((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase())) {
-      toast({ text: '已存在同名播放列表', tone: 'warn' })
+      toast({ text: t('playlist.duplicateName'), tone: 'warn' })
       return
     }
     const pl = await api.playlistCreate(name)
@@ -884,7 +884,7 @@ export default function App() {
 
   const handleRenamePlaylist = useCallback(async (id: string, name: string) => {
     if (playlists.some((p) => p.id !== id && p.name.trim().toLowerCase() === name.trim().toLowerCase())) {
-      toast({ text: '已存在同名播放列表', tone: 'warn' })
+      toast({ text: t('playlist.duplicateName'), tone: 'warn' })
       return
     }
     await api.playlistRename(id, name)
