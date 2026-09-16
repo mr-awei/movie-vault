@@ -1,56 +1,69 @@
-﻿import { promises as fs, existsSync } from 'node:fs'
+import { promises as fs, existsSync } from 'node:fs'
 import path from 'node:path'
+import { XMLParser, XMLBuilder } from 'fast-xml-parser'
 import type { NfoData, Video } from '../../shared/types'
 
 /**
- * 轻量 NFO 解析器（Kodi/Jellyfin/Plex 标准 XML 格式）。
- * 不引入第三方 XML 库，用正则提取关键标签，满足本地媒体元数据互通需求。
+ * NFO 解析器（Kodi/Jellyfin/Plex 标准 XML 格式）。
+ * 使用 fast-xml-parser 解析，支持嵌套标签、CDATA、属性、特殊字符。
  * NFO 规范参考：https://kodi.wiki/view/NFO_files/Movies
  */
 
-/** 从 XML 文本中提取单个标签的文本内容 */
-function extractTag(xml: string, tag: string): string | undefined {
-  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i')
-  const m = xml.match(re)
-  return m ? m[1].trim() : undefined
+const parserOptions = {
+  ignoreAttributes: false,
+  parseAttributeValue: true,
+  trimValues: true,
+  cdataTagName: '__cdata',
+  arrayMode: false,
+  attributeNamePrefix: '@_',
+  textNodeName: '#text'
 }
 
-/** 从 XML 文本中提取多个同名标签的文本内容列表 */
-function extractTags(xml: string, tag: string): string[] {
-  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'gi')
-  const results: string[] = []
-  let m: RegExpExecArray | null
-  while ((m = re.exec(xml)) !== null) {
-    results.push(m[1].trim())
-  }
-  return results
+const parser = new XMLParser(parserOptions)
+
+const builderOptions = {
+  ignoreAttributes: false,
+  attributeNamePrefix: '@_',
+  textNodeName: '#text',
+  cdataTagName: '__cdata',
+  format: true,
+  indentBy: '  ',
+  suppressEmptyNode: true
 }
 
-/** 解析 <actor> 块，提取 name/role/thumb */
-function extractActors(xml: string): Array<{ name?: string; role?: string; thumb?: string }> {
-  const re = /<actor[^>]*>([\s\S]*?)<\/actor>/gi
-  const actors: Array<{ name?: string; role?: string; thumb?: string }> = []
-  let m: RegExpExecArray | null
-  while ((m = re.exec(xml)) !== null) {
-    const block = m[1]
-    actors.push({
-      name: extractTag(block, 'name'),
-      role: extractTag(block, 'role'),
-      thumb: extractTag(block, 'thumb')
-    })
-  }
-  return actors
+const builder = new XMLBuilder(builderOptions)
+
+/** 从解析后的对象中安全提取字符串字段 */
+function str(obj: any, key: string): string | undefined {
+  const v = obj?.[key]
+  if (v === undefined || v === null) return undefined
+  if (typeof v === 'object' && v['#text'] !== undefined) return String(v['#text']).trim()
+  const s = String(v).trim()
+  return s || undefined
 }
 
-/** 解析 <uniqueid> 标签（带 type 属性） */
-function extractUniqueIds(xml: string): Record<string, string> {
-  const re = /<uniqueid[^>]*type="([^"]*)"[^>]*>([\s\S]*?)<\/uniqueid>/gi
-  const ids: Record<string, string> = {}
-  let m: RegExpExecArray | null
-  while ((m = re.exec(xml)) !== null) {
-    ids[m[1].toLowerCase()] = m[2].trim()
-  }
-  return ids
+/** 从解析后的对象中提取数字字段 */
+function num(obj: any, key: string): number | undefined {
+  const s = str(obj, key)
+  if (!s) return undefined
+  const n = parseFloat(s)
+  return isNaN(n) ? undefined : n
+}
+
+/** 从解析后的对象中提取数组字段（可能是单个对象或数组） */
+function arr(obj: any, key: string): any[] {
+  const v = obj?.[key]
+  if (v === undefined || v === null) return []
+  return Array.isArray(v) ? v : [v]
+}
+
+/** 处理 CDATA 字段 */
+function cdataStr(v: any): string | undefined {
+  if (v === undefined || v === null) return undefined
+  if (typeof v === 'object' && v.__cdata !== undefined) return String(v.__cdata).trim()
+  if (typeof v === 'object' && v['#text'] !== undefined) return String(v['#text']).trim()
+  const s = String(v).trim()
+  return s || undefined
 }
 
 /**
@@ -60,65 +73,97 @@ function extractUniqueIds(xml: string): Record<string, string> {
 export function parseNfo(xml: string): NfoData | null {
   try {
     if (!xml || xml.length < 5) return null
+    const result = parser.parse(xml)
+    const movie = result?.movie
+    if (!movie) return null
+
     const data: NfoData = {}
-    const title = extractTag(xml, 'title')
+
+    const title = cdataStr(movie.title)
     if (title) data.title = title
-    const originaltitle = extractTag(xml, 'originaltitle')
+
+    const originaltitle = cdataStr(movie.originaltitle)
     if (originaltitle) data.originaltitle = originaltitle
-    const sorttitle = extractTag(xml, 'sorttitle')
+
+    const sorttitle = cdataStr(movie.sorttitle)
     if (sorttitle) data.sorttitle = sorttitle
-    const year = extractTag(xml, 'year')
-    if (year) {
-      const y = parseInt(year, 10)
-      if (!isNaN(y)) data.year = y
-    }
-    const plot = extractTag(xml, 'plot')
+
+    const year = num(movie, 'year')
+    if (year) data.year = year
+
+    const plot = cdataStr(movie.plot)
     if (plot) data.plot = plot
-    const outline = extractTag(xml, 'outline')
+
+    const outline = cdataStr(movie.outline)
     if (outline) data.outline = outline
-    const tagline = extractTag(xml, 'tagline')
+
+    const tagline = cdataStr(movie.tagline)
     if (tagline) data.tagline = tagline
-    const rating = extractTag(xml, 'rating')
-    if (rating) {
-      const r = parseFloat(rating)
-      if (!isNaN(r)) data.rating = r
-    }
-    const votes = extractTag(xml, 'votes')
-    if (votes) {
-      const v = parseInt(votes, 10)
-      if (!isNaN(v)) data.votes = v
-    }
-    const mpaa = extractTag(xml, 'mpaa')
+
+    const rating = num(movie, 'rating')
+    if (rating) data.rating = rating
+
+    const votes = num(movie, 'votes')
+    if (votes) data.votes = votes
+
+    const mpaa = cdataStr(movie.mpaa)
     if (mpaa) data.mpaa = mpaa
-    const premiered = extractTag(xml, 'premiered')
+
+    const premiered = cdataStr(movie.premiered)
     if (premiered) data.premiered = premiered
-    const runtime = extractTag(xml, 'runtime')
-    if (runtime) {
-      const r = parseInt(runtime, 10)
-      if (!isNaN(r)) data.runtime = r
-    }
-    const genres = extractTags(xml, 'genre')
+
+    const runtime = num(movie, 'runtime')
+    if (runtime) data.runtime = runtime
+
+    // 类型（可能多个 <genre> 标签）
+    const genres = arr(movie, 'genre').map((g) => cdataStr(g)).filter(Boolean) as string[]
     if (genres.length > 0) data.genres = genres
-    const tags = extractTags(xml, 'tag')
+
+    // 标签（可能多个 <tag> 标签）
+    const tags = arr(movie, 'tag').map((t) => cdataStr(t)).filter(Boolean) as string[]
     if (tags.length > 0) data.tags = tags
-    const actors = extractActors(xml)
+
+    // 演员（<actor> 块，含 name/role/thumb）
+    const actors = arr(movie, 'actor')
+      .map((a) => ({
+        name: cdataStr(a.name),
+        role: cdataStr(a.role),
+        thumb: cdataStr(a.thumb)
+      }))
+      .filter((a) => a.name || a.role || a.thumb)
     if (actors.length > 0) data.actors = actors
-    const director = extractTag(xml, 'director')
+
+    const director = cdataStr(movie.director)
     if (director) data.director = director
-    const writer = extractTag(xml, 'writer')
+
+    const writer = cdataStr(movie.writer)
     if (writer) data.writer = writer
-    const studio = extractTag(xml, 'studio')
+
+    const studio = cdataStr(movie.studio)
     if (studio) data.studio = studio
-    const country = extractTag(xml, 'country')
+
+    const country = cdataStr(movie.country)
     if (country) data.country = country
-    const set = extractTag(xml, 'set')
+
+    const set = cdataStr(movie.set)
     if (set) data.set = set
-    const uniqueids = extractUniqueIds(xml)
-    if (Object.keys(uniqueids).length > 0) data.uniqueids = uniqueids
-    const thumb = extractTag(xml, 'thumb')
+
+    // 唯一 ID（<uniqueid type="tmdb">123</uniqueid>）
+    const uniqueids = arr(movie, 'uniqueid')
+    const idMap: Record<string, string> = {}
+    for (const uid of uniqueids) {
+      const type = uid?.['@_type'] ? String(uid['@_type']).toLowerCase() : 'unknown'
+      const value = cdataStr(uid)
+      if (value) idMap[type] = value
+    }
+    if (Object.keys(idMap).length > 0) data.uniqueids = idMap
+
+    const thumb = cdataStr(movie.thumb)
     if (thumb) data.thumb = thumb
-    const fanart = extractTag(xml, 'fanart')
+
+    const fanart = cdataStr(movie.fanart)
     if (fanart) data.fanart = fanart
+
     return Object.keys(data).length > 0 ? data : null
   } catch {
     return null
@@ -150,81 +195,80 @@ export async function readNfoForVideo(videoPath: string): Promise<{ ok: boolean;
   }
 }
 
-/** XML 转义 */
-function xmlEscape(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
-}
-
 /**
  * 把视频元数据导出为 Kodi 标准 NFO XML 字符串。
+ * 使用 fast-xml-parser 的 XMLBuilder 生成，确保 XML 格式正确。
  */
 export function buildNfoXml(video: Video): string {
   const meta = video.meta
-  const lines: string[] = []
-  lines.push('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>')
-  lines.push('<movie>')
-  if (video.title) lines.push(`  <title>${xmlEscape(video.title)}</title>`)
-  if (video.year) lines.push(`  <year>${video.year}</year>`)
+  const movie: any = {}
+
+  if (video.title) movie.title = video.title
+  if (video.year) movie.year = video.year
+
   // 剧情简介：video.description（Excel片单权威） > meta.synopsis（数据源）
-  if (video.description || meta?.synopsis) {
-    const plot = xmlEscape(video.description || meta?.synopsis || '')
-    lines.push(`  <plot>${plot}</plot>`)
-  }
-  if (video.rating) lines.push(`  <rating>${video.rating}</rating>`)
+  const plot = video.description || meta?.synopsis
+  if (plot) movie.plot = plot
+
+  if (video.rating) movie.rating = video.rating
+
   // 时长：meta.duration（字符串如 "120 min"）> video.durationSec（秒）
   if (meta?.duration) {
     const mins = parseInt(meta.duration, 10)
-    if (!isNaN(mins) && mins > 0) lines.push(`  <runtime>${mins}</runtime>`)
+    if (!isNaN(mins) && mins > 0) movie.runtime = mins
   } else if (video.durationSec) {
     const mins = Math.round(video.durationSec / 60)
-    if (mins > 0) lines.push(`  <runtime>${mins}</runtime>`)
+    if (mins > 0) movie.runtime = mins
   }
-  if (meta?.date) lines.push(`  <premiered>${xmlEscape(meta.date)}</premiered>`)
+
+  if (meta?.date) movie.premiered = meta.date
+
   // 类型
   const genres = meta?.genres ?? video.backupTags ?? []
-  for (const g of genres) {
-    if (g) lines.push(`  <genre>${xmlEscape(g)}</genre>`)
-  }
+  if (genres.length > 0) movie.genre = genres.filter(Boolean)
+
   // 标签
-  for (const t of video.tags ?? []) {
-    if (t) lines.push(`  <tag>${xmlEscape(t)}</tag>`)
-  }
+  if (video.tags && video.tags.length > 0) movie.tag = video.tags.filter(Boolean)
+
   // 演员：优先 castProfiles（有角色名），回退 cast/actors（纯名字）
   const profiles = meta?.castProfiles ?? []
   if (profiles.length > 0) {
-    for (const actor of profiles) {
-      if (actor.name) {
-        lines.push('  <actor>')
-        lines.push(`    <name>${xmlEscape(actor.name)}</name>`)
-        if (actor.character) lines.push(`    <role>${xmlEscape(actor.character)}</role>`)
-        if (actor.photo) lines.push(`    <thumb>${xmlEscape(actor.photo)}</thumb>`)
-        lines.push('  </actor>')
-      }
-    }
+    movie.actor = profiles
+      .filter((a: any) => a.name)
+      .map((a: any) => {
+        const actor: any = { name: a.name }
+        if (a.character) actor.role = a.character
+        if (a.photo) actor.thumb = a.photo
+        return actor
+      })
   } else {
     const names = meta?.cast ?? meta?.actors ?? []
-    for (const name of names) {
-      if (name) {
-        lines.push('  <actor>')
-        lines.push(`    <name>${xmlEscape(name)}</name>`)
-        lines.push('  </actor>')
-      }
+    if (names.length > 0) {
+      movie.actor = names.filter(Boolean).map((name: string) => ({ name }))
     }
   }
-  if (meta?.director) lines.push(`  <director>${xmlEscape(meta.director)}</director>`)
-  if (meta?.studio) lines.push(`  <studio>${xmlEscape(meta.studio)}</studio>`)
-  if (video.series || meta?.series) lines.push(`  <set>${xmlEscape(video.series || meta?.series || '')}</set>`)
+
+  if (meta?.director) movie.director = meta.director
+  if (meta?.studio) movie.studio = meta.studio
+  if (video.series || meta?.series) movie.set = video.series || meta?.series
+
   // 唯一 ID：用 meta.externalId（数据源侧的唯一标识）
-  if (meta?.externalId) lines.push(`  <uniqueid type="${xmlEscape(meta.source ?? 'unknown')}">${xmlEscape(meta.externalId)}</uniqueid>`)
+  if (meta?.externalId) {
+    movie.uniqueid = {
+      '@_type': meta.source ?? 'unknown',
+      '#text': meta.externalId
+    }
+  }
+
   // 封面
-  if (video.posterPath) lines.push(`  <thumb>${xmlEscape(video.posterPath)}</thumb>`)
-  lines.push('</movie>')
-  return lines.join('\n')
+  if (video.posterPath) movie.thumb = video.posterPath
+
+  const xmlObj = {
+    '?xml': { '@_version': '1.0', '@_encoding': 'UTF-8', '@_standalone': 'yes' },
+    movie
+  }
+
+  return builder.build(xmlObj)
 }
 
 /**
