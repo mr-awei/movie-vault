@@ -95,6 +95,9 @@ const api: AppApi = {
   playlistRemoveVideo: (id, videoId) => ipcRenderer.invoke(IPC.playlistRemoveVideo, id, videoId),
   playlistReorder: (id, videoIds) => ipcRenderer.invoke(IPC.playlistReorder, id, videoIds),
   videoUpdatePlaybackPosition: (id, positionSec) => ipcRenderer.invoke(IPC.videoUpdatePlaybackPosition, id, positionSec),
+  watchHistoryList: (limit) => ipcRenderer.invoke(IPC.watchHistoryList, limit),
+  watchHistoryStats: () => ipcRenderer.invoke(IPC.watchHistoryStats),
+  watchHistoryClear: () => ipcRenderer.invoke(IPC.watchHistoryClear),
   onWatcherEvent: (cb) => {
     const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as never)
     ipcRenderer.on(IPC.watcherEvent, handler)

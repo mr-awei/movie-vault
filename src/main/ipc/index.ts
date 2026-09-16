@@ -28,6 +28,7 @@ import { previewRenames, applyRenames, safeFileBaseName } from '../lib/rename'
 import { findDuplicates } from '../lib/dedup'
 import { readNfoForVideo, writeNfoForVideo } from '../lib/nfo'
 import * as playlist from '../lib/playlist'
+import * as watchHistory from '../lib/watch-history'
 import { updatePlaybackPosition } from '../lib/player'
 import { startWatching, stopWatching } from '../lib/watcher'
 import { type MovieMeta, type SourceId, type Library, type ScanProgress, type Settings, type Video, type ImageSource, type UpdateSource, type TechInfo } from '../../shared/types'
@@ -2053,6 +2054,11 @@ function registerSystemIpc() {
   ipcMain.handle(IPC.updateCheck, (): Promise<UpdateCheckResult> => runUpdateCheck())
 
   // ---------- ffmpeg 截帧：同步生成封面 + 预览帧，立即返回 ----------
+  // ---------- 观看历史 ----------
+  ipcMain.handle(IPC.watchHistoryList, (_e, limit?: number) => watchHistory.getWatchHistory(limit ?? 100))
+  ipcMain.handle(IPC.watchHistoryStats, () => watchHistory.getWatchStats())
+  ipcMain.handle(IPC.watchHistoryClear, () => watchHistory.clearWatchHistory())
+
 }
 
 /** 注册所有 IPC handler（按领域拆分） */

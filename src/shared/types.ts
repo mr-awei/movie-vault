@@ -646,6 +646,52 @@ export interface DuplicateGroup {
   wastedBytes: number
 }
 
+/** 单次观看记录 */
+export interface WatchHistoryEntry {
+  /** 记录 ID（时间戳 + 随机数） */
+  id: string
+  /** 视频 ID */
+  videoId: string
+  /** 视频标题（冗余存储，避免视频被删除后统计丢失标题） */
+  title: string
+  /** 观看开始时间（Unix 毫秒） */
+  startedAt: number
+  /** 观看结束时间（Unix 毫秒） */
+  endedAt: number
+  /** 实际观看时长（秒），扣除暂停等 */
+  durationSec: number
+  /** 观看结束时的播放位置（秒） */
+  endPositionSec: number
+  /** 视频总时长（秒），用于计算完成度 */
+  totalDurationSec?: number
+  /** 完成度（0-1），endPositionSec / totalDurationSec */
+  completion?: number
+}
+
+/** 观看统计结果 */
+export interface WatchStats {
+  /** 总观看时长（秒） */
+  totalWatchSec: number
+  /** 总观看次数 */
+  totalWatchCount: number
+  /** 平均每次观看时长（秒） */
+  avgWatchSec: number
+  /** 观看视频数（去重） */
+  uniqueVideos: number
+  /** 月度趋势（最近 12 个月） */
+  monthlyTrend: Array<{ month: string; watchSec: number; count: number }>
+  /** 观看时间分布（24 小时） */
+  hourlyDistribution: Array<{ hour: number; watchSec: number; count: number }>
+  /** 最常观看的标签（Top 10） */
+  topTags: Array<{ tag: string; watchSec: number; count: number }>
+  /** 最常观看的演员（Top 10） */
+  topActors: Array<{ actor: string; watchSec: number; count: number }>
+  /** 最常观看的导演（Top 10） */
+  topDirectors: Array<{ director: string; watchSec: number; count: number }>
+  /** 最近观看记录（最近 20 条） */
+  recentWatches: WatchHistoryEntry[]
+}
+
 /** NFO 文件解析结果（Kodi/Jellyfin/Plex 标准格式） */
 export interface NfoData {
   title?: string

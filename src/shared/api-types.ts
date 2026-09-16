@@ -13,7 +13,9 @@
   PreviewTaskStats,
   Playlist,
   DuplicateGroup,
-  NfoData
+  NfoData,
+  WatchHistoryEntry,
+  WatchStats
 } from './types'
 
 /** videoFetchDetail 返回：成功（含详情 + 来源）或失败（含原因） */
@@ -284,5 +286,8 @@ export interface AppApi {
   playlistRemoveVideo(id: string, videoId: string): Promise<Playlist | null>
   playlistReorder(id: string, videoIds: string[]): Promise<Playlist | null>
   videoUpdatePlaybackPosition(id: string, positionSec: number): Promise<Video | null>
+  watchHistoryList(limit?: number): Promise<WatchHistoryEntry[]>
+  watchHistoryStats(): Promise<WatchStats>
+  watchHistoryClear(): Promise<void>
   onWatcherEvent(cb: (p: { type: 'changed' | 'added' | 'removed'; libraryId: string; paths: string[] }) => void): () => void
 }

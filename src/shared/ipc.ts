@@ -120,6 +120,12 @@ export const IPC = {
   playlistReorder: 'playlist:reorder',
   // 播放进度更新（断点续播）
   videoUpdatePlaybackPosition: 'video:updatePlaybackPosition',
+  // 观看历史：获取历史记录
+  watchHistoryList: 'watchHistory:list',
+  // 观看历史：获取统计数据
+  watchHistoryStats: 'watchHistory:stats',
+  // 观看历史：清空
+  watchHistoryClear: 'watchHistory:clear',
   // 文件夹监控事件（主进程 -> 渲染进程）：检测到文件变化
   watcherEvent: 'watcher:event'
 } as const
