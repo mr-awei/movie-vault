@@ -161,11 +161,14 @@ export default function App() {
   const [progress, setProgress] = useState<{ total: number; done: number; current?: string } | null>(null)
   const [fetchPaused, setFetchPaused] = useState(false)
   // v2.7.x：多选批量锁定（浏览页）
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const selectedIds = useUIStore((s) => s.selectedIds)
+  const setSelectedIds = useUIStore((s) => s.setSelectedIds)
   // 播放列表
   const [playlists, setPlaylists] = useState<Playlist[]>([])
-  const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null)
-  const [pendingPlaylistId, setPendingPlaylistId] = useState<string | null>(null)
+  const activePlaylistId = useUIStore((s) => s.activePlaylistId)
+  const setActivePlaylistId = useUIStore((s) => s.setActivePlaylistId)
+  const pendingPlaylistId = useUIStore((s) => s.pendingPlaylistId)
+  const setPendingPlaylistId = useUIStore((s) => s.setPendingPlaylistId)
   const showWatchStats = useUIStore((s) => s.showWatchStats)
   const setShowWatchStats = useUIStore((s) => s.setShowWatchStats)
   // v2.2.10：实时抓取日志（"数据源失败 → 降级下一源" 这类过程，右下角浮层滚动展示）
@@ -174,8 +177,10 @@ export default function App() {
   >([])
   // v2.2.14：批量抓取失败明细弹窗（居中显示失败影片标题 + 原因）
   const [batchFailures, setBatchFailures] = useState<Array<{ id: string; title: string; reason: string }> | null>(null)
-  const [batchFailuresVisible, setBatchFailuresVisible] = useState(true)
-  const [retryingFailures, setRetryingFailures] = useState(false)
+  const batchFailuresVisible = useUIStore((s) => s.batchFailuresVisible)
+  const setBatchFailuresVisible = useUIStore((s) => s.setBatchFailuresVisible)
+  const retryingFailures = useUIStore((s) => s.retryingFailures)
+  const setRetryingFailures = useUIStore((s) => s.setRetryingFailures)
   /** v2.7.x：本次批量补齐自动跳过的文件明细（已锁定 / 文件不存在），结束后弹窗告知用户 */
   const [skippedFiles, setSkippedFiles] = useState<
     Array<{ id: string; title: string; reason: 'locked' | 'missing' }> | null
@@ -210,16 +215,20 @@ export default function App() {
   const setUnlocked = useUIStore((s) => s.setUnlocked)
   /** 命令面板 ⌘K */
   /** 随机推荐：手动刷新 nonce（每日刷新由种子里的日期自动驱动） */
-  const [recommendNonce, setRecommendNonce] = useState(0)
+  const recommendNonce = useUIStore((s) => s.recommendNonce)
+  const setRecommendNonce = useUIStore((s) => s.setRecommendNonce)
   /** 全库随机（跨媒体库）：手动刷新 nonce */
-  const [allRandomNonce, setAllRandomNonce] = useState(0)
+  const allRandomNonce = useUIStore((s) => s.allRandomNonce)
+  const setAllRandomNonce = useUIStore((s) => s.setAllRandomNonce)
   /** 所有媒体库的 reconcile 缓存（全库随机数据源；key = libraryId） */
   const [allReconciles, setAllReconciles] = useState<Record<string, ReconcileResult>>({})
 
   // ---- Onboard Sheet Wizard 状态 ----
   /** 新建片单 Excel 向导弹窗（introError.kind==='not-configured' 时自动弹） */
-  const [onboardOpen, setOnboardOpen] = useState(false)
-  const [onboardLib, setOnboardLib] = useState<Library | null>(null)
+  const onboardOpen = useUIStore((s) => s.onboardOpen)
+  const setOnboardOpen = useUIStore((s) => s.setOnboardOpen)
+  const onboardLib = useUIStore((s) => s.onboardLib)
+  const setOnboardLib = useUIStore((s) => s.setOnboardLib)
   /** 让 scanProgress 回调能拿到最新 settings.suppressIntroExcelNotice 和 libraries（空依赖 useEffect 闭包问题） */
   const settingsRef = useRef(settings)
   settingsRef.current = settings

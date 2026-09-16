@@ -1,25 +1,20 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Video, ViewMode } from '../../../shared/types'
+import type { Library, Video, ViewMode } from '../../../shared/types'
 import type { DeletePreview } from '../components/ConfirmDeleteModal'
 import type { ViewName, SmartFilter } from '../components/Sidebar'
 
 /**
- * UI 状态 Store（Zustand）。
- * 管理全局 UI 状态：弹窗显示/隐藏、侧边栏折叠、浏览视图、筛选选择等。
- * 从 App.tsx 上帝组件中拆出来，降低组件复杂度。
- *
- * 使用方法：
- * const { settingsOpen, setSettingsOpen } = useUIStore()
- * 或按需订阅：
- * const settingsOpen = useUIStore((s) => s.settingsOpen)
+ * UI 鐘舵€?Store锛圸ustand锛夈€? * 绠＄悊鍏ㄥ眬 UI 鐘舵€侊細寮圭獥鏄剧ず/闅愯棌銆佷晶杈规爮鎶樺彔銆佹祻瑙堣鍥俱€佺瓫閫夐€夋嫨绛夈€? * 浠?App.tsx 涓婂笣缁勪欢涓媶鍑烘潵锛岄檷浣庣粍浠跺鏉傚害銆? *
+ * 浣跨敤鏂规硶锛? * const { settingsOpen, setSettingsOpen } = useUIStore()
+ * 鎴栨寜闇€璁㈤槄锛? * const settingsOpen = useUIStore((s) => s.settingsOpen)
  */
 
-/** 支持函数式更新的 setter 类型（与 React setState 语义一致） */
+/** 鏀寔鍑芥暟寮忔洿鏂扮殑 setter 绫诲瀷锛堜笌 React setState 璇箟涓€鑷达級 */
 type Setter<T> = (v: T | ((prev: T) => T)) => void
 
 interface UIState {
-  // ---------- 弹窗状态 ----------
+  // ---------- 寮圭獥鐘舵€?----------
   settingsOpen: boolean
   aboutOpen: boolean
   licenseOpen: boolean
@@ -36,29 +31,42 @@ interface UIState {
   deleting: boolean
   scanning: boolean
   onboardOpen: boolean
-  onboardLib: { id: string; name: string } | null
+  onboardLib: Library | null
 
-  // ---------- 布局状态 ----------
+  // ---------- 甯冨眬鐘舵€?----------
   sidebarCollapsed: boolean
 
-  // ---------- 浏览状态 ----------
+  // ---------- 娴忚鐘舵€?----------
   view: ViewName
   smart: SmartFilter
   viewMode: ViewMode
 
-  // ---------- 多选状态 ----------
+  // ---------- 澶氶€夌姸鎬?----------
   selectMode: boolean
   dragSelectMode: 'select' | 'deselect' | null
+  selectedIds: Set<string>
 
-  // ---------- 隐私/锁定 ----------
+  // ---------- 鎾斁鍒楄〃瀵艰埅 ----------
+  activePlaylistId: string | null
+  pendingPlaylistId: string | null
+
+  // ---------- 闅忔満鎺ㄨ崘 ----------
+  recommendNonce: number
+  allRandomNonce: number
+
+  // ---------- 鎵归噺鎶撳彇澶辫触 ----------
+  batchFailuresVisible: boolean
+  retryingFailures: boolean
+
+  // ---------- 闅愮/閿佸畾 ----------
   privacy: boolean
   unlocked: boolean
 
-  // ---------- 其他 ----------
+  // ---------- 鍏朵粬 ----------
   heroIdx: number
   loaded: boolean
 
-  // ---------- 操作方法 ----------
+  // ---------- 鎿嶄綔鏂规硶 ----------
   setSettingsOpen: Setter<boolean>
   setAboutOpen: Setter<boolean>
   setLicenseOpen: Setter<boolean>
@@ -75,29 +83,36 @@ interface UIState {
   setDeleting: Setter<boolean>
   setScanning: Setter<boolean>
   setOnboardOpen: Setter<boolean>
-  setOnboardLib: Setter<{ id: string; name: string } | null>
+  setOnboardLib: Setter<Library | null>
   setSidebarCollapsed: Setter<boolean>
   setView: Setter<ViewName>
   setSmart: Setter<SmartFilter>
   setViewMode: Setter<ViewMode>
   setSelectMode: Setter<boolean>
   setDragSelectMode: Setter<'select' | 'deselect' | null>
+  setSelectedIds: Setter<Set<string>>
+  setActivePlaylistId: Setter<string | null>
+  setPendingPlaylistId: Setter<string | null>
+  setRecommendNonce: Setter<number>
+  setAllRandomNonce: Setter<number>
+  setBatchFailuresVisible: Setter<boolean>
+  setRetryingFailures: Setter<boolean>
   setPrivacy: Setter<boolean>
   setUnlocked: Setter<boolean>
   setHeroIdx: Setter<number>
   setLoaded: Setter<boolean>
   toggleSidebar: () => void
-  /** 关闭所有弹窗 */
+  /** 鍏抽棴鎵€鏈夊脊绐?*/
   closeAllModals: () => void
 }
 
-/** 生成支持函数式更新的 setter */
+/** 鐢熸垚鏀寔鍑芥暟寮忔洿鏂扮殑 setter */
 function apply<T>(set: (fn: (s: UIState) => Partial<UIState>) => void, key: keyof UIState) {
   return (v: T | ((prev: T) => T)) =>
     set((s) => ({ [key]: typeof v === 'function' ? (v as (p: T) => T)(s[key] as T) : v }) as Partial<UIState>)
 }
 
-/** viewMode 从 localStorage 恢复（原 App.tsx 惰性初始化逻辑） */
+/** viewMode 浠?localStorage 鎭㈠锛堝師 App.tsx 鎯版€у垵濮嬪寲閫昏緫锛?*/
 function initialViewMode(): ViewMode {
   const saved = localStorage.getItem('vm-viewmode')
   if (saved === 'list') return 'list-filename'
@@ -108,7 +123,7 @@ function initialViewMode(): ViewMode {
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
-      // ---------- 弹窗初始状态 ----------
+      // ---------- 寮圭獥鍒濆鐘舵€?----------
       settingsOpen: false,
       aboutOpen: false,
       licenseOpen: false,
@@ -127,27 +142,40 @@ export const useUIStore = create<UIState>()(
       onboardOpen: false,
       onboardLib: null,
 
-      // ---------- 布局初始状态 ----------
+      // ---------- 甯冨眬鍒濆鐘舵€?----------
       sidebarCollapsed: false,
 
-      // ---------- 浏览初始状态 ----------
+      // ---------- 娴忚鍒濆鐘舵€?----------
       view: 'home',
       smart: 'all',
       viewMode: initialViewMode(),
 
-      // ---------- 多选初始状态 ----------
+      // ---------- 澶氶€夊垵濮嬬姸鎬?----------
       selectMode: false,
       dragSelectMode: null,
+      selectedIds: new Set<string>(),
 
-      // ---------- 隐私/锁定 ----------
+      // ---------- 鎾斁鍒楄〃瀵艰埅 ----------
+      activePlaylistId: null,
+      pendingPlaylistId: null,
+
+      // ---------- 闅忔満鎺ㄨ崘 ----------
+      recommendNonce: 0,
+      allRandomNonce: 0,
+
+      // ---------- 鎵归噺鎶撳彇澶辫触 ----------
+      batchFailuresVisible: true,
+      retryingFailures: false,
+
+      // ---------- 闅愮/閿佸畾 ----------
       privacy: localStorage.getItem('vm-privacy') === '1',
       unlocked: false,
 
-      // ---------- 其他 ----------
+      // ---------- 鍏朵粬 ----------
       heroIdx: 0,
       loaded: false,
 
-      // ---------- 操作方法 ----------
+      // ---------- 鎿嶄綔鏂规硶 ----------
       setSettingsOpen: apply<boolean>(set, 'settingsOpen'),
       setAboutOpen: apply<boolean>(set, 'aboutOpen'),
       setLicenseOpen: apply<boolean>(set, 'licenseOpen'),
@@ -164,13 +192,20 @@ export const useUIStore = create<UIState>()(
       setDeleting: apply<boolean>(set, 'deleting'),
       setScanning: apply<boolean>(set, 'scanning'),
       setOnboardOpen: apply<boolean>(set, 'onboardOpen'),
-      setOnboardLib: apply<{ id: string; name: string } | null>(set, 'onboardLib'),
+      setOnboardLib: apply<Library | null>(set, 'onboardLib'),
       setSidebarCollapsed: apply<boolean>(set, 'sidebarCollapsed'),
       setView: apply<ViewName>(set, 'view'),
       setSmart: apply<SmartFilter>(set, 'smart'),
       setViewMode: apply<ViewMode>(set, 'viewMode'),
       setSelectMode: apply<boolean>(set, 'selectMode'),
       setDragSelectMode: apply<'select' | 'deselect' | null>(set, 'dragSelectMode'),
+      setSelectedIds: apply<Set<string>>(set, 'selectedIds'),
+      setActivePlaylistId: apply<string | null>(set, 'activePlaylistId'),
+      setPendingPlaylistId: apply<string | null>(set, 'pendingPlaylistId'),
+      setRecommendNonce: apply<number>(set, 'recommendNonce'),
+      setAllRandomNonce: apply<number>(set, 'allRandomNonce'),
+      setBatchFailuresVisible: apply<boolean>(set, 'batchFailuresVisible'),
+      setRetryingFailures: apply<boolean>(set, 'retryingFailures'),
       setPrivacy: apply<boolean>(set, 'privacy'),
       setUnlocked: apply<boolean>(set, 'unlocked'),
       setHeroIdx: apply<number>(set, 'heroIdx'),
@@ -206,3 +241,4 @@ export const useUIStore = create<UIState>()(
     }
   )
 )
+
