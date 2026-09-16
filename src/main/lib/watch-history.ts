@@ -1,10 +1,13 @@
 import type { WatchHistoryEntry, WatchStats, Video } from '../../shared/types'
-import { mutate, getDB } from './store'
+import { getDb } from './db'
 
 /**
- * 观看历史管理模块。
+ * 观看历史管理模块（SQLite 版本）。
  * 记录每次观看的开始/结束时间、观看时长、播放位置等。
  * 提供统计分析功能：总观看时长、月度趋势、时间分布、最常看标签/演员/导演。
+ *
+ * 数据存储：SQLite（better-sqlite3），表名 watch_history。
+ * 迁移说明：v2.9.3 起观看历史从 JSON data.json 迁移到 SQLite，提升查询性能。
  */
 
 /** 生成唯一 ID */
@@ -17,22 +20,16 @@ function genId(): string {
  * 返回记录 ID，用于结束时更新。
  */
 export async function startWatch(video: Video): Promise<string> {
-  const entry: WatchHistoryEntry = {
-    id: genId(),
-    videoId: video.id,
-    title: video.title,
-    startedAt: Date.now(),
-    endedAt: 0,
-    durationSec: 0,
-    endPositionSec: 0,
-    totalDurationSec: video.durationSec ?? video.techInfo?.durationSec
-  }
+  const id = genId()
+  const db = getDb()
 
-  await mutate((db) => {
-    db.watchHistory.push(entry)
-  })
+  const stmt = db.prepare(`
+    INSERT INTO watch_history (id, video_id, title, started_at, ended_at, duration_sec, end_position_sec, total_duration_sec)
+    VALUES (?, ?, ?, ?, 0, 0, 0, ?)
+  `)
+  stmt.run(id, video.id, video.title, Date.now(), video.durationSec ?? video.techInfo?.durationSec ?? null)
 
-  return entry.id
+  return id
 }
 
 /**
@@ -44,42 +41,81 @@ export async function endWatch(
   endPositionSec: number,
   actualDurationSec?: number
 ): Promise<void> {
-  await mutate((db) => {
-    const entry = db.watchHistory.find((e) => e.id === entryId && e.videoId === videoId)
-    if (!entry) return
+  const db = getDb()
 
-    entry.endedAt = Date.now()
-    entry.endPositionSec = endPositionSec
-    entry.durationSec = actualDurationSec ?? Math.round((entry.endedAt - entry.startedAt) / 1000)
+  // 先获取开始时间，用于计算时长
+  const row = db.prepare('SELECT started_at, total_duration_sec FROM watch_history WHERE id = ? AND video_id = ?').get(entryId, videoId) as { started_at: number; total_duration_sec: number | null } | undefined
+  if (!row) return
 
-    if (entry.totalDurationSec && entry.totalDurationSec > 0) {
-      entry.completion = Math.min(1, endPositionSec / entry.totalDurationSec)
-    }
-  })
+  const endedAt = Date.now()
+  const durationSec = actualDurationSec ?? Math.round((endedAt - row.started_at) / 1000)
+  const completion = row.total_duration_sec && row.total_duration_sec > 0 ? Math.min(1, endPositionSec / row.total_duration_sec) : null
+
+  const stmt = db.prepare(`
+    UPDATE watch_history
+    SET ended_at = ?, duration_sec = ?, end_position_sec = ?, completion = ?
+    WHERE id = ? AND video_id = ?
+  `)
+  stmt.run(endedAt, durationSec, endPositionSec, completion, entryId, videoId)
 }
 
 /**
  * 获取观看历史列表（按开始时间倒序）。
  */
 export async function getWatchHistory(limit = 100): Promise<WatchHistoryEntry[]> {
-  const db = await getDB()
-  return [...db.watchHistory]
-    .sort((a, b) => b.startedAt - a.startedAt)
-    .slice(0, limit)
+  const db = getDb()
+
+  const rows = db.prepare(`
+    SELECT id, video_id, title, started_at, ended_at, duration_sec, end_position_sec, total_duration_sec, completion
+    FROM watch_history
+    WHERE ended_at > 0
+    ORDER BY started_at DESC
+    LIMIT ?
+  `).all(limit) as Array<{
+    id: string
+    video_id: string
+    title: string
+    started_at: number
+    ended_at: number
+    duration_sec: number
+    end_position_sec: number
+    total_duration_sec: number | null
+    completion: number | null
+  }>
+
+  return rows.map((r) => ({
+    id: r.id,
+    videoId: r.video_id,
+    title: r.title,
+    startedAt: r.started_at,
+    endedAt: r.ended_at,
+    durationSec: r.duration_sec,
+    endPositionSec: r.end_position_sec,
+    totalDurationSec: r.total_duration_sec ?? undefined,
+    completion: r.completion ?? undefined
+  }))
 }
 
 /**
  * 计算观看统计。
  */
 export async function getWatchStats(): Promise<WatchStats> {
-  const db = await getDB()
-  const history = db.watchHistory.filter((e) => e.endedAt > 0 && e.durationSec > 0)
+  const db = getDb()
 
   // 基础统计
-  const totalWatchSec = history.reduce((sum, e) => sum + e.durationSec, 0)
-  const totalWatchCount = history.length
+  const basic = db.prepare(`
+    SELECT
+      COUNT(*) as total_count,
+      COALESCE(SUM(duration_sec), 0) as total_watch_sec,
+      COUNT(DISTINCT video_id) as unique_videos
+    FROM watch_history
+    WHERE ended_at > 0 AND duration_sec > 0
+  `).get() as { total_count: number; total_watch_sec: number; unique_videos: number }
+
+  const totalWatchSec = basic.total_watch_sec
+  const totalWatchCount = basic.total_count
   const avgWatchSec = totalWatchCount > 0 ? Math.round(totalWatchSec / totalWatchCount) : 0
-  const uniqueVideos = new Set(history.map((e) => e.videoId)).size
+  const uniqueVideos = basic.unique_videos
 
   // 月度趋势（最近 12 个月）
   const monthlyMap = new Map<string, { watchSec: number; count: number }>()
@@ -89,15 +125,25 @@ export async function getWatchStats(): Promise<WatchStats> {
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     monthlyMap.set(key, { watchSec: 0, count: 0 })
   }
-  for (const e of history) {
-    const d = new Date(e.startedAt)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    if (monthlyMap.has(key)) {
-      const m = monthlyMap.get(key)!
-      m.watchSec += e.durationSec
-      m.count++
+
+  const monthlyRows = db.prepare(`
+    SELECT
+      strftime('%Y-%m', datetime(started_at / 1000, 'unixepoch')) as month,
+      SUM(duration_sec) as watch_sec,
+      COUNT(*) as count
+    FROM watch_history
+    WHERE ended_at > 0 AND duration_sec > 0
+    GROUP BY month
+    ORDER BY month DESC
+    LIMIT 12
+  `).all() as Array<{ month: string; watch_sec: number; count: number }>
+
+  for (const row of monthlyRows) {
+    if (monthlyMap.has(row.month)) {
+      monthlyMap.set(row.month, { watchSec: row.watch_sec, count: row.count })
     }
   }
+
   const monthlyTrend = [...monthlyMap.entries()].map(([month, v]) => ({ month, ...v }))
 
   // 观看时间分布（24 小时）
@@ -105,31 +151,51 @@ export async function getWatchStats(): Promise<WatchStats> {
   for (let h = 0; h < 24; h++) {
     hourlyDistribution.push({ hour: h, watchSec: 0, count: 0 })
   }
-  for (const e of history) {
-    const d = new Date(e.startedAt)
-    const h = d.getHours()
-    hourlyDistribution[h].watchSec += e.durationSec
-    hourlyDistribution[h].count++
+
+  const hourlyRows = db.prepare(`
+    SELECT
+      CAST(strftime('%H', datetime(started_at / 1000, 'unixepoch')) as INTEGER) as hour,
+      SUM(duration_sec) as watch_sec,
+      COUNT(*) as count
+    FROM watch_history
+    WHERE ended_at > 0 AND duration_sec > 0
+    GROUP BY hour
+  `).all() as Array<{ hour: number; watch_sec: number; count: number }>
+
+  for (const row of hourlyRows) {
+    if (row.hour >= 0 && row.hour < 24) {
+      hourlyDistribution[row.hour] = { hour: row.hour, watchSec: row.watch_sec, count: row.count }
+    }
   }
 
-  // 最常观看的标签/演员/导演（需要关联视频信息）
-  const videoMap = new Map(db.videos.map((v) => [v.id, v]))
+  // 最常观看的标签/演员/导演（需要关联视频信息，从 JSON store 读取）
+  // 注意：这部分统计需要视频的元数据，暂时从 repo 读取
+  const { listVideos } = require('./repo')
+  const allVideos: Video[] = await listVideos({})
+  const videoMap = new Map(allVideos.map((v: Video) => [v.id, v]))
+
   const tagMap = new Map<string, { watchSec: number; count: number }>()
   const actorMap = new Map<string, { watchSec: number; count: number }>()
   const directorMap = new Map<string, { watchSec: number; count: number }>()
 
-  for (const e of history) {
-    const video = videoMap.get(e.videoId)
+  const allHistory = db.prepare(`
+    SELECT video_id, duration_sec
+    FROM watch_history
+    WHERE ended_at > 0 AND duration_sec > 0
+  `).all() as Array<{ video_id: string; duration_sec: number }>
+
+  for (const entry of allHistory) {
+    const video = videoMap.get(entry.video_id)
     if (!video) continue
 
     const addToMap = (map: Map<string, { watchSec: number; count: number }>, key: string) => {
       if (!key) return
       const existing = map.get(key)
       if (existing) {
-        existing.watchSec += e.durationSec
+        existing.watchSec += entry.duration_sec
         existing.count++
       } else {
-        map.set(key, { watchSec: e.durationSec, count: 1 })
+        map.set(key, { watchSec: entry.duration_sec, count: 1 })
       }
     }
 
@@ -163,9 +229,7 @@ export async function getWatchStats(): Promise<WatchStats> {
     .map(([director, v]) => ({ director, ...v }))
 
   // 最近观看记录
-  const recentWatches = [...history]
-    .sort((a, b) => b.startedAt - a.startedAt)
-    .slice(0, 20)
+  const recentWatches = await getWatchHistory(20)
 
   return {
     totalWatchSec,
@@ -185,7 +249,7 @@ export async function getWatchStats(): Promise<WatchStats> {
  * 清空观看历史（不可恢复）。
  */
 export async function clearWatchHistory(): Promise<void> {
-  await mutate((db) => {
-    db.watchHistory = []
-  })
+  const db = getDb()
+  db.exec('DELETE FROM watch_history')
+  console.log('[watch-history] 观看历史已清空')
 }

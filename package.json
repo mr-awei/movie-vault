@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "app-builder-bin": "^4.2.0",
+    "better-sqlite3": "^13.0.3",
     "builder-util": "^24.13.1",
     "chokidar": "^5.0.0",
     "fast-xml-parser": "^5.11.1",
@@ -27,7 +28,9 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
     "@esbuild/win32-x64": "^0.28.2",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.5.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

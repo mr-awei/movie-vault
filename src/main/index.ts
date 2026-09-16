@@ -4,6 +4,7 @@ import { promises as fs, appendFileSync, existsSync, mkdirSync, readFileSync, re
 import { execSync } from 'node:child_process'
 import { registerIpc, runUpdateCheck } from './lib/ipc'
 import { startWatching, stopAllWatchers } from './lib/watcher'
+import { getDb, closeDb } from './lib/db'
 import { startPreviewTaskQueue, stopPreviewTaskQueue } from './lib/preview-task-queue'
 import { runtime, applyRuntimeSettings } from './lib/runtime'
 import { tMain, setLocale as setMainLocale, subscribeLocale, type Locale } from '../shared/i18n'
@@ -367,6 +368,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   stopAllWatchers()
+  closeDb()
   void stopPreviewTaskQueue()
 })
 
@@ -380,6 +382,8 @@ app.whenReady().then(() => {
 
   registerLocalMedia()
   registerIpc()
+  // 初始化 SQLite 数据库
+  getDb()
   void startPreviewTaskQueue()
 
   // 启动时应用界面语言：安装器首次安装的语言选择 > settings.language > 默认中文
