@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'node:path'
 import { promises as fs } from 'node:fs'
+import fsSync from 'node:fs'
 
 /**
  * SQLite 数据库模块（better-sqlite3）。
@@ -184,7 +185,7 @@ export async function backupDb(): Promise<string> {
 export function getDbSize(): number {
   const p = getDbPath()
   try {
-    const stat = require('node:fs').statSync(p)
+    const stat = fsSync.statSync(p)
     return stat.size
   } catch {
     return 0
