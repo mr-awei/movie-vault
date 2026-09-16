@@ -1,5 +1,6 @@
 import type { WatchHistoryEntry, WatchStats, Video } from '../../shared/types'
 import { getDb } from './db'
+import { listVideos } from './repo'
 
 /**
  * 观看历史管理模块（SQLite 版本）。
@@ -219,7 +220,6 @@ export async function getWatchStats(): Promise<WatchStats> {
 
   // 最常观看的标签/演员/导演（需要关联视频信息，从 JSON store 读取）
   // 注意：这部分统计需要视频的元数据，暂时从 repo 读取
-  const { listVideos } = require('./repo')
   const allVideos: Video[] = await listVideos({})
   const videoMap = new Map(allVideos.map((v: Video) => [v.id, v]))
 

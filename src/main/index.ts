@@ -187,8 +187,7 @@ function registerLocalMedia(): void {
       const encoded = url.pathname.slice(1)
       const real = Buffer.from(decodeURIComponent(encoded), 'base64').toString('utf-8')
       if (!app.isPackaged) {
-        const fs = require('node:fs') as typeof import('node:fs')
-        const exists = fs.existsSync(real)
+        const exists = existsSync(real)
         console.log(`[lm] req=${request.url} path=${real} exists=${exists} ext=${path.extname(real)}`)
       }
       const ext = path.extname(real).toLowerCase()
