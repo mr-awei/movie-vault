@@ -1,8 +1,31 @@
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { writeFileSync, mkdirSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+/**
+ * Vite 插件：构建完成后在输出目录创建 {"type": "commonjs"} 的 package.json。
+ *
+ * 原因：根目录 package.json 有 "type": "module"，导致所有 .js 文件被当作 ESM 加载。
+ * 但主进程/preload 构建输出是 CJS 格式（含 require），被当作 ESM 加载会报
+ * "require is not defined in ES module scope"。
+ * 在输出目录放一个 {"type": "commonjs"} 的 package.json 可覆盖根目录设置。
+ */
+function commonjsPackageJson(outDir: string) {
+  return {
+    name: 'commonjs-package-json',
+    closeBundle() {
+      const dir = resolve(process.cwd(), outDir)
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(resolve(dir, 'package.json'), JSON.stringify({ type: 'commonjs' }, null, 2))
+      console.log(`[commonjs-package-json] created ${outDir}/package.json`)
+    }
+  }
+}
 
 export default defineConfig({
   main: {
+    plugins: [commonjsPackageJson('out/main')],
     build: {
       // 每次 build 清空 out/main，避免旧版文件残留导致打包时混入历史 chunk
       emptyOutDir: true,
@@ -18,6 +41,7 @@ export default defineConfig({
     }
   },
   preload: {
+    plugins: [commonjsPackageJson('out/preload')],
     build: {
       emptyOutDir: true,
       rollupOptions: {
