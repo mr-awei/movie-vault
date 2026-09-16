@@ -10,7 +10,33 @@ Change types: `Added` / `Changed` / `Fixed` / `Removed` / `Security`.
 
 ---
 
+## [2.10.0] - 2026-09-16
+
+**Deep-review P0+P1 all done: security hardening + performance + architecture refactor**
+
+### Security (P0)
+- **Single-instance lock**: second launches yield to the first; no duplicate scans or concurrent DB writes
+- **lm:// protocol allowlist**: isLmAllowedPath validation, invalid paths get 403
+- **Playback progress persisted every 10s** with lastSaveAt tracking; PotPlayer handoff entries are not written
+
+### Performance (P0/P1)
+- **Home rankings via top-N min-heap**: O(N·log14) instead of full sorts; fixed high-score items being filtered out before sorting
+- **ListView virtualization with fixed row height**; EntryCard memo narrowed to [libraryId] + reconcileRef
+- **ffmpeg/ffprobe paths cached at module level**; watch stats use SQL aggregation instead of full listVideos
+
+### Architecture (P1)
+- **fetch-meta source-table driven**: five sources (moviedb/omdb/openlibrary/justwatch/wikipedia) share one SOURCES config and runSingleSource; auto-disable after 3 consecutive failures
+- **SettingsModal split** (1634 → shell + SettingsSections with 8 category components)
+- **VideoDetail split** (1121 lines → 9 sub-components)
+- Earlier: full SQLite migration, Zustand state migration, IPC split by domain
+
+### Fixed (P0/P1)
+- **Proxy auth**: embedded user:pass in proxyRules is ignored by Chromium; moved to app.on('login')
+- **Watcher jitter**: MutationObserver scoped to the container itself; wall re-measure on theme/density change
+- **i18n**: 18 hard-coded Chinese strings moved to keys (zh/en)
+
 ## [2.9.2] - 2026-09-16
+
 
 **Export Excel improvements + Reconcile dialog spec buttons + poster consistency fix**
 
