@@ -440,24 +440,28 @@ export default function WatchStatsModal({ onClose, onOpenVideo, onPickTag, onPic
               {/* 月度趋势 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">月度趋势（最近 12 个月）</h3>
+                <p className="text-white/40 text-[11px] mb-3 leading-relaxed">横轴为月份；左侧紫色折线 = 该月观看时长（小时），右侧黄色柱 = 该月观看次数。一个月没看则为 0。</p>
                 <div ref={monthlyChartRef} style={{ width: '100%', height: 220, backgroundColor: '#ffffff', borderRadius: 8 }} />
               </div>
 
               {/* 每周趋势 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">每周趋势（最近 12 周）</h3>
+                <p className="text-white/40 text-[11px] mb-3 leading-relaxed">横轴为周（周一开始计算）；左侧绿色折线 = 该周观看时长，右侧黄色柱 = 该周观看次数。</p>
                 <div ref={weeklyChartRef} style={{ width: '100%', height: 220, backgroundColor: '#ffffff', borderRadius: 8 }} />
               </div>
 
               {/* 完成度分布 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">完成度分布</h3>
+                <p className="text-white/40 text-[11px] mb-3 leading-relaxed">按每部影片看到什么程度归类：0-25% = 刚开头就关，25-50% = 看了一点，50-75% = 看了一大半，75-100% = 基本看完。中心数字 = 观看总次数。</p>
                 <div ref={completionChartRef} style={{ width: '100%', height: 200, backgroundColor: '#ffffff', borderRadius: 8 }} />
               </div>
 
               {/* 观看时间分布 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">观看时间分布（24 小时）</h3>
+                <p className="text-white/40 text-[11px] mb-3 leading-relaxed">横轴为一天 24 小时；柱高 = 该小时观看时长，黄色折线 = 该小时观看次数。看出你习惯几点看片。</p>
                 <div ref={hourlyChartRef} style={{ width: '100%', height: 200, backgroundColor: '#ffffff', borderRadius: 8 }} />
               </div>
 
@@ -466,6 +470,7 @@ export default function WatchStatsModal({ onClose, onOpenVideo, onPickTag, onPic
                 {/* Top 标签 */}
                 <div className="bg-white/5 rounded-xl p-4">
                   <h3 className="text-white font-medium text-sm mb-3">最常看标签 Top 10</h3>
+                  <p className="text-white/40 text-[11px] mb-3 leading-relaxed">你观看时长最多的标签，点击标签可筛选该标签影片。</p>
                   <div className="space-y-2">
                     {stats.topTags.length === 0 ? (
                       <div className="text-white/30 text-xs">暂无数据</div>
@@ -497,6 +502,7 @@ export default function WatchStatsModal({ onClose, onOpenVideo, onPickTag, onPic
                 {/* Top 演员 */}
                 <div className="bg-white/5 rounded-xl p-4">
                   <h3 className="text-white font-medium text-sm mb-3">最常看演员 Top 10</h3>
+                  <p className="text-white/40 text-[11px] mb-3 leading-relaxed">你观看时长最多的演员，点击可筛选其影片。</p>
                   <div className="space-y-2">
                     {stats.topActors.length === 0 ? (
                       <div className="text-white/30 text-xs">暂无数据</div>
@@ -522,6 +528,7 @@ export default function WatchStatsModal({ onClose, onOpenVideo, onPickTag, onPic
                 {/* Top 导演 */}
                 <div className="bg-white/5 rounded-xl p-4">
                   <h3 className="text-white font-medium text-sm mb-3">最常看导演 Top 10</h3>
+                  <p className="text-white/40 text-[11px] mb-3 leading-relaxed">你观看时长最多的导演，点击可筛选其影片。</p>
                   <div className="space-y-2">
                     {stats.topDirectors.length === 0 ? (
                       <div className="text-white/30 text-xs">暂无数据</div>
@@ -548,6 +555,7 @@ export default function WatchStatsModal({ onClose, onOpenVideo, onPickTag, onPic
               {/* 观看时长排行榜 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">观看时长排行榜 Top 20</h3>
+                <p className="text-white/40 text-[11px] mb-3 leading-relaxed">按累计观看时长排名的前 20 部影片（次数 = 看了几次），点击可打开影片详情。</p>
                 <div className="space-y-1.5">
                   {stats.topVideosByDuration.length === 0 ? (
                     <div className="text-white/30 text-xs">暂无数据</div>
@@ -569,6 +577,7 @@ export default function WatchStatsModal({ onClose, onOpenVideo, onPickTag, onPic
               {/* 最近观看记录 */}
               <div className="bg-white/5 rounded-xl p-4">
                 <h3 className="text-white font-medium text-sm mb-3">最近观看记录（最近 20 条）</h3>
+                <p className="text-white/40 text-[11px] mb-3 leading-relaxed">最近 20 次观看记录（时间 · 看了多久 · 完成度），点击可打开影片详情。</p>
                 <div className="space-y-1.5">
                   {stats.recentWatches.length === 0 ? (
                     <div className="text-white/30 text-xs">暂无记录</div>
