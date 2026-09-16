@@ -114,7 +114,7 @@ export default function Toolbar(props: Props) {
                 </button>
                 <button
                   className="w-full text-left px-3 py-2 hover:bg-ink-700 text-white/90 flex items-start gap-2"
-                  onClick={() => { console.log('[batch] menu click force=true'); setBatchMenuOpen(false); onBatchFetch(true) }}
+                  onClick={() => { setBatchMenuOpen(false); onBatchFetch(true) }}
                 >
                   <Icon name="refresh" size={14} className="text-amber-400 mt-0.5 shrink-0" />
                   <div>

@@ -23,10 +23,8 @@ export function NetworkSection({ draft, setDraft, inputCls, open }: SettingsSect
     setTestResult(null)
     try {
       const r = await api.proxyTest(draft)
-      console.log('[proxyTest renderer]', r)
       setTestResult(r)
     } catch (e) {
-      console.log('[proxyTest renderer] error', e)
       setTestResult({ ok: false, error: String(e).slice(0, 200) })
     } finally {
       setTesting(false)

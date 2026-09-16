@@ -9,6 +9,7 @@ import { getDb, closeDb } from './lib/db'
 import { startPreviewTaskQueue, stopPreviewTaskQueue } from './lib/preview-task-queue'
 import { runtime, applyRuntimeSettings } from './lib/runtime'
 import { detectFfmpeg } from './lib/ffmpegEnv'
+import { installLogger } from './lib/logger'
 import { tMain, setLocale as setMainLocale, subscribeLocale, type Locale } from '../shared/i18n'
 
 // 数据目录设置：开发模式与正式版使用相同目录名，共用一份数据（yinghai）
@@ -41,6 +42,9 @@ function setupWindowsConsoleUtf8(): void {
   }
 }
 setupWindowsConsoleUtf8()
+
+// 日志文件接管 console：logs/yinghai.log（启动即生效，崩溃/启动失败可追溯）
+installLogger()
 
 // ------------------------------------------------------------------
 // 单实例锁 + 升级时强制杀掉旧进程（P0 重要修复）
