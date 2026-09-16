@@ -35,7 +35,7 @@ import BrowseBar from './components/BrowseBar'
 import ListView from './components/ListView'
 import Icon from './components/Icon'
 import { ToastProvider, toast } from './components/Toast'
-import ConfirmDeleteModal, { type DeletePreview } from './components/ConfirmDeleteModal'
+import ConfirmDeleteModal from './components/ConfirmDeleteModal'
 import UserNoticeModal from './components/UserNoticeModal'
 import OnboardSheetModal from './components/OnboardSheetModal'
 import type { AppInfo } from '../../shared/api-types'
@@ -141,28 +141,36 @@ export default function App() {
   const showDuplicates = useUIStore((s) => s.showDuplicates)
   const setShowDuplicates = useUIStore((s) => s.setShowDuplicates)
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
+  const addingLibrary = useUIStore((s) => s.addingLibrary)
+  const setAddingLibrary = useUIStore((s) => s.setAddingLibrary)
+  const editing = useUIStore((s) => s.editing)
+  const setEditing = useUIStore((s) => s.setEditing)
+  const detail = useUIStore((s) => s.detail)
+  const setDetail = useUIStore((s) => s.setDetail)
+  const deletePreview = useUIStore((s) => s.deletePreview)
+  const setDeletePreview = useUIStore((s) => s.setDeletePreview)
+  const deleting = useUIStore((s) => s.deleting)
+  const setDeleting = useUIStore((s) => s.setDeleting)
+  const scanning = useUIStore((s) => s.scanning)
+  const setScanning = useUIStore((s) => s.setScanning)
+  const selectMode = useUIStore((s) => s.selectMode)
+  const setSelectMode = useUIStore((s) => s.setSelectMode)
+  const dragSelectMode = useUIStore((s) => s.dragSelectMode)
+  const setDragSelectMode = useUIStore((s) => s.setDragSelectMode)
   /** 用户须知弹窗：首次启动（noticeDismissed 未设置/为 false）时强制弹出 */
   /** true = 「{t('app.addLibrary')}」新建表单；false = 库设置编辑模式 */
-  const [addingLibrary, setAddingLibrary] = useState(false)
-  const [editing, setEditing] = useState<Video | null>(null)
-  const [detail, setDetail] = useState<Video | null>(null)
   /** 删除二次确认弹窗：非空时显示；保存预检结果与删除范围 */
-  const [deletePreview, setDeletePreview] = useState<DeletePreview | null>(null)
   /** 删除执行中（防重复点击） */
-  const [deleting, setDeleting] = useState(false)
-  const [scanning, setScanning] = useState(false)
   // 隐私护盾：一键模糊所有预览图（防截图泄露敏感内容），持久化到 localStorage
   const [privacy, setPrivacy] = useState<boolean>(() => localStorage.getItem('vm-privacy') === '1')
   const [progress, setProgress] = useState<{ total: number; done: number; current?: string } | null>(null)
   const [fetchPaused, setFetchPaused] = useState(false)
   // v2.7.x：多选批量锁定（浏览页）
-  const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // 播放列表
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null)
   const [pendingPlaylistId, setPendingPlaylistId] = useState<string | null>(null)
-  const [dragSelectMode, setDragSelectMode] = useState<'select' | 'deselect' | null>(null)
   const [showWatchStats, setShowWatchStats] = useState(false)
   // v2.2.10：实时抓取日志（"数据源失败 → 降级下一源" 这类过程，右下角浮层滚动展示）
   const [fetchLogs, setFetchLogs] = useState<
