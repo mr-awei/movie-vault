@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.11.1] - 2026-09-16
+
+**Duplicate-detection precision / watch-stats tag split / architecture refactor**
+
+### Fixed
+- **Duplicate detection false positives (feature match)**: feature-level matching now requires
+  normalized-title similarity ≥ 0.75 (edit distance) + duration ±1% (abs ≤ 90s) + resolution
+  present on both sides and equal + file size ±2% (was ±5% / ±10% with no title check).
+  Prevents unrelated titles with similar runtime/size (common in genre film libraries) from being
+  flagged as duplicates and prompting risky deletions. Regression cases verified via
+  `scripts/verify-dedup.cjs`.
+- **Watch-stats "Most-watched tags" merged-tag rows**: tag statistics now split merged strings
+  (`古装/欲望/夫妻` → 3 tags; space/`、`/`,` separated too) and prefer structured
+  `tag_categories`, matching the UI filter/display convention — no more 3 chips squeezed into one row.
+
+### Changed / Architecture
+- **B-2 mega-file split**: `App.tsx` 3055 → 2778 (extracted `ActiveFilterBar` / `BatchLockBar` /
+  `SkippedFilesModal`); `SettingsSections.tsx` 1453 → 14-line aggregator + 8 standalone sections
+  under `components/settings/`; `Sidebar.tsx` 918 → 687 + `sidebar-ui.tsx`. Zero behavior change.
+- **Tech-debt batch (A/B/C)**: A-1 dual-write convergence (SQLite writes skip JSON when populated,
+  JSON kept as read-only fallback); A-2 IPC patch whitelists (`VIDEO_PATCH_KEYS` /
+  `SETTINGS_PATCH_KEYS` / explicit `proxyTest` params); B-1 privacy-lock upgraded to scrypt
+  (`v2:` prefix, timing-safe verify, legacy sha256 auto-compat); B-3 39 non-null assertions
+  hardened (top-risk first); C: dropped unused deps, removed dead code/TODOs, static dynamic imports.
+- Full technical-debt review report: `artifacts/影海技术债审查报告.md`.
+
 ## [2.11.0] - 2026-09-16
 
 **P2 optimization batch: native dialog replacement / backup & restore / data convergence / type safety**
