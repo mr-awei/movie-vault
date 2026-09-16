@@ -107,6 +107,7 @@ export const IPC = {
   // ---------- v2.9.0 新增通道 ----------
   // 重复视频检测：按 contentHash 分组返回重复项
   libraryFindDuplicates: 'library:findDuplicates',
+  duplicateProgress: 'duplicate:progress',
   // NFO 文件：读取同目录 .nfo 元数据
   videoReadNfo: 'video:readNfo',
   // NFO 文件：把当前视频元数据导出为同目录 .nfo

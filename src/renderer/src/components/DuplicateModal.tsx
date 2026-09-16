@@ -43,14 +43,20 @@ export default function DuplicateModal({ onClose, libraryId }: Props) {
   const [loading, setLoading] = useState(true)
   const [totalWasted, setTotalWasted] = useState(0)
   const [activeType, setActiveType] = useState<DuplicateMatchType | 'all'>('all')
+  const [phashProgress, setPhashProgress] = useState<{ done: number; total: number } | null>(null)
 
   useEffect(() => {
+    const off = api.onDuplicateProgress((p) => setPhashProgress(p))
     void (async () => {
-      const result = await api.libraryFindDuplicates(libraryId)
-      setGroups(result)
-      setTotalWasted(result.reduce((sum, g) => sum + g.wastedBytes, 0))
-      setLoading(false)
+      try {
+        const result = await api.libraryFindDuplicates(libraryId)
+        setGroups(result)
+        setTotalWasted(result.reduce((sum, g) => sum + g.wastedBytes, 0))
+      } finally {
+        setLoading(false)
+      }
     })()
+    return off
   }, [libraryId])
 
   const filteredGroups = activeType === 'all' ? groups : groups.filter((g) => g.matchType === activeType)
@@ -112,7 +118,15 @@ export default function DuplicateModal({ onClose, libraryId }: Props) {
         {/* 内容区 */}
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
-            <div className="text-white/40 text-sm text-center py-16">正在检测重复视频（三级匹配：精确/标题/特征）...</div>
+            <div className="text-white/40 text-sm text-center py-16">
+              {phashProgress ? (
+                <span>
+                  正在计算影片内容指纹（第 4 级检测）... {phashProgress.done}/{phashProgress.total}
+                </span>
+              ) : (
+                <span>正在检测重复视频（四级匹配：精确/标题/特征/内容相似）...</span>
+              )}
+            </div>
           ) : groups.length === 0 ? (
             <div className="text-center py-16">
               <Icon name="check" size={48} className="text-green-400 mx-auto mb-4" />

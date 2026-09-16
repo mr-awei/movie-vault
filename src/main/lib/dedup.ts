@@ -142,22 +142,32 @@ function toDupVideo(v: Video, recommended = false): DuplicateGroup['videos'][num
 
 /**
  * 惰性计算缺失的内容感知哈希（phash）。
- * 只对没有 phash 的视频抽帧计算（串行，避免 ffmpeg 并发抢 IO），结果写库持久化。
+ * 并发 4 个 ffmpeg（IO/CPU 均衡，避免进程风暴），结果写库持久化。
+ * onProgress: (done, total) 进度回调（供 UI 显示）。
  */
-async function ensurePhashes(videos: Video[]): Promise<void> {
+async function ensurePhashes(videos: Video[], onProgress?: (done: number, total: number) => void): Promise<void> {
   const pending = videos.filter((v) => !v.phash && v.path)
   if (pending.length === 0) return
   const settings = await getSettings()
+  const CONCURRENCY = 4
   let done = 0
-  for (const v of pending) {
-    const h = await computePhash(v.path, settings)
-    if (h) {
-      v.phash = h
-      setVideoPhash(v.id, h)
+  let next = 0
+  const worker = async (): Promise<void> => {
+    while (true) {
+      const idx = next++
+      if (idx >= pending.length) return
+      const v = pending[idx]
+      const h = await computePhash(v.path, settings)
+      if (h) {
+        v.phash = h
+        setVideoPhash(v.id, h)
+      }
+      done++
+      onProgress?.(done, pending.length)
+      console.log(`[dedup] phash 计算 ${done}/${pending.length} ${v.fileName ?? v.title}`)
     }
-    done++
-    console.log(`[dedup] phash 计算 ${done}/${pending.length} ${v.fileName ?? v.title}`)
   }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, pending.length) }, () => worker()))
 }
 
 /**
@@ -165,13 +175,13 @@ async function ensurePhashes(videos: Video[]): Promise<void> {
  * 四级检测：精确哈希 / 标题 / 特征 / 内容感知哈希(phash)。
  * 精确匹配优先，避免同一个视频出现在多个组中。
  */
-export async function findDuplicates(libraryId: string): Promise<DuplicateGroup[]> {
+export async function findDuplicates(libraryId: string, onProgress?: (done: number, total: number) => void): Promise<DuplicateGroup[]> {
   const videos = await listVideos({ libraryId })
   const result: DuplicateGroup[] = []
   const usedIds = new Set<string>()
 
   // 先补齐缺失的 phash（惰性计算 + 持久化）
-  await ensurePhashes(videos)
+  await ensurePhashes(videos, onProgress)
 
   // ========== 第一级：精确匹配（contentHash） ==========
   const hashGroups = new Map<string, Video[]>()

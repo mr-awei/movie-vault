@@ -108,6 +108,11 @@ const api: AppApi = {
     const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as Parameters<typeof cb>[0])
     ipcRenderer.on(IPC.watcherEvent, handler)
     return () => ipcRenderer.removeListener(IPC.watcherEvent, handler)
+  },
+  onDuplicateProgress: (cb) => {
+    const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as Parameters<typeof cb>[0])
+    ipcRenderer.on(IPC.duplicateProgress, handler)
+    return () => ipcRenderer.removeListener(IPC.duplicateProgress, handler)
   }
 }
 

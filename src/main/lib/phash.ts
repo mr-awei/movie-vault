@@ -12,19 +12,9 @@ function runFfmpegRaw(exe: string, args: string[]): Promise<Buffer> {
   })
 }
 
-/** 执行 ffmpeg 探测（拿 stderr 文本） */
-function runFfmpegProbe(exe: string, args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile(exe, args, { timeout: 15000, encoding: 'utf8' }, (err, _stdout, stderr) => {
-      if (err) reject(err)
-      else resolve(stderr)
-    })
-  })
-}
-
 /**
  * 内容感知哈希（dHash，零依赖）。
- * 用 ffmpeg 从视频中部抽 1 帧灰度 9x8 像素，按相邻像素亮度差生成 64-bit 哈希。
+ * 用 ffmpeg 抽 1 帧灰度 9x8 像素，按相邻像素亮度差生成 64-bit 哈希。
  * 用途：重复检测第 4 级——容忍转码/缩放/水印的内容级相似（比特征匹配可靠）。
  * 注意：命中只作"疑似"，必须配合标题相似度 + 人工确认（防误删）。
  */
@@ -57,9 +47,18 @@ export function phashDistance(a: string, b: string): number {
   return n
 }
 
+/** 抽帧基础参数（9x8 灰度 rawvideo） */
+function frameArgs(videoPath: string, ss?: number): string[] {
+  const vf = 'scale=9:8:force_original_aspect_ratio=increase,crop=9:8'
+  return ss != null
+    ? ['-ss', String(ss), '-i', videoPath, '-frames:v', '1', '-vf', vf, '-f', 'rawvideo', '-pix_fmt', 'gray', '-']
+    : ['-i', videoPath, '-frames:v', '1', '-vf', vf, '-f', 'rawvideo', '-pix_fmt', 'gray', '-']
+}
+
 /**
  * 计算视频的内容感知哈希。
- * 步骤：ffprobe 取时长 → ffmpeg 从中部抽 1 帧 → scale 9:8 灰度 → rawvideo 输出 → dHash。
+ * 单次 ffmpeg 调用（v2.12.1 优化）：固定 seek 30s（快速输入 seek，避开黑帧标题帧片头），
+ * 短视频/抽帧失败回退首帧。相比逐部 probe+抽帧 2 次进程，计算量减半。
  * 失败返回 null（不抛错，重复检测降级跳过该视频）。
  */
 export async function computePhash(videoPath: string, settings: Settings): Promise<string | null> {
@@ -67,23 +66,21 @@ export async function computePhash(videoPath: string, settings: Settings): Promi
     const exe = await resolveFfmpegExe(settings)
     if (!exe) return null
 
-    // 时长（中间帧最稳：片头可能有黑帧/标题帧）
-    let duration = 0
+    // 先尝试 30s 处（大片头跳过标题帧；-ss 在 -i 前为快速 seek）
     try {
-      const stderr = await runFfmpegProbe(exe, ['-i', videoPath, '-f', 'null', '-'])
-      const m = stderr.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/)
-      if (m) duration = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])
+      const out = await runFfmpegRaw(exe, frameArgs(videoPath, 30))
+      if (out && out.length >= 72) return dHashFromGray(out, 9, 8)
     } catch {
-      /* probe 失败则不 seek，抽首帧 */
+      /* 短视频/损坏 → 回退首帧 */
     }
-    const ss = duration > 30 ? Math.max(1, Math.round(duration / 2)) : 0
-
-    const args = ss > 0
-      ? ['-ss', String(ss), '-i', videoPath, '-frames:v', '1', '-vf', 'scale=9:8:force_original_aspect_ratio=increase,crop=9:8', '-f', 'rawvideo', '-pix_fmt', 'gray', '-']
-      : ['-i', videoPath, '-frames:v', '1', '-vf', 'scale=9:8:force_original_aspect_ratio=increase,crop=9:8', '-f', 'rawvideo', '-pix_fmt', 'gray', '-']
-    const out = await runFfmpegRaw(exe, args)
-    if (!out || out.length < 72) return null
-    return dHashFromGray(out, 9, 8)
+    // 回退：首帧
+    try {
+      const out = await runFfmpegRaw(exe, frameArgs(videoPath))
+      if (out && out.length >= 72) return dHashFromGray(out, 9, 8)
+    } catch {
+      return null
+    }
+    return null
   } catch {
     return null
   }

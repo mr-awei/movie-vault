@@ -151,6 +151,8 @@ export interface AppApi {
   markerList(videoId: string): Promise<SceneMarker[]>
   markerCreate(videoId: string, positionSec: number, name: string, tags: string[]): Promise<SceneMarker | null>
   markerDelete(id: string): Promise<boolean>
+  /** v2.12.1：重复检测进度（主进程推送 {done,total}） */
+  onDuplicateProgress(cb: (p: { done: number; total: number }) => void): () => void
   videoScan(libraryId: string): Promise<Video[]>
   videoOpen(id: string, startSec?: number): Promise<OpenResult>
   videoOpenPlaylist(videos: Video[]): Promise<{ ok: boolean; method: string; count: number }>

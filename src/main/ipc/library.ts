@@ -621,7 +621,10 @@ export function registerLibraryIpc() {
 
   ipcMain.handle(IPC.libraryFindDuplicates, async (_e, libraryId: string) => {
     if (!isSafeId(libraryId)) throw new Error('非法 libraryId')
-    return findDuplicates(libraryId)
+    const wc = _e.sender
+    return findDuplicates(libraryId, (done, total) => {
+      if (!wc.isDestroyed()) wc.send(IPC.duplicateProgress, { done, total })
+    })
   })
 
   // 读取 NFO 文件
