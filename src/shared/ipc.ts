@@ -1,4 +1,4 @@
-﻿// 类型化 IPC 通道名集合（主进程 handle / 渲染进程 invoke 共用）
+// 类型化 IPC 通道名集合（主进程 handle / 渲染进程 invoke 共用）
 
 export const IPC = {
   // 媒体库
@@ -127,7 +127,10 @@ export const IPC = {
   // 观看历史：清空
   watchHistoryClear: 'watchHistory:clear',
   // 文件夹监控事件（主进程 -> 渲染进程）：检测到文件变化
-  watcherEvent: 'watcher:event'
+  watcherEvent: 'watcher:event',
+  // P2-7 备份 / 还原（zip）
+  backupExport: 'backup:export',
+  backupImport: 'backup:import'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

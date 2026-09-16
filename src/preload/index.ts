@@ -43,6 +43,8 @@ const api: AppApi = {
   cacheClear: () => ipcRenderer.invoke(IPC.cacheClear),
   ffmpegStatus: () => ipcRenderer.invoke(IPC.ffmpegStatus),
   appUninstall: (keepUser: boolean) => ipcRenderer.invoke(IPC.appUninstall, keepUser),
+  backupExport: () => ipcRenderer.invoke(IPC.backupExport),
+  backupImport: () => ipcRenderer.invoke(IPC.backupImport),
   onPosterFetched: (cb) => {
     const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => cb(payload as Parameters<typeof cb>[0])
     ipcRenderer.on(IPC.posterFetched, handler)

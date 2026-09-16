@@ -1,0 +1,6 @@
+const fs = require('fs')
+const repo = fs.readFileSync('E:/Movie Vault/src/main/lib/repo.ts', 'utf8')
+const store = fs.readFileSync('E:/Movie Vault/src/main/lib/store.ts', 'utf8')
+console.log('repo imports store:', /from ['"].*store['"]/.test(repo))
+console.log('store imports repo:', /from ['"].*repo['"]/.test(store))
+console.log('repo exports getDb:', /export (function|const) getDb/.test(repo))

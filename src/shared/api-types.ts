@@ -188,6 +188,10 @@ export interface AppApi {
   /** 卸载应用（危险操作）：弹出应用内确认框后调用 NSIS 卸载程序。
    *  keepUser=true 保留用户数据；false 则在卸载流程中删除用户数据（受保护脚本安全校验） */
   appUninstall(keepUser: boolean): Promise<{ ok: boolean; error?: string }>
+  /** P2-7 导出库备份（SQLite + data.json → zip，用户选保存路径） */
+  backupExport(): Promise<{ ok: boolean; path?: string; error?: string }>
+  /** P2-7 导入库备份（覆盖数据库前自动备份现有 .pre-restore；返回 needsRestart 提示重启） */
+  backupImport(): Promise<{ ok: boolean; path?: string; error?: string; needsRestart?: boolean }>
   /** 监听：批量抓取时每抓到一张实时回调 {videoId, posterPath} */
   onPosterFetched(cb: (p: { videoId: string; posterPath: string }) => void): () => void
   /** 在系统文件管理器中显示并选中该文件（用于改名） */

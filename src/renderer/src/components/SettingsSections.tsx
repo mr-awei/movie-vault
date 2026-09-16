@@ -1079,6 +1079,8 @@ export function PrivacySection({ draft, setDraft, inputCls, settings, onSaved }:
 
 export function StorageSection({ draft, setDraft, inputCls, dataDir }: SettingsSectionProps & { dataDir: string }) {
   const [clearMsg, setClearMsg] = useState('')
+  const [backupMsg, setBackupMsg] = useState<string | null>(null)
+  const [backupBusy, setBackupBusy] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const doClearCache = async () => {
     const r = await api.cacheClear()
@@ -1132,7 +1134,43 @@ export function StorageSection({ draft, setDraft, inputCls, dataDir }: SettingsS
           >
             {t('settings.clearPosterCache')}
           </button>
+          <button
+            className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-medium cursor-pointer transition-colors disabled:opacity-50"
+            onClick={async () => {
+              setBackupBusy(true)
+              setBackupMsg(null)
+              try {
+                const r = await api.backupExport()
+                if (r.ok) setBackupMsg(t('settings.backupExported', { path: r.path ?? '' }))
+                else setBackupMsg(t('settings.backupFailed', { err: r.error ?? '' }))
+              } finally {
+                setBackupBusy(false)
+              }
+            }}
+            disabled={backupBusy}
+          >
+            {t('settings.backupExport')}
+          </button>
+          <button
+            className="px-3 py-1.5 rounded-lg bg-ink-700 hover:bg-ink-600 text-white text-sm cursor-pointer transition-colors disabled:opacity-50"
+            onClick={async () => {
+              setBackupBusy(true)
+              setBackupMsg(null)
+              try {
+                const r = await api.backupImport()
+                if (r.ok) {
+                  setBackupMsg(r.needsRestart ? t('settings.backupImportedRestart') : t('settings.backupImported'))
+                } else setBackupMsg(t('settings.backupFailed', { err: r.error ?? '' }))
+              } finally {
+                setBackupBusy(false)
+              }
+            }}
+            disabled={backupBusy}
+          >
+            {t('settings.backupImport')}
+          </button>
         </div>
+        {backupMsg ? <div className="text-white/60 text-xs mt-2">{backupMsg}</div> : null}
         {clearMsg ? <div className="text-white/60 text-xs mt-2">{clearMsg}</div> : null}
       </Card>
       <ConfirmModal

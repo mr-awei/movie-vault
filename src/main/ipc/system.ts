@@ -5,6 +5,7 @@ import * as repo from '../lib/repo'
 import * as watchHistory from '../lib/watch-history'
 import { testProxyConnectivity } from '../lib/proxy'
 import { detectFfmpeg } from '../lib/ffmpegEnv'
+import { backupExport, backupImport } from '../lib/backup'
 import { applyRenames } from '../lib/rename'
 import { postersCacheDir } from '../lib/images'
 import path from 'node:path'
@@ -310,6 +311,10 @@ export function registerSystemIpc() {
   // ---------- 检查更新（GitHub / Gitee） ----------
 
   ipcMain.handle(IPC.updateCheck, (): Promise<UpdateCheckResult> => runUpdateCheck())
+
+  // ---------- P2-7 备份 / 还原 ----------
+  ipcMain.handle(IPC.backupExport, () => backupExport())
+  ipcMain.handle(IPC.backupImport, () => backupImport())
 
   // ---------- ffmpeg 截帧：同步生成封面 + 预览帧，立即返回 ----------
   // ---------- 观看历史 ----------

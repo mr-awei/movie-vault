@@ -1,0 +1,7 @@
+const fs = require('fs')
+const ipc = fs.readFileSync('E:/Movie Vault/src/shared/ipc.ts', 'utf8')
+const lines = ipc.split('\n')
+console.log('total', lines.length)
+console.log(lines.slice(0, 40).join('\n'))
+console.log('---tail---')
+console.log(lines.slice(-25).join('\n'))
