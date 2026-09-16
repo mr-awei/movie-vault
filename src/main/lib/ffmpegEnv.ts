@@ -174,8 +174,26 @@ async function tryRemoveBundled(): Promise<boolean> {
   }
 }
 
+// ─── 可执行路径缓存（P0-9）───────────────────────────────────────────────
+// 扫描/预览生成会高频调用 resolveFfmpegExe / resolveFfprobeExe，
+// 每次都重走 custom→PATH→where→COMMON_DIRS→bundled 探测（每次 spawn 进程验证），
+// 大库扫描时白白创建几千个短命进程。按 settings.ffmpegPath 做模块级缓存。
+
+let cachedFfmpegKey: string | undefined
+let cachedFfmpeg: string | null | undefined
+let cachedFfprobeKey: string | undefined
+let cachedFfprobe: string | null | undefined
+
 /** 运行时可执行路径解析：custom > PATH > where.exe 兜底 > COMMON_DIRS > bundled（供 images/ffprobe 使用） */
 export async function resolveFfmpegExe(settings: Settings): Promise<string | null> {
+  const key = settings.ffmpegPath?.trim() ?? ''
+  if (cachedFfmpegKey === key) return cachedFfmpeg ?? null
+  cachedFfmpegKey = key
+  cachedFfmpeg = await doResolveFfmpegExe(settings)
+  return cachedFfmpeg
+}
+
+async function doResolveFfmpegExe(settings: Settings): Promise<string | null> {
   const custom = settings.ffmpegPath?.trim()
   if (custom && (await isUsable(custom))) return custom
   if (await probeExecutable('ffmpeg')) return 'ffmpeg'
@@ -194,6 +212,14 @@ export async function resolveFfmpegExe(settings: Settings): Promise<string | nul
 
 /** 运行时可执行路径解析：优先 ffmpeg 同目录 ffprobe，其次系统 PATH，其次 where.exe，其次捆绑 */
 export async function resolveFfprobeExe(settings: Settings): Promise<string | null> {
+  const key = settings.ffmpegPath?.trim() ?? ''
+  if (cachedFfprobeKey === key) return cachedFfprobe ?? null
+  cachedFfprobeKey = key
+  cachedFfprobe = await doResolveFfprobeExe(settings)
+  return cachedFfprobe
+}
+
+async function doResolveFfprobeExe(settings: Settings): Promise<string | null> {
   const custom = settings.ffmpegPath?.trim()
   if (custom) {
     const cand = path.join(

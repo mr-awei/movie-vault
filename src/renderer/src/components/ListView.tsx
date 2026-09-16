@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import type { DisplayEntry, Video } from '../../../shared/types'
 import { entryPrimaryTags, hasDocTags } from '../../../shared/types'
 import { posterUrl, placeholderGradient, titleInitial, formatDuration, formatSize, displayTitle } from '../lib/util'
@@ -26,6 +26,24 @@ interface Props {
 }
 
 function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, onPickTag, mode = 'full', selectable = false, selectedIds, onToggleSelect }: Props) {
+  // P0-5：虚拟化——列表曾全量 .map() 渲染，3000 部 = 3000 个 DOM 行（每行还有
+  // useFrameFallback + useState）必然卡顿。固定行高 + scrollTop 窗口，只渲染视口 ±5 行。
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [range, setRange] = useState({ top: 0, viewH: 0 })
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const update = () => setRange({ top: el.scrollTop, viewH: el.clientHeight })
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener('scroll', update)
+      ro.disconnect()
+    }
+  }, [])
+
   if (entries.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-white/40 text-sm px-6 text-center animate-fadeIn">
@@ -36,11 +54,17 @@ function ListViewInner({ entries, onOpen, onEdit, onOpenMissing, onToggleFlag, o
       </div>
     )
   }
+  // 虚拟化窗口：固定行高（filename≈50px / full 缩略图行≈86px，含 gap）
+  const ROW_H = mode === 'filename' ? 50 : 86
+  const total = entries.length
+  const start = Math.max(0, Math.floor(range.top / ROW_H) - 5)
+  const end = Math.min(total, Math.ceil((range.top + range.viewH) / ROW_H) + 5)
+  const visible = entries.slice(start, end)
 
   return (
-    <div className="overflow-auto thin-scroll pr-1 h-full">
-      <div className="flex flex-col gap-1.5">
-        {entries.map((e) => {
+    <div ref={containerRef} className="overflow-auto thin-scroll pr-1 h-full">
+      <div className="flex flex-col gap-1.5" style={{ paddingTop: start * ROW_H, paddingBottom: (total - end) * ROW_H }}>
+        {visible.map((e) => {
           const v = e.video
           const isMissing = e.kind === 'missing'
           const score = e.score ?? v?.rating

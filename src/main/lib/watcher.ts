@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron'
 import chokidar from 'chokidar'
 import type { FSWatcher } from 'chokidar'
+import { execSync } from 'node:child_process'
 import path from 'node:path'
 import { IPC } from '../../shared/ipc'
 import { VIDEO_EXTS } from './scanner'
@@ -40,16 +41,40 @@ function isVideoFile(p: string): boolean {
 /**
  * 检测路径是否为网络盘或外接盘（需要启用轮询模式）。
  * Windows 上：网络驱动器（\\server\share 或 映射盘符）、可移动磁盘（USB）
+ * P0-10：原实现恒返回 false，网络盘/移动硬盘事件丢失，新增文件库不更新。
+ * 现在：UNC 路径直接判定；盘符路径查 Win32_LogicalDisk DriveType
+ * （2=Removable 可移动盘、4=Network 网络映射盘）→ 启用 polling。
  */
+const driveTypeCache = new Map<string, number | null>()
+
+function getDriveType(letter: string): number | null {
+  const key = letter.toUpperCase()
+  if (driveTypeCache.has(key)) return driveTypeCache.get(key) ?? null
+  let type: number | null = null
+  try {
+    const out = execSync(
+      `powershell -NoProfile -Command "Get-CimInstance Win32_LogicalDisk -Filter \\"DeviceID='${key}:'\\" | Select-Object -ExpandProperty DriveType"`,
+      { encoding: 'utf8', timeout: 5000, windowsHide: true }
+    ).trim()
+    const n = Number.parseInt(out, 10)
+    type = Number.isFinite(n) ? n : null
+  } catch {
+    type = null
+  }
+  driveTypeCache.set(key, type)
+  return type
+}
+
 function isRemovableOrNetworkPath(folderPath: string): boolean {
   const p = folderPath.toLowerCase()
   // 网络路径：\\server\share 或 //server/share
   if (p.startsWith('\\\\') || p.startsWith('//')) return true
-  // 常见网络盘映射盘符（用户可能自定义，这里只做启发式检测）
-  // 可移动磁盘通常是 D: E: F: 等，但无法仅凭盘符判断
-  // 保守策略：非系统盘（C:）且非固定盘都可能是外接盘
-  // 实际上 chokidar 在 Windows 上原生事件通常够用，只有网络盘需要 polling
-  return false
+  if (process.platform !== 'win32') return false
+  // 盘符路径（如 E:\影视）：查盘类型，可移动盘(2)/网络盘(4) 需轮询
+  const m = /^([a-z]):[\\/]/.exec(p)
+  if (!m) return false
+  const t = getDriveType(m[1])
+  return t === 2 || t === 4
 }
 
 /** 向所有渲染窗口推送监控事件 */

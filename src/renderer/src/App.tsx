@@ -102,6 +102,8 @@ export default function App() {
   const libraryId = useDataStore((s) => s.libraryId)
   const setLibraryId = useDataStore((s) => s.setLibraryId)
   const reconcile = useDataStore((s) => s.reconcile)
+  const reconcileRef = useRef(reconcile)
+  reconcileRef.current = reconcile
   const setReconcile = useDataStore((s) => s.setReconcile)
   const filter = useFilterStore((s) => s.filter)
   const setFilter = useFilterStore((s) => s.setFilter)
@@ -298,9 +300,11 @@ export default function App() {
 
 
   // 后台轻量刷新设置：让「自动检查更新」写入的 pendingUpdate / lastUpdateCheck 自动回流到 UI（徽标、设置页横幅）
+  // P0-7：主进程每次返回新引用，直接 setSettings 会每 60s 触发整棵 App 树重渲染。
+  // 内容未变时不替换引用（JSON 序列化开销远小于全树重渲染）。
   useEffect(() => {
     const t = setInterval(() => {
-      void api.settingsGet().then(setSettings).catch(() => {})
+      void api.settingsGet().then((s) => setSettings((prev) => (prev && JSON.stringify(prev) === JSON.stringify(s) ? prev : s))).catch(() => {})
     }, 60000)
     return () => clearInterval(t)
   }, [])
@@ -1675,9 +1679,12 @@ export default function App() {
   const clearTags = useCallback(() => setSelectedTags(new Set()), [])
 
   // 收藏 / 锁定切换（持久化到视频记录，同步本地 reconcile）
+  // P0-8：用 reconcileRef 读最新值，依赖数组去掉 reconcile——
+  // 否则 onPosterFetched 每抓到一张海报替换 reconcile 引用 → toggleFlag 重建
+  // → EntryCard 的 memo 失效 → 批量抓海报时整屏重渲染
   const toggleFlag = useCallback(
     async (id: string, key: 'favorite' | 'locked') => {
-      const entry = reconcile?.entries.find((e) => e.video?.id === id)
+      const entry = reconcileRef.current?.entries.find((e) => e.video?.id === id)
       const v = entry?.video
       if (!v) return
       const next = !v[key]
@@ -1717,7 +1724,7 @@ export default function App() {
         }
       }
     },
-    [reconcile, libraryId]
+    [libraryId]
   )
 
   /** v2.7.x：批量补齐结束后弹窗里「全部解锁」——解锁本次因锁定被跳过的所有影片 */
