@@ -160,15 +160,32 @@ export function parseEpisodeNumber(fileName: string): number | undefined {
 }
 
 /**
+ * 识别文件名中的季号（Season）：S01E01 / Season 1 / 第1季
+ * 识别不到返回 1（默认第 1 季）。
+ */
+export function parseSeasonNumber(fileName: string): number {
+  const base = (fileName ?? '').replace(/\.[^.]+$/, '')
+  let m = base.match(/[Ss](\d{1,2})[._\- ]?[Ee]\d{1,3}\b/)
+  if (m) return parseInt(m[1], 10)
+  m = base.match(/Season\s*(\d{1,2})\b/i)
+  if (m) return parseInt(m[1], 10)
+  m = base.match(/第\s*(\d{1,2})\s*[季季]/)
+  if (m) return parseInt(m[1], 10)
+  m = base.match(/(\d{1,2})x\d{1,3}\b/)
+  if (m) return parseInt(m[1], 10)
+  return 1
+}
+
+/**
  * 判断同一文件夹下的一组视频文件是否构成「剧集」：
  * 至少 2 个文件，且都能解析出递增集号（允许从 0 开始，内部归一化到 1-based）。
  * 返回按集号排序的 { fileName, episode } 列表；不构成剧集返回 null。
  */
-export function detectEpisodeGroup(fileNames: string[]): Array<{ fileName: string; episode: number }> | null {
+export function detectEpisodeGroup(fileNames: string[]): Array<{ fileName: string; episode: number; season: number }> | null {
   if (fileNames.length < 2) return null
   const parsed = fileNames
-    .map((f) => ({ fileName: f, episode: parseEpisodeNumber(f) }))
-    .filter((x): x is { fileName: string; episode: number } => typeof x.episode === 'number')
+    .map((f) => ({ fileName: f, episode: parseEpisodeNumber(f), season: parseSeasonNumber(f) }))
+    .filter((x): x is { fileName: string; episode: number; season: number } => typeof x.episode === 'number')
   if (parsed.length < 2) return null
   // 集号去重后至少 2 个不同集号
   const eps = new Set(parsed.map((x) => x.episode))

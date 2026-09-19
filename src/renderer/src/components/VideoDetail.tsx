@@ -419,29 +419,52 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
               {/* v2.13：剧集分集列表——同文件夹多集合并为一个条目后，点选集播放 */}
               {video.episodes && video.episodes.length > 1 ? (
                 <div className="mt-4 bg-ink-800/40 rounded-xl p-4 ring-1 ring-white/8">
-                  <div className="text-xs font-medium text-white/60 mb-2">剧集（{video.episodes.length} 集）</div>
-                  <div className="flex flex-col gap-1">
-                    {video.episodes.map((ep) => (
-                      <button
-                        key={ep.episode}
-                        type="button"
-                        onClick={() => onPlay({ ...video, path: ep.path, fileName: ep.fileName })}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-left"
-                      >
-                        <span className="shrink-0 w-10 text-[11px] font-bold text-brand tabular-nums">
-                          第{ep.episode}集
-                        </span>
-                        <span className="flex-1 min-w-0 text-[12px] text-white/80 truncate">
-                          {ep.fileName}
-                        </span>
-                        {ep.durationSec ? (
-                          <span className="shrink-0 text-[11px] text-white/40 tabular-nums">
-                            {Math.floor(ep.durationSec / 60)}分
-                          </span>
-                        ) : null}
-                      </button>
-                    ))}
-                  </div>
+                  {(() => {
+                    const seasons = new Map<number, typeof video.episodes>()
+                    for (const ep of video.episodes!) {
+                      const s = ep.season ?? 1
+                      if (!seasons.has(s)) seasons.set(s, [])
+                      seasons.get(s)!.push(ep)
+                    }
+                    const seasonNums = [...seasons.keys()].sort((a, b) => a - b)
+                    const multiSeason = seasonNums.length > 1
+                    return (
+                      <>
+                        <div className="text-xs font-medium text-white/60 mb-2">
+                          {multiSeason ? `剧集（${seasonNums.length} 季 / ${video.episodes!.length} 集）` : `剧集（${video.episodes!.length} 集）`}
+                        </div>
+                        {seasonNums.map((s) => (
+                          <div key={s} className="mb-2 last:mb-0">
+                            {multiSeason ? (
+                              <div className="text-[11px] font-semibold text-brand/80 mb-1">第 {s} 季</div>
+                            ) : null}
+                            <div className="flex flex-col gap-1">
+                              {seasons.get(s)!.map((ep) => (
+                                <button
+                                  key={ep.episode}
+                                  type="button"
+                                  onClick={() => onPlay({ ...video, path: ep.path, fileName: ep.fileName })}
+                                  className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-left"
+                                >
+                                  <span className="shrink-0 w-10 text-[11px] font-bold text-brand tabular-nums">
+                                    第{ep.episode}集
+                                  </span>
+                                  <span className="flex-1 min-w-0 text-[12px] text-white/80 truncate">
+                                    {ep.fileName}
+                                  </span>
+                                  {ep.durationSec ? (
+                                    <span className="shrink-0 text-[11px] text-white/40 tabular-nums">
+                                      {Math.floor(ep.durationSec / 60)}分
+                                    </span>
+                                  ) : null}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )
+                  })()}
                 </div>
               ) : null}
             </div>

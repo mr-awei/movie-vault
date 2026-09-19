@@ -65,6 +65,36 @@ function resolutionBucket(v?: Video): string {
   if (px > 0) return 'SD'
   return t('app.unknown')
 }
+function videoCodecBucket(v?: Video): string {
+  const c = v?.techInfo?.videoCodec ?? ''
+  const low = c.toLowerCase()
+  if (low.includes('hevc') || low.includes('h.265') || low.includes('h265')) return 'HEVC / H.265'
+  if (low.includes('av1')) return 'AV1'
+  if (low.includes('h.264') || low.includes('h264') || low.includes('avc')) return 'H.264'
+  if (low.includes('vp9')) return 'VP9'
+  if (low.includes('mpeg4') || low.includes('mpeg-4')) return 'MPEG-4'
+  if (low) return c.toUpperCase()
+  return t('app.unknown')
+}
+function hdrBucket(v?: Video): string {
+  const h = v?.techInfo?.hdrFormat
+  if (h) return h
+  if (v?.techInfo?.colorTransfer?.includes('smpte2084')) return 'HDR10'
+  if (v?.techInfo?.colorTransfer?.includes('arib')) return 'HLG'
+  return 'SDR'
+}
+function audioCodecBucket(v?: Video): string {
+  const c = v?.techInfo?.audioCodec ?? ''
+  const low = c.toLowerCase()
+  if (low.includes('truehd')) return 'TrueHD'
+  if (low.includes('dts')) return 'DTS'
+  if (low.includes('atmos')) return 'Dolby Atmos'
+  if (low.includes('aac')) return 'AAC'
+  if (low.includes('flac')) return 'FLAC'
+  if (low.includes('ac3') || low.includes('dolby digital')) return 'AC3 / DD'
+  if (low) return c.toUpperCase()
+  return t('app.unknown')
+}
 function durationBucket(sec?: number): string {
   if (!sec || sec <= 0) return t('app.unknown')
   if (sec < 1800) return t('app.within30min')
@@ -130,7 +160,13 @@ export default function App() {
   const setSelectedSeries = useFilterStore((s) => s.setSelectedSeries)
   /** 技术规格 / 时间 维度筛选（分辨率 / 时长 / 评分 / 年份），各维度内 OR、跨维度 AND */
   const selectedResolutions = useFilterStore((s) => s.selectedResolutions)
+  const selectedVideoCodecs = useFilterStore((s) => s.selectedVideoCodecs)
+  const selectedHdrFormats = useFilterStore((s) => s.selectedHdrFormats)
+  const selectedAudioCodecs = useFilterStore((s) => s.selectedAudioCodecs)
   const setSelectedResolutions = useFilterStore((s) => s.setSelectedResolutions)
+  const setSelectedVideoCodecs = useFilterStore((s) => s.setSelectedVideoCodecs)
+  const setSelectedHdrFormats = useFilterStore((s) => s.setSelectedHdrFormats)
+  const setSelectedAudioCodecs = useFilterStore((s) => s.setSelectedAudioCodecs)
   const selectedDurations = useFilterStore((s) => s.selectedDurations)
   const setSelectedDurations = useFilterStore((s) => s.setSelectedDurations)
   const selectedScores = useFilterStore((s) => s.selectedScores)
@@ -657,6 +693,9 @@ export default function App() {
     const dur = new Map<string, number>()
     const score = new Map<string, number>()
     const year = new Map<string, number>()
+    const vcodec = new Map<string, number>()
+    const hdr = new Map<string, number>()
+    const acodec = new Map<string, number>()
     for (const e of applyTagsOnly) {
       const r = resolutionBucket(e.video); res.set(r, (res.get(r) ?? 0) + 1)
       const sec = e.video?.durationSec ?? e.video?.techInfo?.durationSec
@@ -665,6 +704,9 @@ export default function App() {
       const y = e.video?.year
       const yk = y ? String(y) : '未知'
       year.set(yk, (year.get(yk) ?? 0) + 1)
+      const vc = videoCodecBucket(e.video); vcodec.set(vc, (vcodec.get(vc) ?? 0) + 1)
+      const h = hdrBucket(e.video); hdr.set(h, (hdr.get(h) ?? 0) + 1)
+      const ac = audioCodecBucket(e.video); acodec.set(ac, (acodec.get(ac) ?? 0) + 1)
     }
     const fromOrder = (m: Map<string, number>, order: string[]): MetaFacet[] => {
       const out: MetaFacet[] = []
@@ -680,7 +722,10 @@ export default function App() {
       resolutions: fromOrder(res, RES_ORDER),
       durations: fromOrder(dur, DUR_ORDER),
       scores: fromOrder(score, SCORE_ORDER),
-      years
+      years,
+      videoCodecs: fromOrder(vcodec, []),
+      hdrFormats: fromOrder(hdr, ['HDR10', 'Dolby Vision', 'HLG', 'SDR']),
+      audioCodecs: fromOrder(acodec, ['TrueHD', 'DTS', 'Dolby Atmos', 'AAC', 'FLAC', 'AC3 / DD'])
     }
   }, [applyTagsOnly])
 
@@ -713,6 +758,15 @@ export default function App() {
     }
     if (selectedResolutions.size > 0) {
       list = list.filter((e) => selectedResolutions.has(resolutionBucket(e.video)))
+    }
+    if (selectedVideoCodecs.size > 0) {
+      list = list.filter((e) => selectedVideoCodecs.has(videoCodecBucket(e.video)))
+    }
+    if (selectedHdrFormats.size > 0) {
+      list = list.filter((e) => selectedHdrFormats.has(hdrBucket(e.video)))
+    }
+    if (selectedAudioCodecs.size > 0) {
+      list = list.filter((e) => selectedAudioCodecs.has(audioCodecBucket(e.video)))
     }
     if (selectedDurations.size > 0) {
       list = list.filter((e) => {
@@ -1155,6 +1209,23 @@ export default function App() {
         setScanning(false)
       })
   }, [libraryId])
+
+  // v2.14：watcher 文件变化事件 → 自动触发轻量刷新（防抖 5s，避免复制大文件时反复扫描）
+  const watcherDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  useEffect(() => {
+    const unsub = api.onWatcherEvent((payload: { libraryId: string; type: string; paths: string[] }) => {
+      if (!libraryId || payload.libraryId !== libraryId) return
+      if (watcherDebounceRef.current) clearTimeout(watcherDebounceRef.current)
+      watcherDebounceRef.current = setTimeout(() => {
+        console.log('[watcher] 自动刷新:', payload.type, payload.paths.length, '个文件')
+        handleScan()
+      }, 5000)
+    })
+    return () => {
+      unsub()
+      if (watcherDebounceRef.current) clearTimeout(watcherDebounceRef.current)
+    }
+  }, [libraryId, handleScan])
 
   const handleOpenEntry = useCallback((entry: DisplayEntry) => {
     if (entry.video) setDetail(entry.video)
@@ -1813,6 +1884,30 @@ export default function App() {
       return n
     })
   }, [])
+  const toggleVideoCodec = useCallback((v: string) => {
+    setSelectedVideoCodecs((prev) => {
+      const n = new Set(prev)
+      if (n.has(v)) n.delete(v)
+      else n.add(v)
+      return n
+    })
+  }, [])
+  const toggleHdrFormat = useCallback((v: string) => {
+    setSelectedHdrFormats((prev) => {
+      const n = new Set(prev)
+      if (n.has(v)) n.delete(v)
+      else n.add(v)
+      return n
+    })
+  }, [])
+  const toggleAudioCodec = useCallback((v: string) => {
+    setSelectedAudioCodecs((prev) => {
+      const n = new Set(prev)
+      if (n.has(v)) n.delete(v)
+      else n.add(v)
+      return n
+    })
+  }, [])
   const toggleDuration = useCallback((v: string) => {
     setSelectedDurations((prev) => {
       const n = new Set(prev)
@@ -1838,11 +1933,17 @@ export default function App() {
     })
   }, [])
   const clearResolutions = useCallback(() => setSelectedResolutions(new Set()), [])
+  const clearVideoCodecs = useCallback(() => setSelectedVideoCodecs(new Set()), [])
+  const clearHdrFormats = useCallback(() => setSelectedHdrFormats(new Set()), [])
+  const clearAudioCodecs = useCallback(() => setSelectedAudioCodecs(new Set()), [])
   const clearDurations = useCallback(() => setSelectedDurations(new Set()), [])
   const clearScores = useCallback(() => setSelectedScores(new Set()), [])
   const clearYears = useCallback(() => setSelectedYears(new Set()), [])
   const clearTechFilters = useCallback(() => {
     setSelectedResolutions(new Set())
+    setSelectedVideoCodecs(new Set())
+    setSelectedHdrFormats(new Set())
+    setSelectedAudioCodecs(new Set())
     setSelectedDurations(new Set())
     setSelectedScores(new Set())
     setSelectedYears(new Set())
@@ -1976,18 +2077,30 @@ export default function App() {
           onToggleGenre={toggleGenre}
           onClearGenres={clearGenres}
           resolutionFacets={specFacets.resolutions}
+          videoCodecFacets={specFacets.videoCodecs}
+          hdrFormatFacets={specFacets.hdrFormats}
+          audioCodecFacets={specFacets.audioCodecs}
           durationFacets={specFacets.durations}
           scoreFacets={specFacets.scores}
           yearFacets={specFacets.years}
           selectedResolutions={selectedResolutions}
+          selectedVideoCodecs={selectedVideoCodecs}
+          selectedHdrFormats={selectedHdrFormats}
+          selectedAudioCodecs={selectedAudioCodecs}
           selectedDurations={selectedDurations}
           selectedScores={selectedScores}
           selectedYears={selectedYears}
           onToggleResolution={toggleResolution}
+          onToggleVideoCodec={toggleVideoCodec}
+          onToggleHdrFormat={toggleHdrFormat}
+          onToggleAudioCodec={toggleAudioCodec}
           onToggleDuration={toggleDuration}
           onToggleScore={toggleScore}
           onToggleYear={toggleYear}
           onClearResolutions={clearResolutions}
+          onClearVideoCodecs={clearVideoCodecs}
+          onClearHdrFormats={clearHdrFormats}
+          onClearAudioCodecs={clearAudioCodecs}
           onClearDurations={clearDurations}
           onClearScores={clearScores}
           onClearYears={clearYears}

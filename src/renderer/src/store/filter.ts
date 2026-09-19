@@ -35,6 +35,9 @@ interface FilterStore {
   selectedSeries: Set<string>
   /** 技术规格 / 时间 维度筛选（分辨率 / 时长 / 评分 / 年份），各维度内 OR、跨维度 AND */
   selectedResolutions: Set<string>
+  selectedVideoCodecs: Set<string>
+  selectedHdrFormats: Set<string>
+  selectedAudioCodecs: Set<string>
   selectedDurations: Set<string>
   selectedScores: Set<string>
   selectedYears: Set<string>
@@ -47,6 +50,9 @@ interface FilterStore {
   setSelectedStudios: Setter<Set<string>>
   setSelectedSeries: Setter<Set<string>>
   setSelectedResolutions: Setter<Set<string>>
+  setSelectedVideoCodecs: Setter<Set<string>>
+  setSelectedHdrFormats: Setter<Set<string>>
+  setSelectedAudioCodecs: Setter<Set<string>>
   setSelectedDurations: Setter<Set<string>>
   setSelectedScores: Setter<Set<string>>
   setSelectedYears: Setter<Set<string>>
@@ -78,6 +84,9 @@ export const useFilterStore = create<FilterStore>((set) => ({
   selectedStudios: new Set<string>(),
   selectedSeries: new Set<string>(),
   selectedResolutions: new Set<string>(),
+  selectedVideoCodecs: new Set<string>(),
+  selectedHdrFormats: new Set<string>(),
+  selectedAudioCodecs: new Set<string>(),
   selectedDurations: new Set<string>(),
   selectedScores: new Set<string>(),
   selectedYears: new Set<string>(),
@@ -90,6 +99,9 @@ export const useFilterStore = create<FilterStore>((set) => ({
   setSelectedStudios: apply(set, 'selectedStudios'),
   setSelectedSeries: apply(set, 'selectedSeries'),
   setSelectedResolutions: apply(set, 'selectedResolutions'),
+  setSelectedVideoCodecs: apply(set, 'selectedVideoCodecs'),
+  setSelectedHdrFormats: apply(set, 'selectedHdrFormats'),
+  setSelectedAudioCodecs: apply(set, 'selectedAudioCodecs'),
   setSelectedDurations: apply(set, 'selectedDurations'),
   setSelectedScores: apply(set, 'selectedScores'),
   setSelectedYears: apply(set, 'selectedYears'),
@@ -103,6 +115,9 @@ export const useFilterStore = create<FilterStore>((set) => ({
       selectedStudios: new Set(),
       selectedSeries: new Set(),
       selectedResolutions: new Set(),
+      selectedVideoCodecs: new Set(),
+      selectedHdrFormats: new Set(),
+      selectedAudioCodecs: new Set(),
       selectedDurations: new Set(),
       selectedScores: new Set(),
       selectedYears: new Set()

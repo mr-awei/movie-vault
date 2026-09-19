@@ -118,6 +118,7 @@ export async function scanLibrary(
     for (const g of group) episodeFiles.add(path.join(dir, g.fileName))
     const { title, year } = extractTitleYear(dirFolder)
     const episodes: EpisodeRef[] = group.map((g) => ({
+      season: g.season,
       episode: g.episode,
       fileName: g.fileName,
       path: path.join(dir, g.fileName)

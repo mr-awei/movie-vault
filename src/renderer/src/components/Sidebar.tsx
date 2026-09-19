@@ -1,4 +1,4 @@
-﻿import { memo, useMemo, useState, useRef, useEffect } from 'react'
+import { memo, useMemo, useState, useRef, useEffect } from 'react'
 import type { Library, Settings, Playlist } from '../../../shared/types'
 import Icon, { type IconName } from './Icon'
 import { t } from '../../../shared/i18n'
@@ -76,18 +76,30 @@ interface Props {
 
   /** 筛选：技术规格 / 时间 */
   resolutionFacets: MetaFacet[]
+  videoCodecFacets: MetaFacet[]
+  hdrFormatFacets: MetaFacet[]
+  audioCodecFacets: MetaFacet[]
   durationFacets: MetaFacet[]
   scoreFacets: MetaFacet[]
   yearFacets: MetaFacet[]
   selectedResolutions: Set<string>
+  selectedVideoCodecs: Set<string>
+  selectedHdrFormats: Set<string>
+  selectedAudioCodecs: Set<string>
   selectedDurations: Set<string>
   selectedScores: Set<string>
   selectedYears: Set<string>
   onToggleResolution: (v: string) => void
+  onToggleVideoCodec: (v: string) => void
+  onToggleHdrFormat: (v: string) => void
+  onToggleAudioCodec: (v: string) => void
   onToggleDuration: (v: string) => void
   onToggleScore: (v: string) => void
   onToggleYear: (v: string) => void
   onClearResolutions: () => void
+  onClearVideoCodecs: () => void
+  onClearHdrFormats: () => void
+  onClearAudioCodecs: () => void
   onClearDurations: () => void
   onClearScores: () => void
   onClearYears: () => void
@@ -124,10 +136,14 @@ function SidebarInner(props: Props) {
     onToggleActor, onToggleStudio, onToggleSeries,
     onClearActors, onClearStudios, onClearSeries, onClearMetaFilters,
     genreFacets, selectedGenres, onToggleGenre, onClearGenres,
-    resolutionFacets, durationFacets, scoreFacets, yearFacets,
-    selectedResolutions, selectedDurations, selectedScores, selectedYears,
-    onToggleResolution, onToggleDuration, onToggleScore, onToggleYear,
-    onClearResolutions, onClearDurations, onClearScores, onClearYears, onClearTechFilters,
+    resolutionFacets, videoCodecFacets, hdrFormatFacets, audioCodecFacets,
+    durationFacets, scoreFacets, yearFacets,
+    selectedResolutions, selectedVideoCodecs, selectedHdrFormats, selectedAudioCodecs,
+    selectedDurations, selectedScores, selectedYears,
+    onToggleResolution, onToggleVideoCodec, onToggleHdrFormat, onToggleAudioCodec,
+    onToggleDuration, onToggleScore, onToggleYear,
+    onClearResolutions, onClearVideoCodecs, onClearHdrFormats, onClearAudioCodecs,
+    onClearDurations, onClearScores, onClearYears, onClearTechFilters,
     collapsed, onToggleCollapsed,
     playlists = [], activePlaylistId, onSelectPlaylist, onCreatePlaylist, onDeletePlaylist, onRenamePlaylist,
     onOpenStats, onOpenWatchStats, onOpenAbout, onOpenSettings
@@ -531,6 +547,9 @@ function SidebarInner(props: Props) {
           {filterTab === 'tech' ? (
             <div ref={scrollTechRef} className="flex flex-col gap-1 flex-1 min-h-0 overflow-auto thin-scroll -mr-1 pr-1">
               <FacetGroup title={t('sidebar.resolution')} icon="monitor" facets={resolutionFacets} selected={selectedResolutions} onToggle={onToggleResolution} onClear={onClearResolutions} />
+              <FacetGroup title="视频编码" icon="monitor" facets={videoCodecFacets} selected={selectedVideoCodecs} onToggle={onToggleVideoCodec} onClear={onClearVideoCodecs} />
+              <FacetGroup title="HDR" icon="sun" facets={hdrFormatFacets} selected={selectedHdrFormats} onToggle={onToggleHdrFormat} onClear={onClearHdrFormats} />
+              <FacetGroup title="音频编码" icon="monitor" facets={audioCodecFacets} selected={selectedAudioCodecs} onToggle={onToggleAudioCodec} onClear={onClearAudioCodecs} />
               <FacetGroup title={t('sidebar.duration')} icon="clock" facets={durationFacets} selected={selectedDurations} onToggle={onToggleDuration} onClear={onClearDurations} />
               <FacetGroup title={t('sidebar.score')} icon="star" facets={scoreFacets} selected={selectedScores} onToggle={onToggleScore} onClear={onClearScores} />
             </div>

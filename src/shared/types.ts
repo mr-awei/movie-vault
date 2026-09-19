@@ -1,4 +1,4 @@
-﻿// 跨主进程/渲染进程的共享类型定义（纯接口，无 Node/DOM 依赖）
+// 跨主进程/渲染进程的共享类型定义（纯接口，无 Node/DOM 依赖）
 
 /** 数据源标识（新增数据源时只需在这里加一个值） */
 export type SourceId = 'moviedb' | 'omdb' | 'openlibrary' | 'justwatch' | 'wikipedia'
@@ -119,6 +119,8 @@ export interface Video {
 
 /** 剧集分集引用（合并到一个剧集条目下的单集） */
 export interface EpisodeRef {
+  /** 季号（从 1 开始，S01E01 里的 S01；默认 1） */
+  season: number
   /** 集号（从 1 开始，按文件名解析；无明确集号时按排序序号） */
   episode: number
   /** 文件名（含扩展名） */
