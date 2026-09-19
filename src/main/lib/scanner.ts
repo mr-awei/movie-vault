@@ -166,7 +166,6 @@ export async function scanLibrary(
     createdChanges.push({ type: 'upsert', video: ev })
     // 迁移：删除同组其他集的旧独立条目（它们已被合并到剧集条目里）
     // 用文件名+目录名模糊匹配，容忍 path 大小写/分隔符差异
-    const dirNorm = norm(dir)
     for (const g of group.slice(1)) {
       const old = existingAll.find(
         (v) => norm(v.path) === norm(path.join(dir, g.fileName))
