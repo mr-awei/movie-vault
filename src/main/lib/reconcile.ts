@@ -1,4 +1,4 @@
-﻿import { promises as fs, existsSync } from 'node:fs'
+import { promises as fs, existsSync } from 'node:fs'
 import path from 'node:path'
 import type {
   DisplayEntry,
@@ -13,7 +13,7 @@ import type {
 import { parseIntroExcel } from './excel'
 import { applyVideoChanges, findVideoByPath, listVideos, type VideoChange } from './repo'
 import { resolvePoster } from './images'
-import { walk, VIDEO_EXTS, idForPath, computeContentHash } from './scanner'
+import { walk, VIDEO_EXTS, idForPath, computeContentHash, detectEpisodeGroup } from './scanner'
 import { extractTitleYear, titleMatches, localCanonicalName } from '../../shared/code'
 import { fetchDetailSmart, createSmartFetchState } from './fetch-meta'
 
@@ -321,8 +321,25 @@ export async function reconcileLibrary(
 
   // 与 scanLibrary 一致：按设置过滤小文件（短视频/预告片）
   const minSizeBytes = Math.max(0, Math.floor(settings.scanMinSizeMB ?? 0)) * 1024 * 1024
-  const allFiles: string[] = []
-  for await (const f of walk(library.folderPath, minSizeBytes)) allFiles.push(f)
+  const allFilesRaw: string[] = []
+  for await (const f of walk(library.folderPath, minSizeBytes)) allFilesRaw.push(f)
+  // v2.13：与 scanLibrary 一致——识别剧集文件夹，把第 2 集起的成员文件从对账列表剔除，
+  // 避免 reconcile 把多集文件夹里每一集又建成独立条目（合并条目已在 scanLibrary 建好）。
+  const epMemberFiles = new Set<string>()
+  const byFolder = new Map<string, string[]>()
+  for (const f of allFilesRaw) {
+    const dir = path.dirname(f)
+    const list = byFolder.get(dir) ?? []
+    list.push(f)
+    byFolder.set(dir, list)
+  }
+  for (const [dir, files] of byFolder) {
+    const names = files.map((f) => path.basename(f))
+    const group = detectEpisodeGroup(names)
+    if (!group || group.length < 2) continue
+    for (const g of group.slice(1)) epMemberFiles.add(path.join(dir, g.fileName))
+  }
+  const allFiles = allFilesRaw.filter((f) => !epMemberFiles.has(f))
   const fileEntries = collectFiles(allFiles)
   const used = new Set<string>()
   contentSeen = new Map<string, Video>()
