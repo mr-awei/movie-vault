@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { t, getLocale, subscribeLocale } from '../../../shared/i18n'
 import type { Library } from '../../../shared/types'
 import Icon from './Icon'
@@ -32,7 +32,7 @@ interface Props {
 const GROK_URL = 'https://grok.com'
 
 /** 中文提示词（v4.0 规范） */
-const PROMPT_TEXT_ZH = `请根据我提供的影片清单，按照以下要求生成影海片单 Excel 内容：
+const PROMPT_TEXT_ZH = `请根据我提供的影片清单，按照以下要求生成可以直接粘贴进已有的影海片单 Excel 的内容：
 
 【核心原则】
 1. 评分看完成度：不因为类型低俗而歧视，不因为名气大而吹高；以影片实际完成度和类型定位评分。
