@@ -103,6 +103,13 @@ export default function SceneMarkers({ video }: Props) {
         <span className="text-[11px] text-white/30">{t('markers.subtitle')}</span>
       </div>
 
+      {/* 使用说明 */}
+      <div className="mb-3 px-3 py-2 rounded-lg bg-white/4 ring-1 ring-white/6">
+        <div className="text-[11px] text-white/50 leading-relaxed">
+          给影片打「精彩时间点书签」：时间位置填 <code className="px-1 rounded bg-white/10 text-white/70">1:02:30</code> 或 <code className="px-1 rounded bg-white/10 text-white/70">450</code>（秒），标记名填如「主角出场」，标签可选。添加后点时间戳直接跳转播放。
+        </div>
+      </div>
+
       {/* 新增 */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <input value={pos} onChange={(e) => setPos(e.target.value)} placeholder={t('markers.posPlaceholder')} className={`${inputCls} w-20`} />
