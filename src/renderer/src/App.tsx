@@ -2336,6 +2336,10 @@ export default function App() {
             setAddingLibrary(false)
             setOnboardLib(lib)
             setOnboardOpen(true)
+          } else {
+            // 添加模式：先关闭弹窗，提示用户完成创建后会自动弹出向导
+            setLibraryOpen(false)
+            setAddingLibrary(false)
           }
         }}
       />
