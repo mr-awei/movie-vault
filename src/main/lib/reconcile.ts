@@ -13,8 +13,8 @@ import type {
 import { parseIntroExcel } from './excel'
 import { applyVideoChanges, findVideoByPath, listVideos, type VideoChange } from './repo'
 import { resolvePoster } from './images'
-import { walk, VIDEO_EXTS, idForPath, computeContentHash, detectEpisodeGroup } from './scanner'
-import { extractTitleYear, titleMatches, localCanonicalName } from '../../shared/code'
+import { walk, VIDEO_EXTS, idForPath, computeContentHash } from './scanner'
+import { extractTitleYear, titleMatches, localCanonicalName, detectEpisodeGroup } from '../../shared/code'
 import { fetchDetailSmart, createSmartFetchState } from './fetch-meta'
 
 /**
