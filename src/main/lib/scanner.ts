@@ -106,6 +106,9 @@ export async function scanLibrary(
     byFolder.set(dir, list)
   }
   const episodeFiles = new Set<string>()
+  // 预取该库所有已有记录，用于按文件名/目录模糊匹配旧独立集（避免 path 精确匹配因路径格式差异漏删）
+  const existingAll = await listVideos({ libraryId: library.id })
+  const norm = (s: string) => path.resolve(s).replace(/[\\/]+/g, '/').toLowerCase()
   for (const [dir, files] of byFolder) {
     const names = files.map((f) => path.basename(f))
     const group = detectEpisodeGroup(names)
@@ -162,9 +165,12 @@ export async function scanLibrary(
     created.push(ev)
     createdChanges.push({ type: 'upsert', video: ev })
     // 迁移：删除同组其他集的旧独立条目（它们已被合并到剧集条目里）
+    // 用文件名+目录名模糊匹配，容忍 path 大小写/分隔符差异
+    const dirNorm = norm(dir)
     for (const g of group.slice(1)) {
-      const otherPath = path.join(dir, g.fileName)
-      const old = await findVideoByPath(otherPath)
+      const old = existingAll.find(
+        (v) => norm(v.path) === norm(path.join(dir, g.fileName))
+      )
       if (old) createdChanges.push({ type: 'remove', id: old.id })
     }
   }
