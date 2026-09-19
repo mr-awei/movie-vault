@@ -110,6 +110,23 @@ export interface Video {
   playbackUpdatedAt?: number
   /** v2.9.0：关联 NFO 文件路径（如有） */
   nfoPath?: string
+  /** 剧集分集信息（v2.13：电视剧/剧集合并）。
+   *  非空且 length>1 时表示这是一个「剧集条目」：
+   *  path 指向第一集（默认播放），episodes 列出该文件夹下所有集。
+   *  参照 Jellyfin/Plex：同文件夹下 S01E01/E01/EP01/第01集 等递增集号的多集合并为一条。 */
+  episodes?: EpisodeRef[]
+}
+
+/** 剧集分集引用（合并到一个剧集条目下的单集） */
+export interface EpisodeRef {
+  /** 集号（从 1 开始，按文件名解析；无明确集号时按排序序号） */
+  episode: number
+  /** 文件名（含扩展名） */
+  fileName: string
+  /** 该集完整文件路径 */
+  path: string
+  /** 该集时长（秒），probe 到才填 */
+  durationSec?: number
 }
 
 export interface PreviewFrameMeta {

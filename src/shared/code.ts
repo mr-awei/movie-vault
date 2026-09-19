@@ -128,3 +128,51 @@ export function localCanonicalName(v: {
 }): string {
   return v.folderName || v.fileName || v.title || v.meta?.title || ''
 }
+
+/**
+ * 从文件名解析剧集集号（1-based）。
+ * 参照 Jellyfin/Plex/Emby 的剧集命名识别：
+ *  - S01E01 / S1E1（季+集）
+ *  - E01 / E1（仅集）
+ *  - EP01 / EP1 / Episode 01
+ *  - 第01集 / 第1集 / 第01話
+ *  - 1x01 / 1x1（季x集）
+ * 识别不到返回 undefined。
+ */
+export function parseEpisodeNumber(fileName: string): number | undefined {
+  const base = (fileName ?? '').replace(/\.[^.]+$/, '') // 去扩展名
+  // S01E01 / S1E1
+  let m = base.match(/[Ss](\d{1,2})[._\- ]?[Ee](\d{1,3})\b/)
+  if (m) return parseInt(m[2], 10)
+  // 1x01 / 1x1
+  m = base.match(/(\d{1,2})x(\d{1,3})\b/)
+  if (m) return parseInt(m[2], 10)
+  // EP01 / Episode 01
+  m = base.match(/\b(?:EP|Episode|Ep)[._\- ]?(\d{1,3})\b/i)
+  if (m) return parseInt(m[1], 10)
+  // 第01集 / 第1集 / 第01話 / 第1話
+  m = base.match(/第\s*(\d{1,3})\s*[集話话]/)
+  if (m) return parseInt(m[1], 10)
+  // E01（仅集，避免误判，要求 E 后紧跟 1-3 位数字且边界）
+  m = base.match(/\b[Ee](\d{1,3})\b/)
+  if (m) return parseInt(m[1], 10)
+  return undefined
+}
+
+/**
+ * 判断同一文件夹下的一组视频文件是否构成「剧集」：
+ * 至少 2 个文件，且都能解析出递增集号（允许从 0 开始，内部归一化到 1-based）。
+ * 返回按集号排序的 { fileName, episode } 列表；不构成剧集返回 null。
+ */
+export function detectEpisodeGroup(fileNames: string[]): Array<{ fileName: string; episode: number }> | null {
+  if (fileNames.length < 2) return null
+  const parsed = fileNames
+    .map((f) => ({ fileName: f, episode: parseEpisodeNumber(f) }))
+    .filter((x): x is { fileName: string; episode: number } => typeof x.episode === 'number')
+  if (parsed.length < 2) return null
+  // 集号去重后至少 2 个不同集号
+  const eps = new Set(parsed.map((x) => x.episode))
+  if (eps.size < 2) return null
+  parsed.sort((a, b) => a.episode - b.episode)
+  return parsed
+}

@@ -78,6 +78,7 @@ function rowToVideo(row: Record<string, unknown>): Video {
   if (extra.nocover !== undefined) (v as unknown as Record<string, unknown>).nocover = extra.nocover
   if (extra.unlisted !== undefined) (v as unknown as Record<string, unknown>).unlisted = extra.unlisted
   if (extra.unrated !== undefined) (v as unknown as Record<string, unknown>).unrated = extra.unrated
+  if (Array.isArray(extra.episodes)) v.episodes = extra.episodes
   return v
 }
 
@@ -133,7 +134,8 @@ function videoToRow(v: Video): Record<string, unknown> {
       descriptionSource: v.descriptionSource ?? null,
       nocover: (v as unknown as Record<string, unknown>).nocover,
       unlisted: (v as unknown as Record<string, unknown>).unlisted,
-      unrated: (v as unknown as Record<string, unknown>).unrated
+      unrated: (v as unknown as Record<string, unknown>).unrated,
+      episodes: v.episodes ?? null
     })
   }
 }

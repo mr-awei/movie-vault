@@ -1,4 +1,4 @@
-﻿import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { DisplayEntry, Playlist, Video } from '../../../shared/types'
 import { hasDocTags, primaryTags } from '../../../shared/types'
@@ -402,9 +402,19 @@ function EntryCardInner({ entry, onOpen, onEdit, onOpenMissing, onToggleFlag, on
           </div>
         ) : null}
 
+        {/* 剧集集数角标（N 集）——右下角，有时长角标时挪到左侧 */}
+        {entry.video?.episodes && entry.video.episodes.length > 1 ? (
+          <span className="absolute bottom-9 right-1.5 px-1.5 py-0.5 rounded bg-brand/85 backdrop-blur-[2px] !text-white text-[10px] font-semibold tabular-nums z-[6] [text-shadow:0_1px_3px_rgba(0,0,0,0.9)] group-hover:hidden transition-opacity">
+            {entry.video.episodes.length} 集
+          </span>
+        ) : null}
+
         {/* 时长角标（右下角悬浮，位于底部信息条上方避免重叠） */}
         {entry.video?.durationSec ?? entry.video?.techInfo?.durationSec ? (
-          <span className="absolute bottom-9 right-1.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-[2px] !text-white text-[10px] font-semibold tabular-nums z-[5] [text-shadow:0_1px_3px_rgba(0,0,0,0.9)] group-hover:hidden transition-opacity">
+          <span
+            className="absolute bottom-9 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-[2px] !text-white text-[10px] font-semibold tabular-nums z-[5] [text-shadow:0_1px_3px_rgba(0,0,0,0.9)] group-hover:hidden transition-opacity"
+            style={entry.video?.episodes && entry.video.episodes.length > 1 ? { right: '56px' } : { right: '6px' }}
+          >
             {formatDuration((entry.video?.durationSec ?? entry.video?.techInfo?.durationSec)!)}
           </span>
         ) : null}

@@ -416,6 +416,34 @@ export default function VideoDetail({ video, onClose, onPlay, onDetailFetched, o
               <DetailMetaBody d={d} localVideo={localVideo} video={video} yearText={yearText} loading={loading} error={error} onPickFilter={onPickFilter} onPickTag={onPickTag} />
               <CastGrid d={d} onPickFilter={onPickFilter} />
               <SceneMarkers video={video} />
+              {/* v2.13：剧集分集列表——同文件夹多集合并为一个条目后，点选集播放 */}
+              {video.episodes && video.episodes.length > 1 ? (
+                <div className="mt-4 bg-ink-800/40 rounded-xl p-4 ring-1 ring-white/8">
+                  <div className="text-xs font-medium text-white/60 mb-2">剧集（{video.episodes.length} 集）</div>
+                  <div className="flex flex-col gap-1">
+                    {video.episodes.map((ep) => (
+                      <button
+                        key={ep.episode}
+                        type="button"
+                        onClick={() => onPlay({ ...video, path: ep.path, fileName: ep.fileName })}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-left"
+                      >
+                        <span className="shrink-0 w-10 text-[11px] font-bold text-brand tabular-nums">
+                          第{ep.episode}集
+                        </span>
+                        <span className="flex-1 min-w-0 text-[12px] text-white/80 truncate">
+                          {ep.fileName}
+                        </span>
+                        {ep.durationSec ? (
+                          <span className="shrink-0 text-[11px] text-white/40 tabular-nums">
+                            {Math.floor(ep.durationSec / 60)}分
+                          </span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 

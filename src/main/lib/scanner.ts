@@ -6,7 +6,8 @@ import { findVideoByPath, findVideoByContentHash, findVideoByTitleSize, listVide
 import { resolvePoster, postersCacheDir } from './images'
 import { probeVideo } from './ffprobe'
 import { wakePreviewTaskQueue } from './preview-task-queue'
-import { extractTitleYear } from '../../shared/code'
+import { extractTitleYear, detectEpisodeGroup } from '../../shared/code'
+import type { EpisodeRef } from '../../shared/types'
 
 export const VIDEO_EXTS = new Set([
   '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.webm', '.flv', '.m4v',
@@ -95,7 +96,81 @@ export async function scanLibrary(
   // v2.2.10-fix7：批量写盘——创建阶段收集变更，最后一次 applyVideoChanges 落盘
   //（原来逐条 upsertVideo 全量写 data.json，大库扫描会因过慢被中断，只建了部分记录）
   const createdChanges: VideoChange[] = []
+  // v2.13：剧集合并（对标 Jellyfin/Plex）——同文件夹下 S01E01/E01/EP01/第01集 等递增集号的多集
+  // 合并为一个剧集条目，path 指向第一集，episodes 列出全部集。
+  const byFolder = new Map<string, string[]>()
+  for (const f of allFiles) {
+    const dir = path.dirname(f)
+    const list = byFolder.get(dir) ?? []
+    list.push(f)
+    byFolder.set(dir, list)
+  }
+  const episodeFiles = new Set<string>()
+  for (const [dir, files] of byFolder) {
+    const names = files.map((f) => path.basename(f))
+    const group = detectEpisodeGroup(names)
+    if (!group || group.length < 2) continue
+    const dirFolder = path.basename(dir)
+    const firstPath = path.join(dir, group[0].fileName)
+    for (const g of group) episodeFiles.add(path.join(dir, g.fileName))
+    const { title, year } = extractTitleYear(dirFolder)
+    const episodes: EpisodeRef[] = group.map((g) => ({
+      episode: g.episode,
+      fileName: g.fileName,
+      path: path.join(dir, g.fileName)
+    }))
+    const st = await fs.stat(firstPath).catch(() => null)
+    const info = st ? await probeVideo(firstPath, settings).catch(() => null) : null
+    // 迁移：第一集若已有独立入库记录，复用其 id/meta/海报/收藏，避免重新抓取覆盖用户数据
+    const prevFirst = await findVideoByPath(firstPath)
+    const ev: Video = prevFirst
+      ? {
+          ...prevFirst,
+          path: firstPath,
+          fileName: path.basename(firstPath),
+          folderName: dirFolder,
+          title,
+          year,
+          fileSize: st?.size,
+          durationSec: info?.durationSec ?? prevFirst.durationSec,
+          techInfo: info ?? prevFirst.techInfo,
+          mediaStatus: st ? 'AVAILABLE' : 'MISSING',
+          episodes
+        }
+      : {
+          id: idForPath(firstPath, undefined, library.id),
+          libraryId: library.id,
+          path: firstPath,
+          fileName: path.basename(firstPath),
+          folderName: dirFolder,
+          title,
+          year,
+          tags: [],
+          addedAt: Date.now(),
+          fileSize: st?.size,
+          durationSec: info?.durationSec,
+          techInfo: info ?? undefined,
+          mediaStatus: st ? 'AVAILABLE' : 'MISSING',
+          previewStatus: 'PENDING',
+          episodes
+        }
+    if (!prevFirst) {
+      const quick = await resolvePoster(ev, library, settings, { allowFfmpeg: false })
+      ev.posterSource = quick.source
+      ev.posterPath = quick.posterPath
+    }
+    created.push(ev)
+    createdChanges.push({ type: 'upsert', video: ev })
+    // 迁移：删除同组其他集的旧独立条目（它们已被合并到剧集条目里）
+    for (const g of group.slice(1)) {
+      const otherPath = path.join(dir, g.fileName)
+      const old = await findVideoByPath(otherPath)
+      if (old) createdChanges.push({ type: 'remove', id: old.id })
+    }
+  }
+
   for (const filePath of allFiles) {
+    if (episodeFiles.has(filePath)) { done++; continue }
     done++
     const existing = await findVideoByPath(filePath)
     onProgress?.({
