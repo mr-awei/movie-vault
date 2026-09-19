@@ -85,11 +85,12 @@ export function registerVideoIpc() {
     return scanLibrary(lib, settings, emitProgress)
   })
 
-  ipcMain.handle(IPC.videoOpen, async (_e, id: string, startSec?: number) => {
+  ipcMain.handle(IPC.videoOpen, async (_e, id: string, startSec?: number, overridePath?: string) => {
     const v = await repo.getVideo(id)
     if (!v) throw new Error('视频不存在')
     const settings = await repo.getSettings()
-    return openVideo(v, settings, startSec)
+    const playVideo = overridePath ? { ...v, path: overridePath } : v
+    return openVideo(playVideo, settings, startSec)
   })
 
   ipcMain.handle(IPC.videoOpenPlaylist, async (_e, videos: Video[]) => openPlaylist(videos, await repo.getSettings()))

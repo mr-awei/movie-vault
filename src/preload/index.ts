@@ -1,4 +1,4 @@
-﻿import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { AppApi } from '../shared/api-types'
 
@@ -22,7 +22,7 @@ const api: AppApi = {
   markerCreate: (videoId, positionSec, name, tags) => ipcRenderer.invoke(IPC.markerCreate, videoId, positionSec, name, tags),
   markerDelete: (id) => ipcRenderer.invoke(IPC.markerDelete, id),
   videoScan: (libraryId) => ipcRenderer.invoke(IPC.videoScan, libraryId),
-  videoOpen: (id, startSec) => ipcRenderer.invoke(IPC.videoOpen, id, startSec),
+  videoOpen: (id, startSec, overridePath) => ipcRenderer.invoke(IPC.videoOpen, id, startSec, overridePath),
   videoOpenPlaylist: (videos) => ipcRenderer.invoke(IPC.videoOpenPlaylist, videos),
   videoRegeneratePoster: (id) => ipcRenderer.invoke(IPC.videoRegeneratePoster, id),
   videoFetchPoster: (id) => ipcRenderer.invoke(IPC.videoFetchPoster, id),

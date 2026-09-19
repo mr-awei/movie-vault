@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   MovieMeta,
   SourceId,
   Library,
@@ -154,7 +154,7 @@ export interface AppApi {
   /** v2.12.1：重复检测进度（主进程推送 {done,total}） */
   onDuplicateProgress(cb: (p: { done: number; total: number }) => void): () => void
   videoScan(libraryId: string): Promise<Video[]>
-  videoOpen(id: string, startSec?: number): Promise<OpenResult>
+  videoOpen(id: string, startSec?: number, overridePath?: string): Promise<OpenResult>
   videoOpenPlaylist(videos: Video[]): Promise<{ ok: boolean; method: string; count: number }>
   videoRegeneratePoster(id: string): Promise<Video | null>
   /** 从数据源按检索词抓取封面并缓存到该视频 */

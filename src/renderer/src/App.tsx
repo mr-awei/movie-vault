@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useUIStore } from './store'
 import type {
   DisplayEntry,
@@ -2266,7 +2266,7 @@ export default function App() {
           onClose={() => setDetail(null)}
           onPlay={(v) => {
             setDetail(null)
-            void api.videoOpen(v.id)
+            void api.videoOpen(v.id, undefined, v.path)
           }}
           onDetailFetched={handleDetailFetched}
           onPosterFetched={handlePosterFetched}
