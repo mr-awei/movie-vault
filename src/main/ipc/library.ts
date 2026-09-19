@@ -4,7 +4,7 @@ import * as repo from '../lib/repo'
 import { scanLibrary, walk } from '../lib/scanner'
 import { reconcileLibrary } from '../lib/reconcile'
 import { frameLog } from '../lib/images'
-import { extractMovieQuery, localCanonicalName } from '../../shared/code'
+import { extractMovieQuery, localCanonicalName, detectEpisodeGroup } from '../../shared/code'
 import * as XLSX from 'xlsx-js-style'
 import { createSmartFetchState, fetchDetailSmart, fetchPosterSmart } from '../lib/fetch-meta'
 import { generateQuickCover } from '../lib/preview-v2'
@@ -471,17 +471,40 @@ export function registerLibraryIpc() {
     if (!lib) return { count: 0, codes: [] }
     const files: string[] = []
     for await (const f of walk(lib.folderPath)) files.push(f)
+    // 按文件夹分组：剧集文件夹（≥2个不同集号）只取一次文件夹名作为片名
+    const byFolder = new Map<string, string[]>()
+    for (const f of files) {
+      const dir = path.dirname(f)
+      const list = byFolder.get(dir) ?? []
+      list.push(f)
+      byFolder.set(dir, list)
+    }
     const seen = new Set<string>()
     const codes: string[] = []
-    for (const f of files) {
-      const base = path.basename(f)
-      const ext = path.extname(f)
-      const name = base.slice(0, base.length - ext.length)
-      if (!name) continue
-      const key = name.toLowerCase()
-      if (seen.has(key)) continue
-      seen.add(key)
-      codes.push(name)
+    for (const [dir, flist] of byFolder) {
+      const names = flist.map((f) => path.basename(f))
+      const epGroup = detectEpisodeGroup(names)
+      if (epGroup && epGroup.length >= 2) {
+        // 剧集文件夹：取文件夹名作为片名
+        const folderName = path.basename(dir)
+        const key = folderName.toLowerCase()
+        if (!seen.has(key)) {
+          seen.add(key)
+          codes.push(folderName)
+        }
+      } else {
+        // 普通文件：取文件名（去扩展名）
+        for (const f of flist) {
+          const base = path.basename(f)
+          const ext = path.extname(f)
+          const name = base.slice(0, base.length - ext.length)
+          if (!name) continue
+          const key = name.toLowerCase()
+          if (seen.has(key)) continue
+          seen.add(key)
+          codes.push(name)
+        }
+      }
     }
     codes.sort((a, b) => a.localeCompare(b, 'zh'))
     return { count: codes.length, codes }
