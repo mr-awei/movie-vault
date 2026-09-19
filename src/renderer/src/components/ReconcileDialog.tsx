@@ -337,16 +337,24 @@ export default function ReconcileDialog({
                   <h3 className="text-white font-medium text-sm">{t('reconcile.step3.title')}</h3>
                 </div>
                 <p className="text-white/50 text-[12px] leading-relaxed mb-3 ml-7">{t('reconcile.step3.desc')}</p>
-                <div className="ml-7 flex flex-wrap items-center gap-2">
-                  {onOpenExternal ? (
+                {onOpenExternal ? (
+                  <div className="ml-7 rounded-xl bg-gradient-to-br from-brand/10 to-white/5 ring-1 ring-brand/20 p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-brand/20 flex items-center justify-center shrink-0">
+                      <Icon name="sparkles" size={18} className="text-brand" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium text-sm">Grok</p>
+                      <p className="text-white/50 text-xs truncate">{GROK_URL}</p>
+                    </div>
                     <button
-                      className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-medium"
                       onClick={() => onOpenExternal(GROK_URL)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-brand text-ink-900 font-medium hover:bg-brand/90 transition shrink-0"
                     >
+                      <Icon name="external" size={14} />
                       {t('onboard.step3.openGrok')}
                     </button>
-                  ) : null}
-                </div>
+                  </div>
+                ) : null}
               </section>
 
               {/* 已忽略项目管理 */}
