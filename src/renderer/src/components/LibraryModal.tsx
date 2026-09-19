@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Library } from '../../../shared/types'
 import { api } from '../lib/api'
 import Icon from './Icon'
@@ -21,6 +21,7 @@ export default function LibraryModal({ open, library, onClose, onSave, onRemove,
   const [folderPath, setFolderPath] = useState('')
   const [introExcelPath, setIntroExcelPath] = useState('')
   const [saving, setSaving] = useState(false)
+  const [needFolderHint, setNeedFolderHint] = useState(false)
 
   const adding = !library
 
@@ -173,10 +174,24 @@ export default function LibraryModal({ open, library, onClose, onSave, onRemove,
           <div className="text-white/40 text-xs mt-1">
             {t('library.excelHint2')}
           </div>
+          {needFolderHint && adding && (
+            <div className="text-amber-300 text-xs mt-1">请先选择视频文件夹，再生成片单</div>
+          )}
           {!introExcelPath && onGenerateSheet && (
             <button
               type="button"
-              onClick={onGenerateSheet}
+              onClick={() => {
+                if (adding && !folderPath.trim()) {
+                  setNeedFolderHint(true)
+                  return
+                }
+                if (adding) {
+                  // 添加模式：先保存媒体库，App 层保存成功后会打开片单向导
+                  void save()
+                  return
+                }
+                onGenerateSheet()
+              }}
               className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-brand hover:text-brand-hover transition"
             >
               <Icon name="sparkles" size={12} />
