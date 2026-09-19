@@ -93,7 +93,7 @@ export default function SceneMarkers({ video }: Props) {
   }
 
   const inputCls =
-    'h-8 px-2.5 rounded-lg bg-white/5 ring-1 ring-white/10 focus:ring-brand/50 focus:outline-none text-xs text-white placeholder-white/40'
+    'h-8 px-2.5 rounded-lg bg-white/15 ring-1 ring-white/25 focus:ring-brand/50 focus:outline-none text-xs text-white placeholder-white/50'
 
   return (
     <div className="mb-6 bg-ink-800/40 rounded-xl p-4 ring-1 ring-white/8">
