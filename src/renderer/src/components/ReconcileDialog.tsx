@@ -307,15 +307,7 @@ export default function ReconcileDialog({
                     </pre>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {onOpenExternal ? (
-                      <button
-                        onClick={() => onOpenExternal(GROK_URL)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-brand text-ink-900 font-medium hover:bg-brand/90 transition shrink-0"
-                      >
-                        <Icon name="external" size={14} />
-                        {t('reconcile.step2.openGrok')}
-                      </button>
-                    ) : null}
+
                     {onOpenSpec ? (
                       <button onClick={onOpenSpec} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-white/5 text-white/80 ring-1 ring-white/10 hover:bg-white/10 transition shrink-0">
                         <Icon name="info" size={14} />查看完整规范
