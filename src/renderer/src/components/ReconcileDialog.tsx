@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import type { ReconcileResult, RenamePreviewItem } from '../../../shared/types'
 import { t } from '../../../shared/i18n'
 import Icon from './Icon'
@@ -330,7 +330,7 @@ export default function ReconcileDialog({
                 </div>
               </section>
 
-              {/* ===== Step 3：更新片单 Excel ===== */}
+              {/* ===== Step 3：推荐用 Grok 生成 ===== */}
               <section className="mb-2">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-5 h-5 rounded-md bg-brand/20 text-brand text-[11px] font-bold flex items-center justify-center shrink-0">3</span>
@@ -338,24 +338,15 @@ export default function ReconcileDialog({
                 </div>
                 <p className="text-white/50 text-[12px] leading-relaxed mb-3 ml-7">{t('reconcile.step3.desc')}</p>
                 <div className="ml-7 flex flex-wrap items-center gap-2">
-                  {mdPath ? (
+                  {onOpenExternal ? (
                     <button
                       className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-medium"
-                      onClick={() => onOpenFile(mdPath)}
+                      onClick={() => onOpenExternal(GROK_URL)}
                     >
-                      {t('reconcile.step3.openIntro')}
-                    </button>
-                  ) : null}
-                  {onOpenLibrarySettings ? (
-                    <button
-                      className="px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 text-white/90 text-xs font-medium ring-1 ring-white/10 transition-colors"
-                      onClick={onOpenLibrarySettings}
-                    >
-                      {t('reconcile.step3.openSettings')}
+                      {t('onboard.step3.openGrok')}
                     </button>
                   ) : null}
                 </div>
-                <p className="ml-7 text-white/35 text-[11px] mt-2">{t('reconcile.step3.rescanHint')}</p>
               </section>
 
               {/* 已忽略项目管理 */}
