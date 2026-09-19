@@ -174,7 +174,7 @@ export default function OnboardSheetModal({
   }, [open, library?.id])
 
   const hasCodes = (codes?.length ?? 0) > 0
-  const fullPrompt = useMemo(() => buildFullPrompt(codes || []), [codes, locale])
+  const fullPrompt = useMemo(() => buildFullPrompt(codes || [], 'new'), [codes, locale])
 
   if (!open || !library) return null
 
