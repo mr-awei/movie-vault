@@ -108,8 +108,14 @@ function getPromptText(): string {
 }
 
 /** Build the full prompt — locale-aware（ReconcileDialog 复用，给新增视频生成片单提示词） */
-export function buildFullPrompt(codes: string[]): string {
-  const prompt = getPromptText()
+export function buildFullPrompt(codes: string[], mode: 'new' | 'append' = 'append'): string {
+  let prompt = getPromptText()
+  if (mode === 'new') {
+    prompt = prompt.replace(
+      '生成可以直接粘贴进已有的影海片单 Excel 的内容',
+      '生成影海片单 Excel'
+    )
+  }
   const codeList = codes.length > 0 ? codes.join('、') : '（无）'
   const header = getLocale() === 'en-US'
     ? `\n\nBelow is the movie list — process each one (${codes.length} total):\n`
