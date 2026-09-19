@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.13.0] - 2026-09-19
+
+**TV series episode merging / tech filter facets / season support / watcher auto-refresh / icon fix**
+
+### Added
+- **TV series episode merging (Jellyfin/Plex style)**: a folder with multiple numbered episodes (EP01~EP05 / S01E01 / 第01集) now collapses into ONE series entry instead of N standalone cards. Entry card shows an "N 集" badge; detail page lists every episode, clicking one plays that exact episode (not always EP01). Reconcile pass also skips episode-member files so they are never re-created as standalone entries.
+- **Season support**: EpisodeRef now carries season (parsed from S01E01 / "Season 1" / "第1季"); detail page groups episodes by season when a series spans multiple seasons.
+- **Tech filter facets (sidebar)**: new filter groups for video codec (HEVC/H.264/AV1/VP9), HDR format (HDR10/HLG/Dolby Vision/SDR), and audio codec (TrueHD/DTS/AAC/FLAC/AC3) — works alongside existing resolution/duration/score/year facets.
+- **Watcher auto-refresh**: renderer now subscribes to onWatcherEvent; file changes in the media library trigger a debounced (5s) auto rescan, so new/deleted files appear without manual "扫描库".
+- **Scene markers UX**: usage hint text above the input row, clearer placeholder examples, readable light-on-dark input styling.
+
+### Fixed
+- **Desktop icon white corners**: uild/icon.png was 24bpp without alpha; converted to 32bpp ARGB so Windows Explorer stops rendering opaque white corners behind the icon.
+- **Detail-page play closed the panel**: onPlay called setDetail(null); now the detail panel stays open while the external player launches.
+- **Wrong episode played when clicking an episode in detail**: ideoOpen only accepted an id and always returned EP01; new overridePath param forwards the clicked episode's real path.
+
 ## [2.12.0] - 2026-09-17
 
 **Duplicate detection v4 (perceptual hash) / batch metadata edit / scene markers / file logging**
