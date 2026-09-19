@@ -587,7 +587,15 @@ export async function reconcileLibrary(
   // 所有未 used 的文件都生成「未收录」条目，保证忽略后仍可在主列表/「未收录」分类找到
   const unlistedAll: UnlistedFile[] = allFiles
     .filter((f) => !used.has(f))
-    .map((f) => ({ fileName: path.basename(f), path: f }))
+    .map((f) => {
+      const dir = path.dirname(f)
+      const dirFiles = byFolder.get(dir) ?? [f]
+      const group = detectEpisodeGroup(dirFiles.map((x) => path.basename(x)))
+      if (group && group.length >= 2) {
+        return { fileName: path.basename(dir), path: f }
+      }
+      return { fileName: path.basename(f), path: f }
+    })
 
   // 对账弹窗/统计里过滤已忽略项，避免重复打扰
   const unlisted: UnlistedFile[] = unlistedAll.filter((u) => !ignoredSet.has(u.path))
