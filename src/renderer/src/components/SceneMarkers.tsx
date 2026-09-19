@@ -113,7 +113,7 @@ export default function SceneMarkers({ video }: Props) {
       {/* 新增 */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <input value={pos} onChange={(e) => setPos(e.target.value)} placeholder={t('markers.posPlaceholder')} className={`${inputCls} w-44`} />
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('markers.namePlaceholder')} className={`${inputCls} w-48`} />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('markers.namePlaceholder')} className={`${inputCls} w-36`} />
         <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t('markers.tagsPlaceholder')} className={`${inputCls} flex-1 min-w-[120px]`} />
         <button
           type="button"
