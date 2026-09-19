@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.13.1] - 2026-09-20
+
+**AI prompt v4.0 / onboard vs reconcile dialog split / episode folder names in reconcile**
+
+### Added
+- **AI prompt v4.0**: synopsis no longer restricts adult/sexual content — write plot fully and accurately; tab-separated fields for clean Excel paste.
+- **Onboard vs reconcile differentiation**: new-library wizard says "generate sheet", reconcile dialog says "append to existing sheet".
+- **Reconcile step3 Grok card**: matches onboard style (icon + name + URL + Open Grok button); duplicate Grok button removed from step2.
+
+### Fixed
+- **Episode folder names in reconcile unlisted list**: episode folders (e.g. "新金瓶梅 [全5集]") show the folder name instead of EP01 filename.
+- **"Generate sheet" link in add-library modal**: now prompts to pick folder first, or auto-saves and opens the wizard.
+
 ## [2.13.0] - 2026-09-19
 
 **TV series episode merging / tech filter facets / season support / watcher auto-refresh / icon fix**
