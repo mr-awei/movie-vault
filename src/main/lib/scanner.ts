@@ -246,6 +246,21 @@ export async function scanLibrary(
     created.push(video)
   }
   // fix7：创建阶段一次性落盘
+    // v2.13 兜底清理：任何独立条目的 path 若已被某个剧集条目的 episodes 收录，就删除该独立条目。
+  const normPath = (s: string) => path.resolve(s).replace(/[\\/]+/g, '/').toLowerCase()
+  const allAfter = await listVideos({ libraryId: library.id })
+  const epMemberPaths = new Set<string>()
+  for (const v of allAfter) {
+    if (v.episodes && v.episodes.length > 1) {
+      for (const ep of v.episodes) epMemberPaths.add(normPath(ep.path))
+    }
+  }
+  for (const v of allAfter) {
+    if (v.episodes && v.episodes.length > 1) continue
+    if (epMemberPaths.has(normPath(v.path))) {
+      createdChanges.push({ type: 'remove', id: v.id })
+    }
+  }
   if (createdChanges.length > 0) await applyVideoChanges(createdChanges)
   await Promise.all(
     created.map((v) =>
