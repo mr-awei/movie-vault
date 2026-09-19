@@ -2265,7 +2265,6 @@ export default function App() {
         onAddToPlaylist={handleAddToPlaylist}
           onClose={() => setDetail(null)}
           onPlay={(v) => {
-            setDetail(null)
             void api.videoOpen(v.id, undefined, v.path)
           }}
           onDetailFetched={handleDetailFetched}
